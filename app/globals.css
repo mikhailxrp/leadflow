@@ -54,6 +54,20 @@
   /* ─── Transitions ────────────────────────────── */
   --duration-fast: 150ms;
 
+  --animate-pulse-dot: pulse-dot 1.8s ease-in-out infinite;
+
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.35;
+      transform: scale(0.55);
+    }
+  }
+
   /* ─── Colors: Primary (Emerald) ──────────────── */
   --color-primary: #10b981;
   --color-primary-mid: #34d399;
