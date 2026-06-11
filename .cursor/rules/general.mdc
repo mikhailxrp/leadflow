@@ -1,0 +1,71 @@
+---
+description: General coding principles for all projects
+alwaysApply: true
+---
+
+Урок по PowerShell: никогда не использовать Get-Content + Set-Content без -Encoding UTF8 для файлов с кириллицей или emoji — PS5 на русской Windows использует CP-1251 по умолчанию, что ломает UTF-8. Всегда использовать [System.IO.File]::ReadAllText/WriteAllText с явным [System.Text.Encoding]::UTF8.
+
+## Universal
+
+- One file = one responsibility
+- Always handle errors explicitly (try/catch, fallback UI)
+- No magic numbers — use named constants
+- Prefer simple over clever
+- Never hardcode secrets — always use .env.local
+- Before writing code — make sure you understand the task fully
+- If task is unclear — ask ONE question before coding
+
+## TypeScript
+
+- `strict: true` in tsconfig.json — no exceptions
+- No `any` — use `unknown` if dynamic type needed
+- Interfaces for props, types for unions/intersections
+- Zod schemas → infer types via `z.infer<typeof schema>`
+- Always type function returns explicitly
+
+## React / Next.js
+
+- Functional components only — no class components
+- Server Component by default — `'use client'` only when needed
+- One component per file
+- Props destructuring in function signature
+- Early returns for conditional rendering
+
+## HTML / JSX
+
+- Semantic tags first: `<main>`, `<section>`, `<article>`, `<nav>`
+- Accessibility required: `alt` on images, `aria-*` and `role` where needed
+- No inline styles — use Tailwind classes
+
+## CSS / Tailwind
+
+- Mobile-first by default: base styles → `sm:` → `md:` → `lg:`
+- Use Tailwind utilities — custom CSS only when absolutely needed
+- Dark mode support via `dark:` prefix
+- Avoid `!important` except for utility overrides
+
+## Error Handling
+
+- Always wrap async operations in try/catch
+- User sees: friendly message. Console sees: full error
+- Never suppress errors silently
+
+## Design System
+
+- Компоненты — только из @/components/
+- Цвета и токены — только через CSS переменные из globals.css
+- Стиль — строго по direction.md
+- Сайдбар всегда bg-[#1A1F2E] — не менять
+
+## Documentation (MCP Context7)
+
+Before writing code that uses any external library — use MCP Context7 to fetch current documentation first.
+
+Required for:
+
+- `next-auth` / Auth.js v5 — API changed from v4
+- `prisma` — transactions, complex queries, typing
+- `next` — App Router patterns, Server Components
+- `zod` — validation schemas
+
+Rule: Context7 first → then code. Never guess library API from memory.

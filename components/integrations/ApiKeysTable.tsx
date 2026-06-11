@@ -1,0 +1,151 @@
+'use client';
+
+import { Icon } from '@iconify/react';
+import { useState, type ReactNode } from 'react';
+import Button from '@/components/ui/Button';
+
+const HIDDEN_KEY = '••••••••••••';
+
+interface ApiKeyRow {
+  id: string;
+  name: string;
+  source: string;
+  key: string;
+  created: string;
+}
+
+const MOCK_API_KEYS: ApiKeyRow[] = [
+  {
+    id: '1',
+    name: 'Основной лендинг',
+    source: 'Универсальный',
+    key: 'lk_live_abc123xyz789',
+    created: '12.10.2023',
+  },
+  {
+    id: '2',
+    name: 'Промо акция',
+    source: 'Универсальный',
+    key: 'lk_live_promo456def',
+    created: '05.11.2023',
+  },
+];
+
+function PlusIcon(): ReactNode {
+  return (
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    </svg>
+  );
+}
+
+export default function ApiKeysTable(): ReactNode {
+  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+
+  function handleToggleVisibility(id: string): void {
+    // TODO: показ полного ключа через API (одноразовый reveal)
+    setVisibleKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function handleDelete(id: string): void {
+    // TODO: удаление ключа через API
+    void id;
+  }
+
+  return (
+    <div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left">
+          <thead>
+            <tr className="border-b border-[var(--color-border)] border-[0.5px]">
+              {['Название', 'Источник', 'Ключ', 'Создан', 'Действия'].map((header) => (
+                <th
+                  key={header}
+                  className="
+                    whitespace-nowrap px-3 py-2
+                    text-[12px] font-medium text-[var(--color-text-secondary)]
+                  "
+                >
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {MOCK_API_KEYS.map((row) => (
+              <tr
+                key={row.id}
+                className="border-b border-[var(--color-border)] border-[0.5px] last:border-0"
+              >
+                <td className="whitespace-nowrap px-3 py-3 text-[13px] font-medium text-[var(--color-text-primary)]">
+                  {row.name}
+                </td>
+                <td className="whitespace-nowrap px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
+                  {row.source}
+                </td>
+                <td className="whitespace-nowrap px-3 py-3 font-mono text-[13px] text-[var(--color-text-secondary)]">
+                  {visibleKeys.has(row.id) ? row.key : HIDDEN_KEY}
+                </td>
+                <td className="whitespace-nowrap px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
+                  {row.created}
+                </td>
+                <td className="whitespace-nowrap px-3 py-3">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="
+                        rounded-[6px] p-1.5 text-[var(--color-text-secondary)]
+                        transition-colors duration-150
+                        hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)]
+                      "
+                      aria-label={`Показать ключ «${row.name}»`}
+                      onClick={() => handleToggleVisibility(row.id)}
+                    >
+                      <Icon icon="lucide:eye" className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="
+                        rounded-[6px] p-1.5 text-[var(--color-text-secondary)]
+                        transition-colors duration-150
+                        hover:bg-[var(--color-bg-surface-2)] hover:text-[#DC2626]
+                      "
+                      aria-label={`Удалить ключ «${row.name}»`}
+                      onClick={() => handleDelete(row.id)}
+                    >
+                      <Icon icon="lucide:trash-2" className="h-4 w-4" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Button
+        type="button"
+        variant="secondary"
+        size="md"
+        icon={<PlusIcon />}
+        className="mt-4"
+      >
+        Создать новый ключ
+      </Button>
+    </div>
+  );
+}

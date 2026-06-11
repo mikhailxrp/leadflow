@@ -1,0 +1,233 @@
+---
+description: React patterns and best practices for Next.js
+globs: ["**/*.{tsx,jsx}"]
+---
+
+## Component structure
+
+```typescript
+// 1. Imports
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+
+// 2. Types
+interface ComponentProps {
+  title: string
+  onSubmit: () => void
+}
+
+// 3. Component
+export function Component({ title, onSubmit }: ComponentProps) {
+  // 4. Hooks
+  const [state, setState] = useState(false)
+  
+  // 5. Event handlers
+  const handleClick = () => {
+    setState(true)
+    onSubmit()
+  }
+  
+  // 6. Early returns
+  if (!title) return null
+  
+  // 7. Main render
+  return (
+    <div>
+      <h1>{title}</h1>
+      <Button onClick={handleClick}>Submit</Button>
+    </div>
+  )
+}
+```
+
+## Hooks rules
+
+- Only call at top level (not in loops, conditions, nested functions)
+- Only call in function components or custom hooks
+- Custom hooks start with `use` prefix
+
+## State management
+
+### Local state (useState)
+```typescript
+const [count, setCount] = useState(0)
+const [user, setUser] = useState<User | null>(null)
+```
+
+### Derived state (useMemo)
+```typescript
+const filteredItems = useMemo(
+  () => items.filter(item => item.active),
+  [items]
+)
+```
+
+### Side effects (useEffect)
+```typescript
+useEffect(() => {
+  // Setup
+  const subscription = subscribe()
+  
+  // Cleanup
+  return () => subscription.unsubscribe()
+}, [dependencies])
+```
+
+## Performance optimization
+
+### Memoization
+```typescript
+// Expensive calculation
+const expensiveValue = useMemo(() => {
+  return computeExpensiveValue(a, b)
+}, [a, b])
+
+// Callback memoization
+const handleClick = useCallback(() => {
+  doSomething(a, b)
+}, [a, b])
+```
+
+### React.memo
+```typescript
+export const MemoizedComponent = memo(function Component({ data }: Props) {
+  return <div>{data}</div>
+})
+```
+
+## Conditional rendering
+
+### Early return
+```typescript
+if (!data) return <Loading />
+if (error) return <Error message={error} />
+return <Success data={data} />
+```
+
+### Ternary
+```typescript
+{isLoading ? <Spinner /> : <Content />}
+```
+
+### Logical AND
+```typescript
+{showBanner && <Banner />}
+```
+
+## Lists and keys
+
+```typescript
+{items.map(item => (
+  <Card key={item.id} data={item} />
+))}
+```
+
+- Always provide `key` prop
+- Use stable IDs (not array index)
+- Keys must be unique among siblings
+
+## Forms
+
+### Controlled components
+```typescript
+const [value, setValue] = useState('')
+
+<input
+  value={value}
+  onChange={(e) => setValue(e.target.value)}
+/>
+```
+
+### React Hook Form
+```typescript
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+
+const { register, handleSubmit, formState: { errors } } = useForm({
+  resolver: zodResolver(schema)
+})
+
+const onSubmit = (data: FormData) => {
+  // Handle form submission
+}
+```
+
+## Context
+
+### Create context
+```typescript
+const ThemeContext = createContext<Theme | undefined>(undefined)
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setTheme] = useState<Theme>('light')
+  
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  )
+}
+```
+
+### Use context
+```typescript
+export function useTheme() {
+  const context = useContext(ThemeContext)
+  if (!context) throw new Error('useTheme must be used within ThemeProvider')
+  return context
+}
+```
+
+## Error boundaries
+
+```typescript
+'use client' // Error boundaries must be Client Components
+
+export function ErrorBoundary({ error, reset }: {
+  error: Error
+  reset: () => void
+}) {
+  return (
+    <div>
+      <h2>Something went wrong</h2>
+      <button onClick={reset}>Try again</button>
+    </div>
+  )
+}
+```
+
+## Composition patterns
+
+### Children as function
+```typescript
+<DataProvider>
+  {({ data, loading }) => (
+    loading ? <Spinner /> : <List data={data} />
+  )}
+</DataProvider>
+```
+
+### Render props
+```typescript
+<Mouse render={({ x, y }) => (
+  <p>Position: {x}, {y}</p>
+)} />
+```
+
+## Accessibility
+
+- Use semantic HTML
+- Add ARIA attributes where needed
+- Keyboard navigation support
+- Focus management
+- Screen reader friendly
+
+```typescript
+<button
+  aria-label="Close dialog"
+  aria-pressed={isPressed}
+  onClick={handleClick}
+>
+  <Icon />
+</button>
+```

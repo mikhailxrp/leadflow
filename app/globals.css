@@ -1,26 +1,153 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ================================================================
+   TAILWIND v4 DESIGN TOKENS
+   Заменяет tailwind.config.js — все кастомные классы отсюда
+   ================================================================ */
+@theme {
+  /* ─── Fonts ──────────────────────────────────── */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, monospace;
+
+  /* ─── Font sizes ─────────────────────────────── */
+  --font-size-11: 11px;
+  --font-size-12: 12px;
+  --font-size-13: 13px;
+  --font-size-14: 14px;
+  --font-size-15: 15px;
+  --font-size-20: 20px;
+  --font-size-28: 28px;
+
+  --line-height-11: 1.5;
+  --line-height-12: 1.5;
+  --line-height-13: 1.6;
+  --line-height-14: 1.6;
+  --line-height-15: 1.5;
+  --line-height-20: 1.3;
+  --line-height-28: 1.3;
+
+  /* ─── Border radius ──────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-pill: 20px;
+
+  /* ─── Spacing ────────────────────────────────── */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+
+  /* ─── Border width ───────────────────────────── */
+  --border-width-hairline: 0.5px;
+
+  /* ─── Sizing ─────────────────────────────────── */
+  --width-sidebar: 220px;
+  --height-header: 56px;
+  --height-btn-sm: 28px;
+  --height-btn-md: 36px;
+  --height-btn-lg: 42px;
+
+  /* ─── Transitions ────────────────────────────── */
+  --duration-fast: 150ms;
+
+  /* ─── Colors: Primary (Emerald) ──────────────── */
+  --color-primary: #10b981;
+  --color-primary-mid: #34d399;
+  --color-primary-light: #d1fae5;
+  --color-primary-dark: #065f46;
+  --color-primary-hover: #0e9e6e;
+
+  /* ─── Colors: Semantic ───────────────────────── */
+  --color-info: #3b82f6;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-success: #22c55e;
+  --color-purple: #8b5cf6;
+
+  /* ─── Colors: Sidebar (constant, theme-agnostic) */
+  --color-sidebar-bg: #1a1f2e;
+  --color-sidebar-text: #94a3b8;
+  --color-sidebar-text-active: #34d399;
+  --color-sidebar-item-active: rgba(16, 185, 129, 0.15);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ================================================================
+   CSS VARIABLES — Light / Dark themes
+   Меняются по data-theme, @theme выше — нет
+   ================================================================ */
+:root,
+[data-theme="light"] {
+  --color-bg-page: #f8fafc;
+  --color-bg-surface: #ffffff;
+  --color-bg-surface-2: #f1f5f9;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #64748b;
+  --color-text-tertiary: #94a3b8;
+  --color-border: rgba(15, 23, 42, 0.1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+[data-theme="dark"] {
+  --color-bg-page: #0f1117;
+  --color-bg-surface: #1e2433;
+  --color-bg-surface-2: #252b3b;
+  --color-text-primary: #e2e8f0;
+  --color-text-secondary: #64748b;
+  --color-text-tertiary: #475569;
+  --color-border: rgba(255, 255, 255, 0.08);
+  /* Sidebar темнее в dark-теме */
+  --color-sidebar-bg: #0f1117;
+}
+
+/* ================================================================
+   BASE STYLES
+   ================================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+
+code,
+pre,
+.font-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* ─── Scrollbar ─────────────────────────────────── */
+.custom-scrollbar::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
 }

@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# docs
+.docs/phases
+.docs/prompts
+.docs/ref
+.docs/dod-global.md
+.docs/tz-crm.md
+TASK-*.md
+TASK.md
+
+

@@ -1,0 +1,142 @@
+---
+description: TypeScript rules for Next.js projects
+globs: ["**/*.{ts,tsx}"]
+---
+
+## Core principles
+
+- `strict: true` in tsconfig.json — always
+- No `any` — use `unknown` or specific type
+- Explicit return types on functions
+- Type inference where obvious, explicit types where needed
+
+## Type definitions
+
+### Props
+```typescript
+interface ButtonProps {
+  children: React.ReactNode
+  onClick?: () => void
+  variant?: 'primary' | 'secondary'
+}
+
+export function Button({ children, onClick, variant = 'primary' }: ButtonProps) {
+  // ...
+}
+```
+
+### Server Actions
+```typescript
+type ActionResult<T = void> = {
+  success: boolean
+  error?: string
+  data?: T
+}
+
+async function createUser(data: CreateUserInput): Promise<ActionResult<User>> {
+  // ...
+}
+```
+
+### Zod → TypeScript
+```typescript
+import { z } from 'zod'
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8)
+})
+
+type LoginInput = z.infer<typeof loginSchema>
+// LoginInput = { email: string; password: string }
+```
+
+## When to use interface vs type
+
+### Interface — for object shapes
+```typescript
+interface User {
+  id: string
+  email: string
+  name?: string
+}
+```
+
+### Type — for unions, intersections, utilities
+```typescript
+type Status = 'pending' | 'approved' | 'rejected'
+type UserWithPosts = User & { posts: Post[] }
+type Optional<T> = { [K in keyof T]?: T[K] }
+```
+
+## Avoid
+
+- `any` — use `unknown` instead
+- Type assertions (`as`) — use type guards instead
+- Non-null assertion (`!`) — handle null explicitly
+- `Function` type — define actual signature
+
+## Generics
+
+Use when function/component works with multiple types:
+
+```typescript
+function getById<T>(id: string, items: T[]): T | undefined {
+  return items.find(item => item.id === id)
+}
+```
+
+## Utility types
+
+- `Partial<T>` — all properties optional
+- `Required<T>` — all properties required
+- `Pick<T, K>` — select specific properties
+- `Omit<T, K>` — exclude specific properties
+- `Record<K, T>` — object with specific key/value types
+
+## React + TypeScript
+
+### Component props
+```typescript
+type CardProps = {
+  title: string
+  children: React.ReactNode
+  className?: string
+}
+```
+
+### Event handlers
+```typescript
+const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+  // ...
+}
+```
+
+### Refs
+```typescript
+const inputRef = useRef<HTMLInputElement>(null)
+```
+
+## Prisma + TypeScript
+
+```typescript
+import { User } from '@prisma/client'
+
+// Generated types from Prisma schema
+type UserWithPosts = User & { posts: Post[] }
+```
+
+## Error handling
+
+```typescript
+try {
+  const result = await riskyOperation()
+} catch (error) {
+  if (error instanceof CustomError) {
+    // Handle custom error
+  } else {
+    // Handle unknown error
+    console.error('Unknown error:', error)
+  }
+}
+```

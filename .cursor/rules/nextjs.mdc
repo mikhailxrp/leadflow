@@ -1,0 +1,138 @@
+---
+description: Next.js 15+ (App Router) rules and best practices
+globs: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"]
+---
+
+## Core principles
+
+- Next.js 15+ App Router only — no Pages Router in new code
+- TypeScript strict mode — no `.js` or `.jsx` files
+- Server Components by default — `'use client'` only when necessary
+- Server Actions for mutations — minimize API routes
+
+## File structure
+
+- `app/` — all routes, layouts, pages
+- `app/(group)/` — route groups for organization (auth, dashboard, etc)
+- `app/api/` — API routes (minimize usage, prefer Server Actions)
+- `components/ui/` — LeadFlow design system (Button, Input, Card, Badge, Avatar, Toast)
+  Import from `@/components/index` — не создавай новые компоненты без необходимости
+  Стиль и токены — см. direction.md в корне
+- `components/forms/` — form components with validation
+- `components/layouts/` — reusable layouts (Header, Footer, Sidebar)
+- `lib/` — utilities, DB, auth config, validations
+- `actions/` — Server Actions
+
+## Server Components (default)
+
+- No `'use client'` directive needed
+- Can fetch data directly (async component)
+- Can import Client Components
+- Cannot use hooks (useState, useEffect, etc)
+- Cannot use browser APIs
+- Render on server → less JS on client
+
+## Client Components (`'use client'`)
+
+Use ONLY when you need:
+
+- Interactivity (onClick, onChange, etc)
+- React hooks (useState, useEffect, useContext)
+- Browser APIs (localStorage, window, document)
+- Event listeners
+- Third-party libraries that use hooks
+
+## Server Actions
+
+- `'use server'` at top of file or function
+- Always validate input via Zod before any operation
+- Return type: `{ success: boolean; error?: string; data?: T }`
+- Handle errors with try/catch
+- Use `revalidatePath()` or `revalidateTag()` after mutations
+- Can be called from forms or Client Components
+
+## Data Fetching
+
+### In Server Components:
+
+```typescript
+async function getData() {
+  const data = await prisma.model.findMany()
+  return data
+}
+
+export default async function Page() {
+  const data = await getData()
+  return <div>{/* render data */}</div>
+}
+```
+
+### In Client Components:
+
+- Use SWR or React Query
+- Or fetch via Server Action
+
+## Forms
+
+- Server Actions for submission (no need for API routes)
+- Controlled forms via react-hook-form
+- Zod validation on both client and server
+- Optimistic updates via `useOptimistic` hook
+
+## Routing
+
+- File-based routing in `app/` directory
+- `page.tsx` — route UI
+- `layout.tsx` — shared UI for route segment
+- `loading.tsx` — loading UI (Suspense fallback)
+- `error.tsx` — error UI (error boundary)
+- Dynamic routes: `[id]/page.tsx`
+- Route groups: `(auth)/login/page.tsx`
+
+## Layouts
+
+- Root layout required: `app/layout.tsx`
+- Nested layouts supported
+- Layouts wrap children and persist across navigation
+- Use for shared UI (nav, footer, sidebar)
+
+## Middleware
+
+```typescript
+// middleware.ts
+export function middleware(request: NextRequest) {
+  // Auth, redirects, headers
+}
+
+export const config = {
+  matcher: ["/dashboard/:path*"],
+};
+```
+
+## Database (Prisma)
+
+- All queries via Prisma Client
+- Use transactions for related operations
+- Soft delete over hard delete (add `deleted_at` field)
+- Index frequently queried fields
+
+## Environment Variables
+
+- Client-side: `NEXT_PUBLIC_*` prefix
+- Server-side: no prefix, access in Server Components/Actions only
+- Never expose secrets to client
+- Store in `.env.local` (gitignored)
+
+## Performance
+
+- Use `next/image` for all images
+- Lazy load heavy components: `const Heavy = dynamic(() => import('./Heavy'))`
+- Use `next/font` for font optimization
+- Prefer Server Components for less client JS
+
+## Security
+
+- Validate all inputs via Zod (client + server)
+- CSRF protection built-in (Server Actions)
+- Auth via middleware for protected routes
+- Never expose DB credentials or API keys to client
