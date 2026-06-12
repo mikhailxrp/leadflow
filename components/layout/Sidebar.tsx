@@ -43,25 +43,47 @@ export default function Sidebar({ items, userInitials = 'АД', userName = 'Ад
 
       {/* Nav */}
       <nav className="flex-1 px-3 mt-2 space-y-1">
-        {items.map((item) => (
-          <a
-            key={item.label}
-            href={item.href || '#'}
-            onClick={item.onClick}
-            className={`
-              flex items-center gap-3 px-3 py-[7px] rounded-[6px]
-              text-[13px] font-medium
-              transition-colors duration-150
-              ${isActive(item)
-                ? 'bg-[rgba(16,185,129,0.15)] text-[#34D399]'
-                : 'text-[#94A3B8] hover:bg-[rgba(255,255,255,0.06)]'
-              }
-            `}
-          >
-            <Icon icon={item.icon} className="w-4 h-4 flex-shrink-0" />
-            {item.label}
-          </a>
-        ))}
+        {items.map((item) => {
+          const active = isActive(item);
+          const className = `
+            flex items-center gap-3 px-3 py-[7px] rounded-[6px]
+            text-[13px] font-medium
+            transition-colors duration-150
+            ${active
+              ? 'bg-[rgba(16,185,129,0.15)] text-[#34D399]'
+              : 'text-[#94A3B8] hover:bg-[rgba(255,255,255,0.06)]'
+            }
+          `;
+
+          if (!item.href || item.href === '#') {
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={item.onClick}
+                className={className}
+              >
+                <Icon icon={item.icon} className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+                {item.label}
+              </button>
+            );
+          }
+
+          return (
+            <Link
+              key={item.label}
+              href={item.href}
+              onClick={() => {
+                item.onClick?.();
+                setMobileOpen(false);
+              }}
+              className={className}
+            >
+              <Icon icon={item.icon} className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* User */}

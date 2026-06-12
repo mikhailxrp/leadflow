@@ -1,21 +1,22 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import ShellGate from '@/components/layout/ShellGate';
+import './globals.css';
 
 const inter = Inter({
-  variable: "--font-sans",
-  subsets: ["latin", "cyrillic"],
+  variable: '--font-sans',
+  subsets: ['latin', 'cyrillic'],
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "LeadFlow",
-    template: "%s — LeadFlow",
+    default: 'LeadFlow',
+    template: '%s — LeadFlow',
   },
   description:
-    "LeadFlow — система для сбора, обработки и сопровождения лидов от первого контакта до сделки.",
+    'LeadFlow — система для сбора, обработки и сопровождения лидов от первого контакта до сделки.',
   icons: {
-    icon: "/icon.svg",
+    icon: '/icon.svg',
   },
 };
 
@@ -26,7 +27,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" className={`${inter.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ShellGate>{children}</ShellGate>
+      </body>
     </html>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import IntegrationCard from '@/components/integrations/IntegrationCard';
 import ApiKeysTable from '@/components/integrations/ApiKeysTable';
 import WebhookUrl from '@/components/integrations/WebhookUrl';
+import YandexDirectCard from '@/components/integrations/YandexDirectCard';
 import { PageContent } from '@/components/layout/AppLayout';
 import Avatar from '@/components/ui/Avatar';
 
@@ -227,6 +228,8 @@ export default function AdminIntegrationsPage() {
           >
             <WebhookUrl url={WEBHOOK_WORDPRESS_URL} />
           </IntegrationCard>
+
+          <YandexDirectCard />
 
           <IntegrationCard
             icon={<WebhookIcon />}
