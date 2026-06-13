@@ -277,7 +277,7 @@ data: { "id": "clxxx", "name": "Иван", "source": "TILDA", "assignedToId": "c
 **Response 200:**
 
 ```json
-{ "url": "https://t.me/leadflow_bot?start=bind_xxx", "expiresIn": 600 }
+{ "url": "https://t.me/leadcrm_bot?start=bind_xxx", "expiresIn": 600 }
 ```
 
 ### `POST /api/telegram/webhook`

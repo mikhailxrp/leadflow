@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+@layer base {
+  a[href],
+  button:not(:disabled),
+  label[for],
+  select,
+  summary,
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
 /* ================================================================
    TAILWIND v4 DESIGN TOKENS
    Заменяет tailwind.config.js — все кастомные классы отсюда
@@ -123,6 +139,10 @@
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+html {
+  scrollbar-gutter: stable;
 }
 
 body {

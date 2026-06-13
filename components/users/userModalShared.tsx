@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode } from 'react';
+import IconButton from '@/components/ui/IconButton';
 
 export type UserStatus = 'active' | 'blocked';
 
@@ -64,14 +65,12 @@ export function ModalHeader({ title, onClose }: ModalHeaderProps): ReactNode {
   return (
     <div className="flex items-center justify-between">
       <h2 className="text-[20px] font-medium text-[var(--color-text-primary)]">{title}</h2>
-      <button
-        type="button"
+      <IconButton
+        size="sm"
         onClick={onClose}
-        className="rounded-[6px] p-1 text-[var(--color-text-tertiary)] transition-colors duration-150 hover:text-[var(--color-text-primary)]"
         aria-label="Закрыть"
-      >
-        ✕
-      </button>
+        icon={<span aria-hidden="true">✕</span>}
+      />
     </div>
   );
 }

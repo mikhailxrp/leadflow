@@ -1,5 +1,6 @@
 // ─── UI atoms ────────────────────────────────────────────────────
 export { default as Button }              from './ui/Button';
+export { default as IconButton }          from './ui/IconButton';
 export { default as Input }               from './ui/Input';
 export { default as Card }                from './ui/Card';
 export { default as Avatar }              from './ui/Avatar';

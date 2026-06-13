@@ -3,6 +3,7 @@
 import { Icon } from '@iconify/react';
 import { useState, type ReactNode } from 'react';
 import Button from '@/components/ui/Button';
+import IconButton from '@/components/ui/IconButton';
 
 const HIDDEN_KEY = '••••••••••••';
 
@@ -105,30 +106,17 @@ export default function ApiKeysTable(): ReactNode {
                 </td>
                 <td className="whitespace-nowrap px-3 py-3">
                   <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      className="
-                        rounded-[6px] p-1.5 text-[var(--color-text-secondary)]
-                        transition-colors duration-150
-                        hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)]
-                      "
+                    <IconButton
                       aria-label={`Показать ключ «${row.name}»`}
                       onClick={() => handleToggleVisibility(row.id)}
-                    >
-                      <Icon icon="lucide:eye" className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      className="
-                        rounded-[6px] p-1.5 text-[var(--color-text-secondary)]
-                        transition-colors duration-150
-                        hover:bg-[var(--color-bg-surface-2)] hover:text-[#DC2626]
-                      "
+                      icon={<Icon icon="lucide:eye" className="h-4 w-4" />}
+                    />
+                    <IconButton
+                      className="hover:text-[#DC2626]"
                       aria-label={`Удалить ключ «${row.name}»`}
                       onClick={() => handleDelete(row.id)}
-                    >
-                      <Icon icon="lucide:trash-2" className="h-4 w-4" />
-                    </button>
+                      icon={<Icon icon="lucide:trash-2" className="h-4 w-4" />}
+                    />
                   </div>
                 </td>
               </tr>

@@ -4,6 +4,7 @@ import ApiKeysTable from '@/components/integrations/ApiKeysTable';
 import WebhookUrl from '@/components/integrations/WebhookUrl';
 import YandexDirectCard from '@/components/integrations/YandexDirectCard';
 import { PageContent } from '@/components/layout/AppLayout';
+import IconButton from '@/components/ui/IconButton';
 import Avatar from '@/components/ui/Avatar';
 
 export const metadata: Metadata = {
@@ -177,20 +178,8 @@ export default function AdminIntegrationsPage() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="rounded-[6px] p-1.5 transition-colors duration-150 hover:bg-[var(--color-bg-surface-2)]"
-            aria-label="Поиск"
-          >
-            <SearchIcon />
-          </button>
-          <button
-            type="button"
-            className="rounded-[6px] p-1.5 transition-colors duration-150 hover:bg-[var(--color-bg-surface-2)]"
-            aria-label="Уведомления"
-          >
-            <BellIcon />
-          </button>
+          <IconButton aria-label="Поиск" icon={<SearchIcon />} />
+          <IconButton aria-label="Уведомления" icon={<BellIcon />} />
           <Avatar initials="АА" size="sm" />
         </div>
       </header>

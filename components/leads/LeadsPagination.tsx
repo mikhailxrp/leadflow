@@ -94,7 +94,7 @@ export default function LeadsPagination({
               type="button"
               onClick={() => setCurrentPage(item)}
               className={`
-                flex h-[28px] min-w-[28px] items-center justify-center
+                flex h-[28px] min-w-[28px] cursor-pointer items-center justify-center
                 rounded-[6px] px-2 text-[13px] font-medium
                 transition-colors duration-150
                 ${item === currentPage

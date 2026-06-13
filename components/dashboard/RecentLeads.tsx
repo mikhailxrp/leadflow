@@ -70,6 +70,7 @@ export default function RecentLeads() {
       <LeadsTable<RecentLeadRow>
         keyField="id"
         data={MOCK_LEADS}
+        rowClickable
         columns={[
           {
             key: 'name',

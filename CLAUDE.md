@@ -11,7 +11,7 @@
 
 **Модель поставки:** Boxed — продукт для одного клиента, разовая поставка. Разворачивает поставщик на сервере клиента (production-build, не исходники). Архитектура мультитенантная (`companyId` во всех таблицах) — задел на будущий SaaS без переработки ядра.
 
-**Деплой:** сервер клиента + Nginx + PM2. PostgreSQL. Секреты — в `.env` на сервере, вне репозитория.
+**Деплой:** VPS Beget + Nginx + PM2 + GitHub Actions (CI/CD). PostgreSQL — Beget Managed Database. Файловое хранилище — Beget Cloud Storage (S3-совместимое). Секреты — в `.env` на сервере, вне репозитория.
 
 ---
 
@@ -19,16 +19,16 @@
 
 Перед началом задачи читай нужные файлы:
 
-| Тема                                            | Файл                             |
-| ----------------------------------------------- | -------------------------------- |
-| Обзор продукта + фичи + роадмап                 | `.docs/prd.md`                   |
-| Схема БД (Prisma)                               | `.docs/database.md`              |
-| Детальная спецификация модуля                   | `.docs/modules/<module-name>.md` |
-| Текущая фаза                                    | `.docs/phases/phase-N.md`        |
-| Текущий таск                                    | `TASK.md`                        |
-| Definition of Done                              | `.docs/dod-global.md`            |
-| Журнал сессий                                   | `.docs/dev-log.md`               |
-| Дизайн-система (цвета, типографика, компоненты) | `.docs/design-system.md`         |
+| Тема | Файл |
+| --- | --- |
+| Обзор продукта + фичи + роадмап | `.docs/prd.md` |
+| Схема БД (Prisma) | `.docs/database.md` |
+| Детальная спецификация модуля | `.docs/modules/<module-name>.md` |
+| Текущая фаза | `.docs/phases/phase-N.md` |
+| Текущий таск | `TASK.md` |
+| Definition of Done | `.docs/dod-global.md` |
+| Журнал сессий | `.docs/dev-log.md` |
+| Дизайн-система (цвета, типографика, компоненты) | `.docs/design-system.md` |
 
 **Принцип:** PRD — высокоуровневый обзор. Детали каждой фичи (приём лидов, воронка, карточка, распределение, уведомления, админка) — в `.docs/modules/`. При работе над таском всегда сначала открывай соответствующий модуль.
 
@@ -38,20 +38,20 @@
 
 **Используем:**
 
-| Слой           | Технология                                           | Почему                                                                                                                                                                                                                                                                                |
-| -------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework      | Next.js `^16.2.6` (App Router)                       | RSC, файловый роутинг, API Routes в одном проекте. Минор `16.2` фиксируем, патчи автоматом. Ветка 15.x теряет LTS-поддержку в октябре 2026 — стартуем сразу на 16. Минимум `16.2.6` — в нём закрыты security-уязвимости майского релиза 2026 (включая обход авторизации через proxy). |
-| React          | React 19.x                                           | Идёт в комплекте с Next.js 16. Server Components, новые хуки.                                                                                                                                                                                                                         |
-| Language       | TypeScript 5+ (strict)                               | Типы ловят ошибки до запуска. Никаких `any`.                                                                                                                                                                                                                                          |
-| Database       | PostgreSQL + Prisma                                  | Типобезопасные запросы, миграции через код. JSONB для гибких полей форм.                                                                                                                                                                                                              |
-| Auth           | NextAuth.js v5 (credentials, JWT-сессии)             | Сессии и защита роутов из коробки. Роли admin/manager в session-callback. Функция `auth()` единообразно в Server Components, API Routes и `proxy.ts`. v5 обязательна для Next.js 16 App Router.                                                                                       |
-| Realtime       | SSE (Server-Sent Events)                             | Уведомления о новых лидах в реальном времени. Проще WebSocket для односторонней доставки сервер→клиент.                                                                                                                                                                               |
-| Telegram       | Telegram Bot API (`node-telegram-bot-api` или fetch) | Уведомления ответственному менеджеру. Токен бота — в `.env`.                                                                                                                                                                                                                          |
-| Styling        | Tailwind CSS                                         | Утилитарный. Дизайн-токены (изумрудный акцент, тёмный сайдбар, светлая/тёмная тема) — в `tailwind.config.ts`, см. `design-system.md`.                                                                                                                                                 |
-| Validation     | Zod                                                  | Серверная валидация всех входов API. На клиенте — через `react-hook-form` + Zod.                                                                                                                                                                                                      |
-| State (client) | Zustand                                              | Состояние воронки, фильтров, уведомлений. Проще Redux, без бойлерплейта.                                                                                                                                                                                                              |
-| Drag-and-drop  | `@dnd-kit/core`                                      | Перетаскивание карточек в Kanban и этапов в настройках воронки.                                                                                                                                                                                                                       |
-| Password       | bcrypt                                               | Хэширование паролей.                                                                                                                                                                                                                                                                  |
+| Слой | Технология | Почему |
+| --- | --- | --- |
+| Framework | Next.js `^16.2.6` (App Router) | RSC, файловый роутинг, API Routes в одном проекте. Минор `16.2` фиксируем, патчи автоматом. Ветка 15.x теряет LTS-поддержку в октябре 2026 — стартуем сразу на 16. Минимум `16.2.6` — в нём закрыты security-уязвимости майского релиза 2026 (включая обход авторизации через proxy). |
+| React | React 19.x | Идёт в комплекте с Next.js 16. Server Components, новые хуки. |
+| Language | TypeScript 5+ (strict) | Типы ловят ошибки до запуска. Никаких `any`. |
+| Database | PostgreSQL + Prisma | Типобезопасные запросы, миграции через код. JSONB для гибких полей форм. |
+| Auth | NextAuth.js v5 (credentials, JWT-сессии) | Сессии и защита роутов из коробки. Роли admin/manager в session-callback. Функция `auth()` единообразно в Server Components, API Routes и `proxy.ts`. v5 обязательна для Next.js 16 App Router. |
+| Realtime | SSE (Server-Sent Events) | Уведомления о новых лидах в реальном времени. Проще WebSocket для односторонней доставки сервер→клиент. |
+| Telegram | Telegram Bot API (`node-telegram-bot-api` или fetch) | Уведомления ответственному менеджеру. Токен бота — в `.env`. |
+| Styling | Tailwind CSS | Утилитарный. Дизайн-токены (изумрудный акцент, тёмный сайдбар, светлая/тёмная тема) — в `tailwind.config.ts`, см. `design-system.md`. |
+| Validation | Zod | Серверная валидация всех входов API. На клиенте — через `react-hook-form` + Zod. |
+| State (client) | Zustand | Состояние воронки, фильтров, уведомлений. Проще Redux, без бойлерплейта. |
+| Drag-and-drop | `@dnd-kit/core` | Перетаскивание карточек в Kanban и этапов в настройках воронки. |
+| Password | bcrypt | Хэширование паролей. |
 
 **Не используем:**
 
@@ -89,6 +89,7 @@
 │       ├── settings/         # Настройки: режим распределения, видимость лидов
 │       ├── api-keys/         # Управление API-ключами (ADMIN)
 │       ├── reminders/        # CRUD напоминаний по лиду + доставка
+│       ├── tasks/            # CRUD задач по лиду
 │       └── stream/           # SSE-поток уведомлений
 │
 ├── components/
@@ -98,6 +99,7 @@
 │   ├── pipeline/             # Kanban-доска, карточка в колонке, drag-and-drop
 │   ├── notifications/        # Toast, колокольчик, лента
 │   ├── reminders/            # Блок напоминаний в карточке лида, модалка создания
+│   ├── tasks/                # Блок задач в карточке лида, модалки создания/редактирования
 │   └── admin/                # UI админки по фичам (users, integrations, pipeline-settings, app-settings)
 │
 ├── lib/                      # Серверные утилиты
@@ -227,11 +229,7 @@ export const proxy = auth((req) => {
   const { pathname } = req.nextUrl;
 
   // Рабочая зона — авторизованные
-  if (
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/leads") ||
-    pathname.startsWith("/pipeline")
-  ) {
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/leads") || pathname.startsWith("/pipeline")) {
     if (!session) return NextResponse.redirect(new URL("/login", req.url));
   }
 
@@ -246,12 +244,7 @@ export const proxy = auth((req) => {
 });
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/leads/:path*",
-    "/pipeline/:path*",
-    "/admin/:path*",
-  ],
+  matcher: ["/dashboard/:path*", "/leads/:path*", "/pipeline/:path*", "/admin/:path*"],
 };
 ```
 
@@ -327,3 +320,4 @@ COMPANY_INITIAL_NAME=
 - Распределение лидов — через `lib/assignLead.ts`, режим берётся из настроек компании
 - Уведомления — два канала: SSE (интерфейс) и Telegram, оба после создания лида
 - Напоминания — через `lib/reminders/scheduler.ts` (cron, каждую минуту); новые каналы доставки добавляются как handler в `lib/reminders/channels/`, без изменения схемы БД; доставка параллельная (`Promise.allSettled`), сбой одного канала не отменяет другой
+- Задачи — всегда привязаны к лиду (`leadId` обязателен); `TaskItem` при клике делает `router.push('/leads/' + task.leadId)`; `completedAt` выставляет только сервер при `status = DONE`; видимость задач определяется через `visibilityWhere` лида

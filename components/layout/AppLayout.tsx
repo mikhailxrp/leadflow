@@ -15,14 +15,14 @@ interface AppLayoutProps {
  */
 export default function AppLayout({ sidebar, children }: AppLayoutProps) {
   return (
-    <div className="flex min-h-screen bg-[var(--color-bg-page)] font-sans">
+    <div className="flex h-screen overflow-hidden bg-[var(--color-bg-page)] font-sans">
       {/* Sidebar spacer for desktop (sidebar is fixed) */}
       <div className="hidden lg:block w-[220px] flex-shrink-0" />
 
       {sidebar}
 
-      {/* Main content column */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Main content column — min-h-0 lets inner overflow-auto scroll instead of body */}
+      <div className="flex min-h-0 flex-1 flex-col min-w-0">
         {children}
       </div>
     </div>
@@ -37,7 +37,7 @@ interface PageContentProps {
 
 export function PageContent({ children, className = '' }: PageContentProps) {
   return (
-    <main className={`flex-1 p-6 overflow-auto ${className}`}>
+    <main className={`min-h-0 flex-1 overflow-auto p-6 ${className}`}>
       {children}
     </main>
   );

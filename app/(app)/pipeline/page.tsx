@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { PageContent } from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import PipelineBoard from '@/components/pipeline/PipelineBoard';
+import IconButton from '@/components/ui/IconButton';
 
 const PIPELINE_SETTINGS_PATH = '/admin/pipeline';
 
@@ -80,20 +81,8 @@ export default function PipelinePage() {
         title="Воронка продаж"
         actions={
           <>
-            <button
-              type="button"
-              className="rounded-[6px] p-1.5 transition-colors duration-150 hover:bg-[var(--color-bg-surface-2)]"
-              aria-label="Поиск"
-            >
-              <SearchIcon />
-            </button>
-            <button
-              type="button"
-              className="rounded-[6px] p-1.5 transition-colors duration-150 hover:bg-[var(--color-bg-surface-2)]"
-              aria-label="Уведомления"
-            >
-              <BellIcon />
-            </button>
+            <IconButton aria-label="Поиск" icon={<SearchIcon />} />
+            <IconButton aria-label="Уведомления" icon={<BellIcon />} />
             <span
               className="mx-1 h-5 w-px bg-[var(--color-border)]"
               aria-hidden="true"

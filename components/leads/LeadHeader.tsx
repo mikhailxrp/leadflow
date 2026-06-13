@@ -23,7 +23,9 @@ export default function LeadHeader({ name, status }: LeadHeaderProps) {
         </h1>
       </div>
 
-      <StatusBadge status={status} />
+      <div className="flex items-center gap-3">
+        <StatusBadge status={status} />
+      </div>
     </header>
   );
 }

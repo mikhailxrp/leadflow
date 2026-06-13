@@ -46,14 +46,14 @@ interface TaskGroupProps {
   group: TaskGroupType;
   tasks: TaskItem[];
   onToggleDone: (id: string) => void;
-  onLeadClick: (leadId: string) => void;
+  onTaskClick: (task: TaskItem) => void;
 }
 
 export default function TaskGroup({
   group,
   tasks,
   onToggleDone,
-  onLeadClick,
+  onTaskClick,
 }: TaskGroupProps): ReactNode {
   if (tasks.length === 0) return null;
 
@@ -87,7 +87,7 @@ export default function TaskGroup({
             <TaskRow
               task={task}
               onToggleDone={onToggleDone}
-              onLeadClick={onLeadClick}
+              onTaskClick={onTaskClick}
             />
           </li>
         ))}

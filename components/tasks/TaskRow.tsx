@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { type KeyboardEvent, type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
 
 export type TaskStatus = 'NEW' | 'IN_PROGRESS' | 'DONE';
@@ -46,19 +46,26 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 interface TaskRowProps {
   task: TaskItem;
   onToggleDone: (id: string) => void;
-  onLeadClick: (leadId: string) => void;
+  onTaskClick: (task: TaskItem) => void;
 }
 
-export default function TaskRow({ task, onToggleDone, onLeadClick }: TaskRowProps): ReactNode {
+export default function TaskRow({ task, onToggleDone, onTaskClick }: TaskRowProps): ReactNode {
   const isDone = task.done || task.status === 'DONE';
   const dateIcon = task.dateIcon ?? 'calendar';
 
-  function handleLeadClick(): void {
-    // TODO: navigate /leads/[id]
-    onLeadClick(task.lead.id);
+  function handleRowClick(): void {
+    onTaskClick(task);
   }
 
-  function handleCheckboxClick(): void {
+  function handleRowKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onTaskClick(task);
+    }
+  }
+
+  function handleCheckboxClick(event: React.MouseEvent<HTMLButtonElement>): void {
+    event.stopPropagation();
     if (!isDone) {
       // TODO: PATCH /api/tasks/[id] { status: 'DONE' }
       onToggleDone(task.id);
@@ -67,11 +74,16 @@ export default function TaskRow({ task, onToggleDone, onLeadClick }: TaskRowProp
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={handleRowClick}
+      onKeyDown={handleRowKeyDown}
       className={`
-        flex items-center gap-3 rounded-[6px]
+        flex cursor-pointer items-center gap-3 rounded-[6px]
         border border-[var(--color-border)] border-[0.5px]
         border-l-[3px] bg-[var(--color-bg-surface)]
-        p-[14px_16px]
+        p-[14px_16px] transition-colors duration-150
+        hover:bg-[var(--color-bg-surface-2)]
         ${GROUP_BORDER_CLASSES[task.group]}
       `}
     >
@@ -106,18 +118,14 @@ export default function TaskRow({ task, onToggleDone, onLeadClick }: TaskRowProp
         </p>
 
         <div className="mt-1 flex flex-wrap items-center gap-3 text-[12px] text-[var(--color-text-secondary)]">
-          <button
-            type="button"
-            onClick={handleLeadClick}
-            className="flex items-center gap-1.5 transition-colors duration-150 hover:text-[var(--color-text-primary)]"
-          >
+          <span className="flex items-center gap-1.5">
             <Icon
               icon={LEAD_ICON_MAP[task.lead.icon]}
               className="h-3.5 w-3.5 shrink-0"
               aria-hidden="true"
             />
             <span className="text-[var(--color-text-primary)]">{task.lead.name}</span>
-          </button>
+          </span>
 
           <span className="text-[var(--color-text-tertiary)]" aria-hidden="true">|</span>
 

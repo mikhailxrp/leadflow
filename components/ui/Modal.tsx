@@ -34,7 +34,7 @@ export default function Modal({ onClose, children, dialogClassName = '' }: Modal
       <button
         type="button"
         className={`
-          fixed inset-0 bg-black/40 transition-opacity duration-150
+          fixed inset-0 cursor-pointer bg-black/40 transition-opacity duration-150
           ${isVisible ? 'opacity-100' : 'opacity-0'}
         `}
         aria-label="Закрыть"

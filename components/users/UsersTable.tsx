@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
 import Button from '@/components/ui/Button';
+import IconButton from '@/components/ui/IconButton';
 import Avatar from '@/components/ui/Avatar';
 import AddUserModal from '@/components/users/AddUserModal';
 import DeleteUserModal from '@/components/users/DeleteUserModal';
@@ -232,33 +233,29 @@ export default function UsersTable(): ReactNode {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
+                      <IconButton
+                        size="sm"
                         onClick={() => setEditUser(user)}
-                        className="rounded-[6px] p-1 text-[var(--color-text-tertiary)] transition-colors duration-150 hover:text-[var(--color-text-primary)]"
                         aria-label={`Редактировать ${user.name}`}
-                      >
-                        <Icon icon="tabler:edit" className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
+                        icon={<Icon icon="tabler:edit" className="h-4 w-4" />}
+                      />
+                      <IconButton
+                        size="sm"
                         onClick={() => handleToggleBlock(user)}
-                        className="rounded-[6px] p-1 text-[var(--color-text-tertiary)] transition-colors duration-150 hover:text-[var(--color-text-primary)]"
                         aria-label={user.status === 'active' ? `Заблокировать ${user.name}` : `Разблокировать ${user.name}`}
-                      >
-                        <Icon
-                          icon={user.status === 'active' ? 'tabler:ban' : 'tabler:circle-check'}
-                          className="h-4 w-4"
-                        />
-                      </button>
-                      <button
-                        type="button"
+                        icon={
+                          <Icon
+                            icon={user.status === 'active' ? 'tabler:ban' : 'tabler:circle-check'}
+                            className="h-4 w-4"
+                          />
+                        }
+                      />
+                      <IconButton
+                        size="sm"
                         onClick={() => setDeleteUser(user)}
-                        className="rounded-[6px] p-1 text-[var(--color-text-tertiary)] transition-colors duration-150 hover:text-[var(--color-text-primary)]"
                         aria-label={`Удалить ${user.name}`}
-                      >
-                        <Icon icon="tabler:trash" className="h-4 w-4" />
-                      </button>
+                        icon={<Icon icon="tabler:trash" className="h-4 w-4" />}
+                      />
                     </div>
                   </td>
                 </tr>

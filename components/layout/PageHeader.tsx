@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import IconButton from '@/components/ui/IconButton';
 
 interface PageHeaderProps {
   title: ReactNode;
@@ -20,26 +21,26 @@ export default function PageHeader({ title, actions, onMenuClick }: PageHeaderPr
     >
       <div className="flex items-center gap-4">
         {onMenuClick && (
-          <button
-            className="lg:hidden p-1 -ml-1 text-[var(--color-text-secondary)]"
+          <IconButton
+            size="sm"
+            className="lg:hidden -ml-1 hover:bg-transparent"
             onClick={onMenuClick}
             aria-label="Меню"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+            icon={
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            }
+          />
         )}
         <h1 className="text-[20px] font-medium text-[var(--color-text-primary)] tracking-[-0.01em]">
           {title}
         </h1>
       </div>
 
-      {actions && (
-        <div className="flex items-center gap-3">
-          {actions}
-        </div>
-      )}
+      <div className="flex items-center gap-3">
+        {actions}
+      </div>
     </header>
   );
 }

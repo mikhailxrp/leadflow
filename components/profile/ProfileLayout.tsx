@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from 'react';
 import { PageContent } from '@/components/layout/AppLayout';
+import LogoutButton from '@/components/layout/LogoutButton';
+import IconButton from '@/components/ui/IconButton';
 import ContactsSection from '@/components/profile/ContactsSection';
 import PersonalSection from '@/components/profile/PersonalSection';
 import ProfileFooter from '@/components/profile/ProfileFooter';
@@ -81,13 +83,13 @@ export default function ProfileLayout() {
           Настройки › Профиль пользователя
         </nav>
 
-        <button
-          type="button"
-          className="rounded-[6px] p-1.5 transition-colors duration-150 hover:bg-[var(--color-bg-surface-2)]"
-          aria-label="Уведомления"
-        >
-          <BellIcon />
-        </button>
+        <div className="flex items-center gap-3">
+          <IconButton
+            aria-label="Уведомления"
+            icon={<BellIcon />}
+          />
+          <LogoutButton />
+        </div>
       </header>
 
       <PageContent>

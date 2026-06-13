@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { PageContent } from '@/components/layout/AppLayout';
+import IconButton from '@/components/ui/IconButton';
 import SettingsSections, { SettingsDirtyProvider } from '@/components/settings/SettingsClientArea';
 import SystemSection from '@/components/settings/SystemSection';
 
@@ -38,13 +39,9 @@ export default function AdminSettingsPage() {
       >
         <h1 className="text-[15px] font-medium text-[var(--color-text-primary)]">Настройки</h1>
 
-        <button
-          type="button"
-          className="rounded-[6px] p-1.5 transition-colors duration-150 hover:bg-[var(--color-bg-surface-2)]"
-          aria-label="Уведомления"
-        >
-          <BellIcon />
-        </button>
+        <div className="flex items-center gap-3">
+          <IconButton aria-label="Уведомления" icon={<BellIcon />} />
+        </div>
       </header>
 
       <PageContent>

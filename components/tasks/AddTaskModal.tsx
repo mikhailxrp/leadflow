@@ -1,37 +1,26 @@
-'use client';
+"use client";
 
-import { useState, type ReactNode } from 'react';
-import { Icon } from '@iconify/react';
-import Modal from '@/components/ui/Modal';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import IconButton from '@/components/ui/IconButton';
-import PrioritySegment, { type TaskPriority } from '@/components/tasks/PrioritySegment';
+import { useState, type ReactNode } from "react";
+import { Icon } from "@iconify/react";
+import Modal from "@/components/ui/Modal";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import IconButton from "@/components/ui/IconButton";
+import { ASSIGNEE_OPTIONS } from "@/components/tasks/taskConstants";
 
-interface CreateTaskModalProps {
-  onClose: () => void;
-  onCreate: (data: {
-    title: string;
-    leadId: string;
-    assignee: string;
-    date: string;
-    time: string;
-    priority: TaskPriority;
-  }) => void;
+export interface CreateTaskPayload {
+  title: string;
+  assignedToId: string;
+  dueDate: string;
+  dueTime: string;
+  description: string;
 }
 
-const LEAD_OPTIONS = [
-  { value: '', label: 'Выберите лид' },
-  { value: '1', label: 'Иван Петров' },
-  { value: '2', label: 'ООО Вектор' },
-  { value: '3', label: 'ЗАО Альянс' },
-];
-
-const ASSIGNEE_OPTIONS = [
-  { value: 'alexey', label: 'Алексей Д.' },
-  { value: 'maria', label: 'Мария С.' },
-  { value: 'ivan', label: 'Иван К.' },
-];
+interface AddTaskModalProps {
+  leadId: string;
+  onClose: () => void;
+  onCreate: (data: CreateTaskPayload) => void;
+}
 
 const selectClass = `
   h-[36px] w-full appearance-none rounded-[6px]
@@ -39,7 +28,7 @@ const selectClass = `
   bg-[var(--color-bg-surface)] px-3 pr-8
   text-[14px] text-[var(--color-text-primary)]
   outline-none transition-all duration-150
-  focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]
+  focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]
 `;
 
 interface ModalSelectProps {
@@ -50,7 +39,13 @@ interface ModalSelectProps {
   options: { value: string; label: string }[];
 }
 
-function ModalSelect({ label, id, value, onChange, options }: ModalSelectProps): ReactNode {
+function ModalSelect({
+  label,
+  id,
+  value,
+  onChange,
+  options,
+}: ModalSelectProps): ReactNode {
   return (
     <div className="flex flex-col gap-1.5">
       <label
@@ -85,27 +80,29 @@ function ModalSelect({ label, id, value, onChange, options }: ModalSelectProps):
   );
 }
 
-export default function CreateTaskModal({ onClose, onCreate }: CreateTaskModalProps): ReactNode {
-  const [title, setTitle] = useState('');
-  const [leadId, setLeadId] = useState('');
-  const [assignee, setAssignee] = useState('alexey');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('normal');
+export default function AddTaskModal({
+  leadId,
+  onClose,
+  onCreate,
+}: AddTaskModalProps): ReactNode {
+  const [title, setTitle] = useState("");
+  const [assignedToId, setAssignedToId] = useState("alexey");
+  const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
+  const [description, setDescription] = useState("");
 
   const isValid = title.trim().length > 0;
 
   function handleCreate(): void {
     if (!isValid) return;
 
-    // TODO: POST /api/tasks
+    // TODO: POST /api/leads/[leadId]/tasks
     onCreate({
       title: title.trim(),
-      leadId,
-      assignee,
-      date,
-      time,
-      priority,
+      assignedToId,
+      dueDate,
+      dueTime,
+      description: description.trim(),
     });
     onClose();
   }
@@ -127,17 +124,19 @@ export default function CreateTaskModal({ onClose, onCreate }: CreateTaskModalPr
         />
       </div>
 
+      <input type="hidden" name="leadId" value={leadId} />
+
       <div className="mt-5 flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <label
-            htmlFor="task-title"
+            htmlFor="add-task-title"
             className="text-[12px] text-[var(--color-text-secondary)]"
           >
             Задача <span className="text-[#EF4444]">*</span>
           </label>
           <textarea
-            id="task-title"
-            rows={3}
+            id="add-task-title"
+            rows={2}
             placeholder="Что нужно сделать?"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -147,42 +146,31 @@ export default function CreateTaskModal({ onClose, onCreate }: CreateTaskModalPr
               text-[14px] text-[var(--color-text-primary)]
               placeholder:text-[var(--color-text-tertiary)]
               outline-none transition-all duration-150
-              focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]
+              focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]
             "
           />
         </div>
 
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <ModalSelect
-              label="Лид"
-              id="task-lead"
-              value={leadId}
-              onChange={setLeadId}
-              options={LEAD_OPTIONS}
-            />
-          </div>
-          <div className="flex-1">
-            <ModalSelect
-              label="Исполнитель"
-              id="task-assignee"
-              value={assignee}
-              onChange={setAssignee}
-              options={ASSIGNEE_OPTIONS}
-            />
-          </div>
-        </div>
+        <ModalSelect
+          label="Исполнитель"
+          id="add-task-assignee"
+          value={assignedToId}
+          onChange={setAssignedToId}
+          options={[...ASSIGNEE_OPTIONS]}
+        />
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-[var(--color-text-secondary)]">Срок</span>
+          <span className="text-[12px] text-[var(--color-text-secondary)]">
+            Срок
+          </span>
           <div className="flex gap-3">
             <div className="flex-1">
               <Input
                 type="date"
                 placeholder="Дата"
                 icon={<Icon icon="tabler:calendar" className="h-4 w-4" />}
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
                 aria-label="Дата"
               />
             </div>
@@ -190,21 +178,42 @@ export default function CreateTaskModal({ onClose, onCreate }: CreateTaskModalPr
               <Input
                 type="time"
                 placeholder="Время"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
                 aria-label="Время"
               />
             </div>
           </div>
         </div>
 
-        <PrioritySegment value={priority} onChange={setPriority} />
+        <div className="flex flex-col gap-1.5">
+          <label
+            htmlFor="add-task-description"
+            className="text-[12px] text-[var(--color-text-secondary)]"
+          >
+            Описание
+          </label>
+          <textarea
+            id="add-task-description"
+            rows={2}
+            placeholder="Дополнительные детали..."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="
+              w-full resize-none rounded-[6px]
+              border border-[var(--color-border)] border-[0.5px] p-3
+              text-[14px] text-[var(--color-text-primary)]
+              placeholder:text-[var(--color-text-tertiary)]
+              outline-none transition-all duration-150
+              focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]
+            "
+          />
+        </div>
       </div>
 
       <div
         className="
-          mt-6 flex justify-end gap-3
-          border-t border-[var(--color-border)] border-[0.5px] pt-4
+          mt-6 flex justify-end gap-3 pt-4
         "
       >
         <Button variant="secondary" onClick={onClose}>

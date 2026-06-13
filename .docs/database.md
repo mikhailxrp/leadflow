@@ -41,14 +41,16 @@ enum UserRole {
   MANAGER   // операционная роль: работа с лидами
 }
 
-enum LeadSource {
-  TILDA
-  WORDPRESS
-  YANDEX
-  API        // универсальный webhook / сторонняя форма
-  OTHER
-  MANUAL     // создан вручную в CRM
-}
+// LeadSource — строка, не enum. Причина: в SaaS будут добавляться новые каналы
+// (Авито, VK, Google Ads и др.) без миграций схемы.
+// Текущие значения по соглашению:
+//   "tilda"     — формы Tilda
+//   "wordpress" — плагины WordPress
+//   "yandex"    — Яндекс Директ
+//   "api"       — универсальный webhook / сторонняя форма
+//   "manual"    — создан вручную в CRM
+//   "other"     — прочие источники
+// Новые каналы добавляются как новые строковые значения — без миграции.
 
 enum AssignMode {
   MANUAL       // админ назначает ответственного вручную
@@ -75,12 +77,23 @@ enum EventType {
   REMINDER_FIRED    // напоминание сработало (доставка выполнена)
   REMINDER_FAILED   // ошибка доставки по одному из каналов
   REMINDER_CANCELLED // напоминание отменено пользователем
+  TASK_CREATED    // создана задача
+  TASK_UPDATED    // изменена задача (статус, срок, исполнитель)
+  TASK_DONE       // задача выполнена
+  TASK_CANCELLED  // задача отменена
 }
 
 enum ReminderStatus {
   PENDING    // ожидает срабатывания
   FIRED      // сработало (доставка выполнена или предпринята попытка)
   CANCELLED  // отменено пользователем до срабатывания
+}
+
+enum TaskStatus {
+  TODO         // новая задача, не взята в работу
+  IN_PROGRESS  // взята в работу
+  DONE         // выполнена
+  CANCELLED    // отменена
 }
 ```
 
@@ -175,7 +188,7 @@ model Lead {
   phone         String?       // индексируется для поиска
   email         String?       // индексируется для поиска
   comment       String?       // комментарий из формы
-  source        LeadSource
+  source        String        // источник лида: "tilda", "wordpress", "yandex", "api", "manual", "other" (расширяемо)
   stageId       String
   assignedToId  String?       // ответственный менеджер
   utm           Json          @default("{}")   // UTM-метки
@@ -381,35 +394,82 @@ model Reminder {
 
 ---
 
+## Модели — задачи
+
+### `Task` — задачи по лидам
+
+```prisma
+model Task {
+  id           String     @id @default(cuid())
+  companyId    String
+  leadId       String
+  createdById  String
+  assignedToId String
+  title        String
+  description  String?
+  dueDate      DateTime?
+  status       TaskStatus @default(TODO)
+  completedAt  DateTime?
+  createdAt    DateTime   @default(now())
+
+  company      Company    @relation(fields: [companyId], references: [id])
+  lead         Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy    User       @relation("TaskCreator", fields: [createdById], references: [id])
+  assignedTo   User       @relation("TaskAssignee", fields: [assignedToId], references: [id])
+
+  @@index([companyId])
+  @@index([leadId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueDate])
+}
+```
+
+**Назначение:** Задачи привязанные к лиду. Руководитель ставит задачу менеджеру — менеджер выполняет.
+
+**Ключевые особенности:**
+
+- `createdById` и `assignedToId` — разные пользователи: один ставит, другой выполняет
+- `completedAt` — фиксируется автоматически при переводе в `DONE`
+- Каскадное удаление с лидом (`onDelete: Cascade`)
+- `createdBy` и `assignedTo` — без каскада: удаление менеджера не стирает историю задач
+- Составной индекс `[status]` + `[dueDate]` — для выборки просроченных и активных задач
+
+
 ## Схема связей
 
 ```
 Company ──< User ──< Comment
    │         │
    │         ├──< Lead (assignedTo, nullable)
-   │         └──< Reminder (createdBy)
+   │         ├──< Reminder (createdBy)
+   │         └──< Task (createdBy + assignedTo)
    │
    ├──< Lead >── PipelineStage
    │     │
    │     ├──< Comment
    │     ├──< Event
-   │     └──< Reminder
+   │     ├──< Reminder
+   │     └──< Task
    │
    ├──< PipelineStage
    ├──< ApiKey
    ├──< Reminder
+   ├──< Task
    └──< Event
 
 Lead ──< Event    (история изменений конкретного лида)
 Lead ──< Comment  (лента комментариев)
 Lead ──< Reminder (напоминания по лиду)
+Lead ──< Task     (задачи по лиду)
+User ──< Task     (назначенные задачи и созданные)
 ```
 
 **Принципы:**
 
 - **Всё привязано к `Company`.** Корневая изоляция тенантов. Каждый прикладной запрос фильтруется по `companyId`.
-- **Каскад с `Lead`:** `Comment`, `Event` и `Reminder` удаляются вместе с лидом.
-- **`Event` и `Reminder` переживают удаление пользователя:** `userId`/`createdById` опциональны или без FK-каскада — журнал и напоминания не теряют историю.
+- **Каскад с `Lead`:** `Comment`, `Event`, `Reminder` и `Task` удаляются вместе с лидом.
+- **`Event`, `Reminder` и `Task` переживают удаление пользователя:** `userId`/`createdById` опциональны или без FK-каскада — журнал, напоминания и история задач не теряются.
 - **`User.role`** различает админа и менеджера в одной таблице (SaaS-задел: и админ, и менеджеры принадлежат одной компании).
 - **`PipelineStage` — контент компании**, не глобальный: у каждой компании своя воронка.
 
@@ -652,6 +712,9 @@ for (const reminder of due) {
 @@index([role])             // User — выборка менеджеров (round-robin, фильтр)
 @@index([order])            // PipelineStage — сортировка колонок
 @@index([status, remindAt]) // Reminder — КРИТИЧНЫЙ: планировщик WHERE status=PENDING AND remindAt<=now()
+@@index([assignedToId])  // Task — задачи конкретного менеджера
+@@index([status])        // Task — фильтр по статусу
+@@index([dueDate])       // Task — просроченные и предстоящие
 ```
 
 `@unique` поля (`User.email`) автоматически получают индекс — отдельно не указываем.

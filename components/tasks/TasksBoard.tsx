@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { Icon } from "@iconify/react";
 import Button from "@/components/ui/Button";
 import TaskGroup from "@/components/tasks/TaskGroup";
 import CreateTaskModal from "@/components/tasks/CreateTaskModal";
 import { type TaskGroupType, type TaskItem } from "@/components/tasks/TaskRow";
+
+const MOCK_LEAD_DETAIL_PATH = "/leads/1";
 
 type TaskTab = "all" | "mine" | "overdue";
 
@@ -145,6 +148,7 @@ function InlineFilterSelect({
 }
 
 export default function TasksBoard(): ReactNode {
+  const router = useRouter();
   const [tasks, setTasks] = useState<TaskItem[]>(MOCK_TASKS);
   const [activeTab, setActiveTab] = useState<TaskTab>("overdue");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -166,9 +170,9 @@ export default function TasksBoard(): ReactNode {
     );
   }
 
-  function handleLeadClick(leadId: string): void {
-    // TODO: navigate /leads/[id]
-    console.log("Navigate to lead", leadId);
+  function handleTaskClick(task: TaskItem): void {
+    // TODO: router.push(`/leads/${task.lead.id}?taskId=${task.id}`)
+    router.push(`${MOCK_LEAD_DETAIL_PATH}?taskId=${task.id}`);
   }
 
   function filterTasks(task: TaskItem): boolean {
@@ -239,7 +243,7 @@ export default function TasksBoard(): ReactNode {
         </div>
       </header>
 
-      <main className="flex-1 overflow-auto p-6">
+      <main className="min-h-0 flex-1 overflow-auto p-6">
         <div
           className="
             flex items-center justify-between"
@@ -311,7 +315,7 @@ export default function TasksBoard(): ReactNode {
                 group={group}
                 tasks={groupTasks}
                 onToggleDone={handleToggleDone}
-                onLeadClick={handleLeadClick}
+                onTaskClick={handleTaskClick}
               />
             );
           })}

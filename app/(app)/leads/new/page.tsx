@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import CreateLeadForm from '@/components/leads/CreateLeadForm';
+import IconButton from '@/components/ui/IconButton';
 
 export const metadata: Metadata = {
   title: 'Новый лид',
@@ -41,17 +42,9 @@ export default function CreateLeadPage() {
           <span className="font-medium text-[var(--color-text-primary)]">Новый лид</span>
         </nav>
 
-        <button
-          type="button"
-          className="
-            flex h-9 w-9 items-center justify-center rounded-[6px]
-            text-[var(--color-text-secondary)] transition-colors duration-150
-            hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)]
-          "
-          aria-label="Уведомления"
-        >
-          <BellIcon />
-        </button>
+        <div className="flex items-center gap-3">
+          <IconButton aria-label="Уведомления" icon={<BellIcon />} />
+        </div>
       </header>
 
       <CreateLeadForm />

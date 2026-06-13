@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import IconButton from '@/components/ui/IconButton';
 
 interface ToastProps {
   title: string;
@@ -46,12 +47,13 @@ export default function Toast({
           )}
         </div>
         {onClose && (
-          <button
+          <IconButton
+            size="sm"
             onClick={onClose}
-            className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors flex-shrink-0"
-          >
-            ✕
-          </button>
+            aria-label="Закрыть"
+            className="hover:bg-transparent"
+            icon={<span aria-hidden="true">✕</span>}
+          />
         )}
       </div>
       {actionLabel && onAction && (

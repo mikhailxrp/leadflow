@@ -3,7 +3,9 @@ import RecentLeads from '@/components/dashboard/RecentLeads';
 import LeadsChart from '@/components/dashboard/LeadsChart';
 import StatsRow from '@/components/dashboard/StatsRow';
 import { PageContent } from '@/components/layout/AppLayout';
+import LogoutButton from '@/components/layout/LogoutButton';
 import PageHeader from '@/components/layout/PageHeader';
+import IconButton from '@/components/ui/IconButton';
 
 export const metadata: Metadata = {
   title: 'Дашборд',
@@ -35,19 +37,14 @@ export default function DashboardPage() {
         title="Дашборд"
         actions={
           <>
-            <button
-              type="button"
-              className="rounded-[6px] p-1.5 transition-colors duration-150 hover:bg-[var(--color-bg-surface-2)]"
-              aria-label="Уведомления"
-            >
-              <BellIcon />
-            </button>
+            <IconButton aria-label="Уведомления" icon={<BellIcon />} />
             <time
               dateTime="2026-06-07"
               className="text-[13px] text-[var(--color-text-secondary)]"
             >
               7 июня 2026
             </time>
+            <LogoutButton />
           </>
         }
       />

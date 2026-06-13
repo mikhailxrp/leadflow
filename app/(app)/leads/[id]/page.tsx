@@ -7,6 +7,7 @@ import LeadHistory from '@/components/leads/LeadHistory';
 import LeadMarketing from '@/components/leads/LeadMarketing';
 import LeadSidebar from '@/components/leads/LeadSidebar';
 import LeadYandex from '@/components/leads/LeadYandex';
+import TaskBlock from '@/components/tasks/TaskBlock';
 import { PageContent } from '@/components/layout/AppLayout';
 
 export const metadata: Metadata = {
@@ -15,10 +16,15 @@ export const metadata: Metadata = {
 
 interface LeadDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ taskId?: string }>;
 }
 
-export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
-  await params;
+export default async function LeadDetailPage({
+  params,
+  searchParams,
+}: LeadDetailPageProps) {
+  const { id } = await params;
+  const { taskId } = await searchParams;
 
   return (
     <PageContent>
@@ -61,6 +67,7 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
         <aside className="flex w-full shrink-0 flex-col gap-6 lg:w-[440px]">
           <LeadSidebar />
           <LeadComments />
+          <TaskBlock leadId={id} highlightTaskId={taskId} />
           <LeadHistory />
         </aside>
       </div>
