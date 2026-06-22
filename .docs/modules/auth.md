@@ -1,23 +1,24 @@
-# Модуль: Авторизация и доступ (auth)
+# Модуль: Авторизация, приём приглашения и доступ (auth)
 
-> Спецификация входа, сессий, защиты роутов, rate limiting и первичного сидирования.
-> Связанные файлы: `.docs/database.md` (модели `Company`, `User`), `.docs/modules/admin-users.md` (создание менеджеров), `CLAUDE.md` (раздел proxy.ts, ENV).
+> Спецификация приёма приглашения, входа, сессий, восстановления пароля, защиты роутов и rate limiting для пользователей компаний. Создание самой компании — не здесь, см. `.docs/modules/platform-admin.md`.
+> Связанные файлы: `.docs/database.md` (модели `Company`, `User`, `CompanyInvite`), `.docs/modules/platform-admin.md` (создание компании и приглашения), `.docs/modules/admin-users.md` (создание последующих менеджеров), `CLAUDE.md` (раздел proxy.ts, ENV).
 
 ---
 
 ## Содержание
 
-1. [Цели модуля](#цели-модуля)
-2. [Архитектурные решения](#архитектурные-решения)
-3. [Первичное сидирование](#первичное-сидирование)
-4. [Логин](#логин)
-5. [Логаут](#логаут)
-6. [Защита роутов (proxy.ts)](#защита-роутов-proxyts)
-7. [Rate limiting](#rate-limiting)
-8. [API-эндпоинты](#api-эндпоинты)
-9. [Файлы, которые создаются](#файлы-которые-создаются)
-10. [Серверные правила безопасности](#серверные-правила-безопасности)
-11. [Связи с другими модулями](#связи-с-другими-модулями)
+1. Цели модуля
+2. Архитектурные решения
+3. Приём приглашения
+4. Логин
+5. Восстановление пароля
+6. Логаут
+7. Защита роутов (proxy.ts)
+8. Rate limiting
+9. API-эндпоинты
+10. Файлы, которые создаются
+11. Серверные правила безопасности
+12. Связи с другими модулями
 
 ---
 
@@ -25,183 +26,161 @@
 
 После завершения этого модуля:
 
-- Первый администратор и компания создаются сидером при первом деплое
-- Пользователь (админ или менеджер) может войти по email + паролю
-- Сессия живёт заданное время, роль пишется в сессию
-- Защищённые роуты (`/dashboard`, `/leads`, `/pipeline`, `/admin/*`) недоступны без сессии
-- Админская зона (`/admin/*`) доступна только роли ADMIN
-- Заблокированные менеджеры не могут войти
-- Публичные эндпоинты защищены rate limiting
-- `companyId` пользователя доступен в сессии — основа изоляции тенантов
+- Клиент по ссылке-приглашению от платформенного администратора сам задаёт пароль и имя, становится администратором своей компании
+- Пользователь может войти по email + паролю, выйти
+- Пользователь может восстановить забытый пароль самостоятельно, по email
+- Сессия несёт `companyId` и одну из трёх ролей (`MANAGER`/`HEAD`/`ADMIN`)
+- Вход отклоняется, если пользователь заблокирован **или** если заблокирована его компания (два разных, независимых флага)
+- Защищённые роуты недоступны без сессии; уровень доступа внутри компании определяется иерархией ролей, не отдельным перечислением
 
 **Не входит в модуль:**
 
-- **Самостоятельная регистрация** — её нет (Boxed-модель). Менеджеров создаёт админ → `.docs/modules/admin-users.md`.
-- **Восстановление пароля по email** — out of scope MVP. Пароль менеджеру задаёт/меняет админ в UI. (Закладка на email-reset — в будущих версиях.)
-- **OAuth, 2FA** — out of scope.
-- UI dashboard, список лидов, воронка — другие модули.
+- Создание самой компании и первого приглашения → `.docs/modules/platform-admin.md`
+- Создание последующих менеджеров (после первого администратора) → `.docs/modules/admin-users.md`
+- Платформенная сессия (`kind: "platform"`), вход платформенного администратора → `.docs/modules/platform-admin.md`
+- OAuth, 2FA — out of scope
 
 ---
 
 ## Архитектурные решения
 
-### 1. NextAuth.js v5, credentials provider
+### 1. Приём приглашения — не самостоятельная регистрация
 
-Один credentials-провайдер (`credentials`). В отличие от Boxed-проекта без SaaS-задела, у нас админ и менеджеры — **одна таблица `User`**, различаются полем `role`. Причина: оба принадлежат одной компании; для будущего SaaS тенант владеет всеми своими пользователями.
+Компанию и приглашение создаёт платформенный администратор (`.docs/modules/platform-admin.md`). Этот модуль отвечает только за то, что происходит **после**: клиент по ссылке задаёт себе пароль. Никакой публичной формы «зарегистрировать компанию» в продукте нет.
 
-В session-callback пишутся `session.user.role` (`'ADMIN' | 'MANAGER'`) и `session.user.companyId`. По `role` `proxy.ts` решает доступ к админке; по `companyId` все запросы изолируют данные тенанта.
-
-**Почему v5, а не v4:**
-
-- Next.js 16 + App Router официально поддерживается в v5
-- v5 даёт функцию `auth()` — единообразно в Server Components, Route Handlers и `proxy.ts`
-- v5 экспортирует `handlers`, `signIn`, `signOut`, `auth` из единой `lib/auth.ts`
-
-### 2. JWT-стратегия сессии
+### 2. NextAuth.js v5, credentials provider, сессия `kind: "company"`
 
 ```typescript
-// lib/auth.ts (фрагмент)
-session: {
-  strategy: 'jwt',
-  maxAge: 24 * 60 * 60, // 24 часа
+type CompanySession = {
+  kind: "company";
+  user: { id: string; companyId: string; role: UserRole; impersonatedByPlatformAdminId?: string };
+};
+```
+
+JWT-сессия (`maxAge: 24 * 60 * 60`). `impersonatedByPlatformAdminId` присутствует только если сессия создана через impersonation (`.docs/modules/platform-admin.md`) — обычный вход никогда не выставляет это поле.
+
+### 3. Пароли — bcrypt, без изменений в механике
+
+Хэш в `User.passwordHash`. Кто задаёт первый пароль администратора компании — сам клиент, через приём приглашения (не платформенный администратор, не сидер).
+
+### 4. Двойная проверка блокировки при входе
+
+```typescript
+// lib/auth.ts → authorize() — концепт
+async function authorize({ email, password }) {
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() }, include: { company: true } });
+  if (!user) return null;
+  if (!(await bcrypt.compare(password, user.passwordHash))) return null;
+  if (user.isBlocked) throw new AuthError("USER_BLOCKED");
+  if (user.company.isBlocked) throw new AuthError("COMPANY_BLOCKED");
+
+  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+  await writeEvent(user.companyId, "LOGIN", {}, user.id);
+
+  return { kind: "company", user: { id: user.id, companyId: user.companyId, role: user.role } };
 }
 ```
 
-JWT (а не database session): не требует таблицы `Session`, роль и `companyId` кладутся в токен и доступны без запроса к БД на каждый чек.
-
-### 3. Что кладём в токен и сессию
-
-```typescript
-// callbacks (фрагмент lib/auth.ts)
-callbacks: {
-  async jwt({ token, user }) {
-    if (user) {
-      token.role = user.role;
-      token.companyId = user.companyId;
-    }
-    return token;
-  },
-  async session({ session, token }) {
-    session.user.id = token.sub!;
-    session.user.role = token.role as "ADMIN" | "MANAGER";
-    session.user.companyId = token.companyId as string;
-    return session;
-  },
-}
-```
-
-Тип `Session` расширяется в `types/next-auth.d.ts`.
-
-### 4. Пароли
-
-bcrypt-хэш в `User.passwordHash`. Plain-пароль задаётся админом при создании менеджера (или сидером для первого админа из ENV) и в БД не хранится. Утилиты — в `lib/password.ts`.
-
-### 5. Проверка блокировки
-
-`User.isBlocked` проверяется **на сервере в `authorize()`** при каждом логине. Заблокированный менеджер не входит, даже если знает пароль. Клиентскую проверку не используем — её можно обойти.
+Два разных флага (`User.isBlocked`, `Company.isBlocked`) — два разных сообщения об ошибке на клиенте («Ваш аккаунт заблокирован» / «Компания временно недоступна, обратитесь в поддержку»), хотя оба приводят к отказу входа.
 
 ---
 
-## Первичное сидирование
+## Приём приглашения
 
-Так как самостоятельной регистрации нет, первая компания и первый админ создаются сидером (`prisma/seed.ts`) при первом деплое.
+### Флоу со стороны пользователя
 
-**Флоу:**
+```
+1. Открывает /accept-invite?token=...
+2. Если токен невалиден/просрочен/уже использован → "Ссылка недействительна, запросите новую у платформенного администратора"
+3. Вводит: имя, пароль
+4. Сервер создаёт пользователя с ролью ADMIN, помечает приглашение использованным
+5. Автоматический вход, редирект на /today
+```
 
-1. Сидер проверяет `if (await prisma.company.count() > 0) return;` — идемпотентность (INIT-04)
-2. Создаёт `Company` из ENV (`COMPANY_INITIAL_NAME`, `LICENSE_KEY`) с дефолтными `settings`
-3. Создаёт `User` с `role = ADMIN` из ENV (`ADMIN_INITIAL_EMAIL`, `ADMIN_INITIAL_PASSWORD` → bcrypt)
-4. Создаёт 5 дефолтных `PipelineStage` для компании (INIT-03)
+### Флоу со стороны сервера
 
-Детали — `.docs/database.md` → раздел «Сидеры».
+```typescript
+// app/api/auth/accept-invite/route.ts — концепт
+export async function POST(req: Request) {
+  const { token, name, password } = acceptInviteSchema.parse(await req.json());
 
-После первого деплоя ENV `ADMIN_INITIAL_*` и `COMPANY_INITIAL_NAME` удаляются с сервера. Дальнейшие менеджеры — через UI админки.
+  const user = await prisma.$transaction(async (tx) => {
+    const invite = await tx.companyInvite.findUnique({ where: { tokenHash: hashToken(token) } });
+    if (!invite || invite.usedAt || invite.expiresAt < new Date()) {
+      throw new ValidationError("INVITE_INVALID");
+    }
+
+    const exists = await tx.user.findUnique({ where: { email: invite.email } });
+    if (exists) throw new ValidationError("EMAIL_EXISTS");
+
+    const user = await tx.user.create({
+      data: { companyId: invite.companyId, email: invite.email, passwordHash: await hashPassword(password), name, role: "ADMIN" },
+    });
+    await tx.companyInvite.update({ where: { id: invite.id }, data: { usedAt: new Date() } });
+    return user;
+  });
+
+  // выставить сессию (signIn под капотом) и вернуть редирект на /today
+}
+```
+
+### Что проверяется
+
+| Проверка | Реакция при провале |
+| --- | --- |
+| Токен существует, не использован, не просрочен | `400 INVITE_INVALID` |
+| Email из приглашения ещё не занят (на случай повторного клика по той же ссылке после ручной правки) | `400 EMAIL_EXISTS` |
+| Пароль ≥ 8 символов | `400 VALIDATION_ERROR` |
+
+Первый пользователь компании всегда получает роль `ADMIN` — приглашение не позволяет создать сразу `MANAGER`/`HEAD`, остальных сотрудников администратор добавляет сам после входа (`.docs/modules/admin-users.md`).
 
 ---
 
 ## Логин
 
-### Флоу со стороны пользователя
-
-1. Открывает `/login`
-2. Вводит email + пароль
-3. При успехе — редирект: ADMIN → `/dashboard` (есть доступ и к `/admin/*`), MANAGER → `/dashboard`
-4. При ошибке — сообщение «Неверный email или пароль» (без уточнения, что именно неверно)
-
-### Флоу со стороны сервера
-
-```typescript
-// lib/auth.ts → authorize() (фрагмент)
-async authorize(credentials) {
-  const { email, password } = loginSchema.parse(credentials);
-  const normalizedEmail = email.toLowerCase().trim();
-
-  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-  if (!user) return null;                          // нет пользователя
-  if (user.isBlocked) return null;                 // заблокирован
-  const ok = await comparePassword(password, user.passwordHash);
-  if (!ok) return null;                            // неверный пароль
-
-  // Возвращаем минимум — попадёт в jwt callback
-  return { id: user.id, role: user.role, companyId: user.companyId, name: user.name };
-}
-```
-
-После успешного входа — событие `LOGIN` в `events` (через `lib/events.ts`).
+Email + пароль → `signIn("credentials", ...)` → редирект на `/today`. Ошибка — «Неверный email или пароль» без уточнения, что именно неверно, **кроме** случаев блокировки (см. архитектурное решение 4 — здесь сообщение осознанно более конкретное, потому что это не вопрос подбора пароля). Событие `LOGIN` в журнал, `User.lastLoginAt` обновляется.
 
 ---
 
-## Логаут
+## Восстановление пароля
 
-`signOut()` из NextAuth v5. Чистит сессию (JWT-cookie), редиректит на `/login`. Кнопка — в сайдбаре (нижний блок с аватаром).
+### Флоу
+
+```
+1. /login → «Забыли пароль?» → /forgot-password
+2. Вводит email → POST /api/auth/forgot-password
+3. Сервер (независимо от существования email — не раскрывать наличие аккаунта):
+   - генерирует одноразовый токен с TTL (1 час)
+   - если пользователь существует и не заблокирован — отправляет письмо со ссылкой /reset-password?token=...
+   - отвечает одинаковым сообщением в обоих случаях
+4. Пользователь открывает ссылку, вводит новый пароль
+5. POST /api/auth/reset-password { token, password } → токен одноразовый, инвалидируется
+6. Редирект на /login с сообщением об успехе
+```
+
+Хранение токена — лёгкая структура (отдельная таблица или in-memory с TTL, аналогично решению для приглашений — решение по конкретному хранилищу не навязывается схемой заранее).
+
+**Платформенный администратор не участвует в этом флоу** — у него нет отдельной возможности «сбросить пароль за клиента» помимо обычного `forgot-password`. Если клиенту нужна помощь прямо сейчас — для этого есть impersonation (`.docs/modules/platform-admin.md`), не обход пароля.
+
+---
+
+## Логаут — без изменений
 
 ---
 
 ## Защита роутов (proxy.ts)
 
-Полный код — в `CLAUDE.md` → раздел «Защита роутов». Кратко:
-
-- `/dashboard`, `/leads`, `/pipeline` — любой авторизованный
-- `/admin/*` — только `role === "ADMIN"`, иначе редирект на `/dashboard`
-- Без сессии — редирект на `/login`
-
-`matcher` ограничивает proxy только защищёнными путями (не трогает публичные и статику).
+Полный код — `CLAUDE.md` → «Защита роутов». Кратко: `/login`, `/accept-invite`, `/forgot-password`, `/reset-password` — публичные; `/today`, `/leads`, `/pipeline` — любая сессия `kind: "company"`; `/control`, `/reports` — `hasMinRole(role, "HEAD")`; `/admin/*` — `hasMinRole(role, "ADMIN")`.
 
 ---
 
 ## Rate limiting
 
-### Эндпоинты, требующие rate limiting
-
 | Эндпоинт | Лимит | Ключ |
 | --- | --- | --- |
 | `POST /api/auth/[...nextauth]` (логин) | 10 / мин | IP |
-| `POST /api/webhooks/*` (приём лидов) | см. `.docs/modules/leads-intake.md` | API-ключ / IP |
-
-### Реализация
-
-In-memory лимитер для MVP (`lib/rateLimit.ts`) — одна инсталляция, один процесс PM2. Если в будущем горизонтальное масштабирование — заменить на Redis/upstash.
-
-```typescript
-// lib/rateLimit.ts — концепт
-const buckets = new Map<string, { count: number; resetAt: number }>();
-
-export function rateLimit(key: string, limit: number, windowMs: number): boolean {
-  const now = Date.now();
-  const b = buckets.get(key);
-  if (!b || now > b.resetAt) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-  if (b.count >= limit) return false;
-  b.count++;
-  return true;
-}
-```
-
-### Получение IP
-
-За Nginx реальный IP — в заголовке `x-forwarded-for` (Nginx настраивается на проксирование). Берём первый IP из списка.
+| `POST /api/auth/accept-invite` | 10 / час | IP — приглашений мало, но защита от перебора токенов не лишняя |
+| `POST /api/auth/forgot-password` | 5 / час | IP + email |
 
 ---
 
@@ -209,17 +188,16 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
 
 | Метод | Путь | Назначение | Auth | Rate limit |
 | --- | --- | --- | --- | --- |
-| GET/POST | `/api/auth/[...nextauth]` | NextAuth v5 handler (signIn/signOut/session/callback) | Public | 10 / мин на IP (логин) |
+| POST | `/api/auth/accept-invite` | Приём приглашения, установка пароля | Public (по токену) | 10 / час на IP |
+| GET/POST | `/api/auth/[...nextauth]` | NextAuth v5 handler | Public | 10 / мин на IP (логин) |
+| POST | `/api/auth/forgot-password` | Запрос письма восстановления | Public | 5 / час на IP+email |
+| POST | `/api/auth/reset-password` | Установка нового пароля по токену | Public (по токену) | — |
 
-Отдельных кастомных auth-эндпоинтов (`register`, `reset`) в MVP нет — их роль закрыта сидером и админкой.
+### `POST /api/auth/accept-invite`
 
-### Спецификация логина
-
-Логин идёт через стандартный механизм NextAuth (`signIn("credentials", { email, password })`). Ответы:
-
-- **Успех** — установка сессионной cookie, редирект на `callbackUrl` или `/dashboard`
-- **Ошибка** — `null` из `authorize()` → NextAuth возвращает ошибку `CredentialsSignin`, UI показывает «Неверный email или пароль»
-- **429** — при превышении лимита: `{ "error": "RATE_LIMIT_EXCEEDED" }`
+**Request:** `{ "token": "...", "name": "Иван", "password": "..." }`
+**Response 200:** `{ "success": true }` + установленная сессия
+**Response 400:** `{ "success": false, "error": "INVITE_INVALID" | "EMAIL_EXISTS" | "VALIDATION_ERROR" }`
 
 ---
 
@@ -227,66 +205,63 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
 
 ```
 app/
-├── (auth)/
-│   └── login/page.tsx                    # Server Component, страница входа
+├── (public)/
+│   ├── login/page.tsx
+│   ├── accept-invite/page.tsx
+│   ├── forgot-password/page.tsx
+│   └── reset-password/page.tsx
 └── api/
     └── auth/
-        └── [...nextauth]/route.ts        # NextAuth v5 handler (GET/POST из { handlers })
+        ├── [...nextauth]/route.ts
+        ├── accept-invite/route.ts
+        ├── forgot-password/route.ts
+        └── reset-password/route.ts
 
 components/
 └── auth/
-    └── LoginForm.tsx                     # Client Component, форма входа
+    ├── AcceptInviteForm.tsx
+    ├── LoginForm.tsx
+    ├── ForgotPasswordForm.tsx
+    └── ResetPasswordForm.tsx
 
 lib/
-├── auth.ts                               # NextAuth v5 конфиг + { handlers, signIn, signOut, auth }
-├── password.ts                           # hashPassword(plain), comparePassword(plain, hash)
-├── rateLimit.ts                          # in-memory rate limiter
-├── events.ts                             # writeEvent() — используется для LOGIN
+├── auth.ts
+├── password.ts
+├── rateLimit.ts
+├── events.ts
 └── validations/
-    └── auth.ts                           # Zod: loginSchema
+    └── auth.ts          # acceptInviteSchema, forgotPasswordSchema, resetPasswordSchema
+
+constants/
+├── roles.ts              # ROLE_RANK, hasMinRole
+├── defaultStages.ts
+└── defaultLossReasons.ts
 
 types/
-└── next-auth.d.ts                        # Расширение Session: role, companyId
+└── next-auth.d.ts
 
-prisma/
-└── seed.ts                               # Первичное сидирование (компания + админ + этапы)
-
-proxy.ts                                  # Защита /dashboard, /leads, /pipeline, /admin/*
+proxy.ts
 ```
 
 ---
 
 ## Серверные правила безопасности
 
-1. **Никогда не возвращать клиенту:** plain-пароль, bcrypt-хэш, `passwordHash` в любых User-ответах. В логах ошибок — только email.
-
-2. **Всегда хэшировать пароль перед записью:**
-
-   ```typescript
-   // Запрет:
-   await prisma.user.create({ data: { passwordHash: "plain123" } });
-   // Только так:
-   const hash = await hashPassword(plain); // bcrypt, 10 раундов
-   await prisma.user.create({ data: { passwordHash: hash } });
-   ```
-
-3. **Email — всегда lowercase + trim** перед записью и поиском. Иначе `Ivan@Mail.ru` и `ivan@mail.ru` дадут две записи / провал входа.
-
-4. **Проверка `isBlocked` ВСЕГДА на сервере** в `authorize()`.
-
-5. **`companyId` берётся только из сессии, никогда из тела запроса.** Клиент не может прислать чужой `companyId`, чтобы получить доступ к данным другого тенанта.
-
-6. **HTTPS обязателен в проде.** Cookie `secure: true` в prod. NextAuth определяет по `AUTH_URL`.
-
-7. **ENV `ADMIN_INITIAL_*` и `COMPANY_INITIAL_NAME`** — только для сидера, один раз. После первого деплоя удалить с сервера. Защита в сидере: `if (company.count() > 0) return;`.
-
-8. **`LICENSE_KEY`** проверяется при старте приложения (`lib/license.ts`). Несовпадение — приложение не стартует. К auth прямого отношения не имеет, но проверяется до запуска любых роутов.
+1. **Не возвращать клиенту хэши/пароли.**
+2. **Email lowercase + trim перед любым сравнением/сохранением.**
+3. **Проверка `User.isBlocked` И `Company.isBlocked` — обе на сервере, в `authorize()`.**
+4. **Восстановление пароля не подтверждает существование email.**
+5. **Токены (приглашение, восстановление пароля) — одноразовые, с TTL.**
+6. **Первый пользователь компании создаётся только через `accept-invite` с ролью `ADMIN`** — не существует пути создать первого пользователя компании с ролью `MANAGER`/`HEAD` напрямую.
+7. **`companyId` при приёме приглашения берётся из `CompanyInvite`, не из тела запроса.**
+8. **HTTPS, `secure` cookie в проде.**
 
 ---
 
 ## Связи с другими модулями
 
-- **`.docs/modules/admin-users.md`** — создание, блокировка, удаление менеджеров. Здесь — только вход.
-- **`.docs/modules/leads-intake.md`** — webhook-эндпоинты приёма лидов аутентифицируются API-ключом, не сессией (отдельный механизм).
-- **`.docs/database.md`** — модели `Company`, `User`, раздел «Сидеры».
-- **`CLAUDE.md`** — полный код `proxy.ts`, список ENV, правило изоляции по `companyId`.
+- **`.docs/modules/platform-admin.md`** — создаёт компанию и `CompanyInvite`, которые принимает этот модуль.
+- **`.docs/modules/admin-users.md`** — создание менеджеров и руководителей после первого администратора.
+- **`.docs/modules/leads-intake.md`** — вебхуки аутентифицируются API-ключом, не сессией; не зависят от `Company.isBlocked`.
+- **`.docs/database.md`** — модели `User`, `Company`, `CompanyInvite`; `constants/roles.ts` (`ROLE_RANK`/`hasMinRole`).
+- **`CLAUDE.md`** — полный код `proxy.ts`, разделение типов сессии.
