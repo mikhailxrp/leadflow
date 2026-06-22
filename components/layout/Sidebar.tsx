@@ -41,10 +41,6 @@ function SidebarContent({
     return pathname === item.href || pathname.startsWith(`${item.href}/`);
   }
 
-  function isProfileActive(): boolean {
-    return pathname === '/admin/profile' || pathname.startsWith('/admin/profile/');
-  }
-
   const linkClassName = (active: boolean): string => `
     flex items-center gap-3 px-3 py-[7px] rounded-[6px]
     text-[13px] font-medium
@@ -99,24 +95,15 @@ function SidebarContent({
       </nav>
 
       <div className="border-t border-white/5 p-4">
-        <Link
-          href="/admin/profile"
-          onClick={onNavigate}
+        <div
           aria-label="Профиль пользователя"
-          className={`
-            flex items-center gap-3 rounded-[6px] px-2 py-3
-            transition-colors duration-150
-            ${isProfileActive()
-              ? 'bg-[rgba(16,185,129,0.15)]'
-              : 'hover:bg-[rgba(255,255,255,0.06)]'
-            }
-          `}
+          className="flex items-center gap-3 rounded-[6px] px-2 py-3"
         >
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#252B3B] text-[12px] font-medium text-white">
             {userInitials}
           </div>
           <span className="truncate text-[13px] font-medium text-white">{userName}</span>
-        </Link>
+        </div>
       </div>
     </div>
   );

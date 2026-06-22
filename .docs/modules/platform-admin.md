@@ -69,7 +69,7 @@ type Session =
 Одноразовый скрипт, не публичная регистрация:
 
 ```bash
-pnpm bootstrap:platform-admin
+npm run bootstrap:platform-admin
 ```
 
 ```typescript

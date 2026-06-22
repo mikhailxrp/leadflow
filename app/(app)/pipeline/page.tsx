@@ -5,7 +5,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import PipelineBoard from '@/components/pipeline/PipelineBoard';
 import IconButton from '@/components/ui/IconButton';
 
-const PIPELINE_SETTINGS_PATH = '/admin/pipeline';
+const PIPELINE_SETTINGS_PATH = '/admin/pipeline-settings';
 
 export const metadata: Metadata = {
   title: 'Воронка продаж',
