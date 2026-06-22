@@ -51,23 +51,19 @@ Use ONLY when you need:
 - Каждый route handler повторно проверяет сессию и роль (defense-in-depth)
 
 ```typescript
-import { auth } from "@/lib/auth";
-import { hasMinRole } from "@/constants/roles";
-import { z } from "zod";
+import { auth } from '@/lib/auth';
+import { hasMinRole } from '@/constants/roles';
+import { z } from 'zod';
 
-const schema = z.object({
-  /* ... */
-});
+const schema = z.object({ /* ... */ });
 
 export async function POST(req: Request) {
   const session = await auth();
-  if (!session || session.kind !== "company")
-    return new Response("Unauthorized", { status: 401 });
-  if (!hasMinRole(session.user.role, "ADMIN"))
-    return new Response("Forbidden", { status: 403 });
+  if (!session || session.kind !== 'company') return new Response('Unauthorized', { status: 401 });
+  if (!hasMinRole(session.user.role, 'ADMIN')) return new Response('Forbidden', { status: 403 });
 
   const body = schema.safeParse(await req.json());
-  if (!body.success) return new Response("Bad Request", { status: 400 });
+  if (!body.success) return new Response('Bad Request', { status: 400 });
 
   // бизнес-логика
 }
@@ -110,23 +106,23 @@ export const proxy = auth((req) => {
   const session = req.auth;
   const { pathname } = req.nextUrl;
 
-  if (pathname.startsWith("/platform")) {
-    if (!session || session.kind !== "platform")
-      return NextResponse.redirect(new URL("/platform/login", req.url));
+  if (pathname.startsWith('/platform')) {
+    if (!session || session.kind !== 'platform')
+      return NextResponse.redirect(new URL('/platform/login', req.url));
     return NextResponse.next();
   }
 
-  if (!session || session.kind !== "company")
-    return NextResponse.redirect(new URL("/login", req.url));
+  if (!session || session.kind !== 'company')
+    return NextResponse.redirect(new URL('/login', req.url));
 
-  if (pathname.startsWith("/control") || pathname.startsWith("/reports")) {
-    if (!hasMinRole(session.user.role, "HEAD"))
-      return NextResponse.redirect(new URL("/today", req.url));
+  if (pathname.startsWith('/control') || pathname.startsWith('/reports')) {
+    if (!hasMinRole(session.user.role, 'HEAD'))
+      return NextResponse.redirect(new URL('/today', req.url));
   }
 
-  if (pathname.startsWith("/admin")) {
-    if (!hasMinRole(session.user.role, "ADMIN"))
-      return NextResponse.redirect(new URL("/today", req.url));
+  if (pathname.startsWith('/admin')) {
+    if (!hasMinRole(session.user.role, 'ADMIN'))
+      return NextResponse.redirect(new URL('/today', req.url));
   }
 
   return NextResponse.next();
