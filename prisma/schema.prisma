@@ -1,1 +1,401 @@
-// TODO: implement
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  MANAGER
+  HEAD
+  ADMIN
+}
+
+enum AssignMode {
+  MANUAL
+  ROUND_ROBIN
+}
+
+enum LeadVisibility {
+  ALL
+  OWN
+}
+
+enum CloseType {
+  WON
+  LOST
+}
+
+enum EventType {
+  LEAD_CREATED
+  STAGE_CHANGED
+  ASSIGNED
+  ASSIGNMENT_FAILED
+  COMMENTED
+  LEAD_UPDATED
+  LEAD_DELETED
+  LEAD_TAKEN_IN_WORK
+  LEAD_WON
+  LEAD_LOST
+  DUPLICATE_FLAGGED
+  USER_CREATED
+  USER_BLOCKED
+  USER_UNBLOCKED
+  USER_DELETED
+  LOGIN
+  LEAD_OPENED
+  REMINDER_CREATED
+  REMINDER_FIRED
+  REMINDER_FAILED
+  REMINDER_CANCELLED
+  LEAD_REACTION_REMINDED
+  LEAD_REACTION_OVERDUE
+  LEAD_REACTION_ESCALATED
+  LEAD_STAGE_STUCK
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_DONE
+  TASK_CANCELLED
+  IMPORT_COMPLETED
+  IMPORT_ROLLED_BACK
+  SOURCE_DOWN
+  SOURCE_RECOVERED
+  COMPANY_CREATED
+  COMPANY_BLOCKED
+  COMPANY_UNBLOCKED
+  PLATFORM_IMPERSONATION_STARTED
+  PLATFORM_IMPERSONATION_ENDED
+}
+
+enum ReminderStatus {
+  PENDING
+  FIRED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum DuplicateMatchType {
+  PHONE
+  EMAIL
+}
+
+enum ImportStatus {
+  PROCESSING
+  DONE
+  ROLLED_BACK
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  isBlocked Boolean  @default(false)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  users              User[]
+  leads              Lead[]
+  stages             PipelineStage[]
+  apiKeys            ApiKey[]
+  events             Event[]
+  reminders          Reminder[]
+  tasks              Task[]
+  lossReasons        LossReason[]
+  duplicateFlags     DuplicateFlag[]
+  importBatches      ImportBatch[]
+  integrationSources IntegrationSource[]
+  assignmentRules    AssignmentRule[]
+  invites            CompanyInvite[]
+}
+
+model User {
+  id                      String    @id @default(cuid())
+  companyId               String
+  email                   String    @unique
+  passwordHash            String
+  name                    String
+  role                    UserRole  @default(MANAGER)
+  isBlocked               Boolean   @default(false)
+  telegramChatId          String?
+  notificationPreferences Json      @default("{}")
+  lastLoginAt             DateTime?
+  createdAt               DateTime  @default(now())
+
+  company          Company          @relation(fields: [companyId], references: [id])
+  assignedLeads    Lead[]           @relation("AssignedManager")
+  comments         Comment[]
+  tasksCreated     Task[]           @relation("TaskCreator")
+  tasksAssigned    Task[]           @relation("TaskAssignee")
+  remindersCreated Reminder[]
+  importBatches    ImportBatch[]
+  rulesAsAssignee  AssignmentRule[] @relation("RuleAssignee")
+  rulesAsFallback  AssignmentRule[] @relation("RuleFallback")
+
+  @@index([companyId])
+  @@index([role])
+}
+
+model PlatformAdmin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+}
+
+model Lead {
+  id            String     @id @default(cuid())
+  companyId     String
+  name          String?
+  phone         String?
+  email         String?
+  comment       String?
+  source        String
+  stageId       String
+  assignedToId  String?
+  utm           Json       @default("{}")
+  marketing     Json       @default("{}")
+  customFields  Json       @default("{}")
+  closeType     CloseType?
+  closedAt      DateTime?
+  lossReasonId  String?
+  importBatchId String?
+  createdAt     DateTime   @default(now())
+
+  company                 Company       @relation(fields: [companyId], references: [id])
+  stage                   PipelineStage @relation(fields: [stageId], references: [id])
+  assignedTo              User?         @relation("AssignedManager", fields: [assignedToId], references: [id])
+  lossReason              LossReason?   @relation(fields: [lossReasonId], references: [id])
+  importBatch             ImportBatch?  @relation(fields: [importBatchId], references: [id])
+  comments                Comment[]
+  events                  Event[]
+  reminders               Reminder[]
+  tasks                   Task[]
+  duplicateFlagsAsLead    DuplicateFlag[] @relation("FlaggedLead")
+  duplicateFlagsAsMatched DuplicateFlag[] @relation("MatchedLead")
+
+  @@index([companyId])
+  @@index([stageId])
+  @@index([assignedToId])
+  @@index([name])
+  @@index([phone])
+  @@index([email])
+  @@index([createdAt])
+  @@index([closeType])
+}
+
+model PipelineStage {
+  id                 String   @id @default(cuid())
+  companyId          String
+  name               String
+  color              String
+  order              Int
+  stageTimeLimitDays Int?
+  createdAt          DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  leads   Lead[]
+
+  @@index([companyId])
+  @@index([order])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  leadId    String
+  userId    String
+  text      String
+  createdAt DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([leadId])
+}
+
+model DuplicateFlag {
+  id            String             @id @default(cuid())
+  companyId     String
+  leadId        String
+  matchedLeadId String
+  matchType     DuplicateMatchType
+  createdAt     DateTime           @default(now())
+
+  company     Company @relation(fields: [companyId], references: [id])
+  lead        Lead    @relation("FlaggedLead", fields: [leadId], references: [id], onDelete: Cascade)
+  matchedLead Lead    @relation("MatchedLead", fields: [matchedLeadId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([leadId])
+  @@index([matchedLeadId])
+}
+
+model LossReason {
+  id        String   @id @default(cuid())
+  companyId String
+  label     String
+  order     Int
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  leads   Lead[]
+
+  @@index([companyId])
+}
+
+model Event {
+  id                            String    @id @default(cuid())
+  companyId                     String
+  leadId                        String?
+  // событие переживает удаление пользователя — FK не добавлять
+  userId                        String?
+  type                          EventType
+  payload                       Json      @default("{}")
+  impersonatedByPlatformAdminId String?
+  createdAt                     DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  lead    Lead?   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([leadId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([impersonatedByPlatformAdminId])
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  keyHash     String
+  sourceLabel String
+  createdAt   DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+}
+
+model IntegrationSource {
+  id          String    @id @default(cuid())
+  companyId   String
+  type        String
+  label       String    @default("")
+  lastUsedAt  DateTime?
+  lastErrorAt DateTime?
+  errorCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, type, label])
+  @@index([companyId])
+  @@index([lastUsedAt])
+}
+
+model AssignmentRule {
+  id               String   @id @default(cuid())
+  companyId        String
+  matchSource      String?
+  matchSourceLabel String?
+  assignToId       String
+  fallbackToId     String?
+  priority         Int
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  company    Company @relation(fields: [companyId], references: [id])
+  assignTo   User    @relation("RuleAssignee", fields: [assignToId], references: [id])
+  fallbackTo User?   @relation("RuleFallback", fields: [fallbackToId], references: [id])
+
+  @@index([companyId])
+  @@index([priority])
+}
+
+model Reminder {
+  id          String         @id @default(cuid())
+  companyId   String
+  leadId      String
+  createdById String
+  text        String
+  remindAt    DateTime
+  channels    Json           @default("[]")
+  status      ReminderStatus @default(PENDING)
+  firedAt     DateTime?
+  createdAt   DateTime       @default(now())
+
+  company   Company @relation(fields: [companyId], references: [id])
+  lead      Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy User    @relation(fields: [createdById], references: [id])
+
+  @@index([companyId])
+  @@index([leadId])
+  @@index([status, remindAt])
+}
+
+model Task {
+  id           String     @id @default(cuid())
+  companyId    String
+  leadId       String
+  createdById  String
+  assignedToId String
+  title        String
+  description  String?
+  dueDate      DateTime?
+  status       TaskStatus @default(TODO)
+  completedAt  DateTime?
+  createdAt    DateTime   @default(now())
+
+  company    Company @relation(fields: [companyId], references: [id])
+  lead       Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy  User    @relation("TaskCreator", fields: [createdById], references: [id])
+  assignedTo User    @relation("TaskAssignee", fields: [assignedToId], references: [id])
+
+  @@index([companyId])
+  @@index([leadId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model ImportBatch {
+  id          String       @id @default(cuid())
+  companyId   String
+  createdById String
+  fileName    String
+  status      ImportStatus @default(PROCESSING)
+  totalRows   Int          @default(0)
+  imported    Int          @default(0)
+  skipped     Int          @default(0)
+  duplicates  Int          @default(0)
+  errors      Int          @default(0)
+  createdAt   DateTime     @default(now())
+
+  company   Company @relation(fields: [companyId], references: [id])
+  createdBy User    @relation(fields: [createdById], references: [id])
+  leads     Lead[]
+
+  @@index([companyId])
+}
+
+model CompanyInvite {
+  id        String    @id @default(cuid())
+  companyId String
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+}

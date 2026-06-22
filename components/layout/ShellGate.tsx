@@ -10,8 +10,16 @@ function isPublicRoute(pathname: string): boolean {
   return (
     pathname === '/' ||
     pathname === '/login' ||
-    pathname.startsWith('/login/')
+    pathname.startsWith('/login/') ||
+    pathname.startsWith('/accept-invite') ||
+    pathname.startsWith('/forgot-password') ||
+    pathname.startsWith('/reset-password') ||
+    pathname.startsWith('/platform/login')
   );
+}
+
+function isPlatformRoute(pathname: string): boolean {
+  return pathname.startsWith('/platform') && !pathname.startsWith('/platform/login');
 }
 
 interface ShellGateProps {
@@ -21,7 +29,7 @@ interface ShellGateProps {
 export default function ShellGate({ children }: ShellGateProps) {
   const pathname = usePathname();
 
-  if (isPublicRoute(pathname)) {
+  if (isPublicRoute(pathname) || isPlatformRoute(pathname)) {
     return children;
   }
 
