@@ -1,6 +1,9 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { UserRole } from '@prisma/client';
+import { comparePassword } from '@/lib/password';
+import { prisma } from '@/lib/prisma';
+import { loginSchema } from '@/lib/validations/platform';
 
 type CompanyAuthUser = {
   kind: 'company';
@@ -34,7 +37,32 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      authorize: async () => null,
+      authorize: async (credentials) => {
+        const parsed = loginSchema.safeParse(credentials);
+        if (!parsed.success) {
+          return null;
+        }
+
+        const { email, password } = parsed.data;
+        const admin = await prisma.platformAdmin.findUnique({
+          where: { email: email.toLowerCase().trim() },
+        });
+
+        if (!admin) {
+          return null;
+        }
+
+        const isValid = await comparePassword(password, admin.passwordHash);
+        if (!isValid) {
+          return null;
+        }
+
+        return {
+          kind: 'platform' as const,
+          id: admin.id,
+          email: admin.email,
+        };
+      },
     }),
   ],
   session: {
