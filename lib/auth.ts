@@ -1,6 +1,10 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { UserRole } from '@prisma/client';
+import { comparePassword } from '@/lib/password';
+import { consumeImpersonationToken } from '@/lib/platform/impersonate';
+import { prisma } from '@/lib/prisma';
+import { loginSchema } from '@/lib/validations/platform';
 
 type CompanyAuthUser = {
   kind: 'company';
@@ -34,7 +38,78 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      authorize: async () => null,
+      authorize: async (credentials) => {
+        const parsed = loginSchema.safeParse(credentials);
+        if (!parsed.success) {
+          return null;
+        }
+
+        const { email, password } = parsed.data;
+        const admin = await prisma.platformAdmin.findFirst({
+          where: {
+            email: email.toLowerCase().trim(),
+            isActive: true,
+            deletedAt: null,
+          },
+        });
+
+        if (!admin) {
+          return null;
+        }
+
+        const isValid = await comparePassword(password, admin.passwordHash);
+        if (!isValid) {
+          return null;
+        }
+
+        return {
+          kind: 'platform' as const,
+          id: admin.id,
+          email: admin.email,
+        };
+      },
+    }),
+    Credentials({
+      id: 'impersonation',
+      name: 'Impersonation',
+      credentials: {
+        token: { label: 'Token', type: 'text' },
+      },
+      authorize: async (credentials) => {
+        const token = credentials?.token;
+        if (typeof token !== 'string' || token.length === 0) {
+          return null;
+        }
+
+        const data = consumeImpersonationToken(token);
+        if (!data) {
+          return null;
+        }
+
+        const user = await prisma.user.findFirst({
+          where: {
+            id: data.userId,
+            companyId: data.companyId,
+          },
+          select: {
+            id: true,
+            companyId: true,
+            role: true,
+          },
+        });
+
+        if (!user) {
+          return null;
+        }
+
+        return {
+          kind: 'company' as const,
+          id: user.id,
+          companyId: user.companyId,
+          role: user.role,
+          impersonatedByPlatformAdminId: data.platformAdminId,
+        };
+      },
     }),
   ],
   session: {
