@@ -45,8 +45,12 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         }
 
         const { email, password } = parsed.data;
-        const admin = await prisma.platformAdmin.findUnique({
-          where: { email: email.toLowerCase().trim() },
+        const admin = await prisma.platformAdmin.findFirst({
+          where: {
+            email: email.toLowerCase().trim(),
+            isActive: true,
+            deletedAt: null,
+          },
         });
 
         if (!admin) {

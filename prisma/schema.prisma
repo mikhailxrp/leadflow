@@ -147,7 +147,25 @@ model PlatformAdmin {
   email        String   @unique
   passwordHash String
   name         String
+  isActive     Boolean  @default(true)
+  deletedAt    DateTime?
   createdAt    DateTime @default(now())
+
+  passwordResetTokens PlatformAdminPasswordResetToken[]
+}
+
+model PlatformAdminPasswordResetToken {
+  id        String   @id @default(cuid())
+  adminId   String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  admin PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([expiresAt])
 }
 
 model Lead {

@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { Icon } from '@iconify/react';
+import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/ui/Button';
@@ -137,6 +138,13 @@ export default function PlatformLoginForm() {
       >
         {isSubmitting ? 'Вход…' : 'Войти'}
       </Button>
+
+      <Link
+        href="/platform/forgot-password"
+        className="text-center text-[12px] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+      >
+        Забыли пароль?
+      </Link>
     </form>
   );
 }

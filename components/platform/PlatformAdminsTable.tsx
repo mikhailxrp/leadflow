@@ -10,6 +10,7 @@ import type { PlatformAdminListItem } from '@/types/platform';
 
 interface PlatformAdminsTableProps {
   admins: PlatformAdminListItem[];
+  currentAdminId: string;
 }
 
 type FieldErrors = {
@@ -28,6 +29,7 @@ function formatDate(value: string): string {
 
 export default function PlatformAdminsTable({
   admins: initialAdmins,
+  currentAdminId,
 }: PlatformAdminsTableProps): ReactNode {
   const [admins, setAdmins] = useState<PlatformAdminListItem[]>(initialAdmins);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -38,6 +40,7 @@ export default function PlatformAdminsTable({
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set());
 
   function resetModalState(): void {
     setName('');
@@ -109,6 +112,41 @@ export default function PlatformAdminsTable({
     }
   }
 
+  async function handleDeleteAdmin(admin: PlatformAdminListItem): Promise<void> {
+    const confirmed = window.confirm(
+      `Удалить платформенного администратора ${admin.email}?`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setServerError(null);
+    setPendingDeleteIds((prev) => new Set(prev).add(admin.id));
+
+    try {
+      const response = await fetch(`/api/platform/admins/${admin.id}`, {
+        method: 'DELETE',
+      });
+      const data = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        setServerError(data.error ?? 'Не удалось удалить администратора');
+        return;
+      }
+
+      setAdmins((prev) => prev.filter((item) => item.id !== admin.id));
+    } catch (error) {
+      console.error(error);
+      setServerError('Не удалось удалить администратора');
+    } finally {
+      setPendingDeleteIds((prev) => {
+        const next = new Set(prev);
+        next.delete(admin.id);
+        return next;
+      });
+    }
+  }
+
   const sortedAdmins = useMemo(
     () =>
       [...admins].sort(
@@ -139,6 +177,12 @@ export default function PlatformAdminsTable({
         </button>
       </div>
 
+      {serverError ? (
+        <p className="mb-4 text-[12px] text-[#EF4444]" role="alert">
+          {serverError}
+        </p>
+      ) : null}
+
       {sortedAdmins.length === 0 ? (
         <p className="py-12 text-center text-[14px] text-[var(--color-text-secondary)]">
           Администраторы не найдены
@@ -151,10 +195,10 @@ export default function PlatformAdminsTable({
             bg-[var(--color-bg-surface)]
           "
         >
-          <table className="w-full min-w-[640px] text-left">
+          <table className="w-full min-w-[760px] text-left">
             <thead>
               <tr className="border-b border-[0.5px] border-[var(--color-border)]">
-                {['Имя', 'Email', 'Дата создания'].map((header) => (
+                {['Имя', 'Email', 'Дата создания', 'Действия'].map((header) => (
                   <th
                     key={header}
                     className="
@@ -168,26 +212,48 @@ export default function PlatformAdminsTable({
               </tr>
             </thead>
             <tbody>
-              {sortedAdmins.map((admin) => (
-                <tr
-                  key={admin.id}
-                  className="
-                    border-b border-[0.5px] border-[var(--color-border)]
-                    last:border-b-0 transition-colors duration-150
-                    hover:bg-[var(--color-bg-surface-2)]
-                  "
-                >
-                  <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                    {admin.name}
-                  </td>
-                  <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                    {admin.email}
-                  </td>
-                  <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                    {formatDate(admin.createdAt)}
-                  </td>
-                </tr>
-              ))}
+              {sortedAdmins.map((admin) => {
+                const isCurrentAdmin = admin.id === currentAdminId;
+                const isDeleting = pendingDeleteIds.has(admin.id);
+
+                return (
+                  <tr
+                    key={admin.id}
+                    className="
+                      border-b border-[0.5px] border-[var(--color-border)]
+                      last:border-b-0 transition-colors duration-150
+                      hover:bg-[var(--color-bg-surface-2)]
+                    "
+                  >
+                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
+                      {admin.name}
+                    </td>
+                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
+                      {admin.email}
+                    </td>
+                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
+                      {formatDate(admin.createdAt)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isCurrentAdmin ? (
+                        <span className="text-[12px] text-[var(--color-text-secondary)]">
+                          Текущий администратор
+                        </span>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="sm"
+                          disabled={isDeleting}
+                          onClick={() => handleDeleteAdmin(admin)}
+                        >
+                          {isDeleting ? 'Удаление…' : 'Удалить'}
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -261,12 +327,6 @@ export default function PlatformAdminsTable({
                 </span>
               )}
             </div>
-
-            {serverError && (
-              <p className="text-[12px] text-[#EF4444]" role="alert">
-                {serverError}
-              </p>
-            )}
 
             <div className="mt-1 flex justify-end gap-2">
               <Button type="button" variant="secondary" onClick={handleCloseModal}>

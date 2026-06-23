@@ -27,12 +27,25 @@ export const createPlatformAdminSchema = z.object({
   password: z.string().min(8),
 });
 
+export const platformAdminParamsSchema = z.object({
+  id: z.string().min(1),
+});
+
 export const activityPeriodSchema = z.coerce
   .number()
   .int()
   .refine((value) => value === 7 || value === 30 || value === 90, {
     message: 'period must be 7, 30, or 90',
   });
+
+export const platformForgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const platformResetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8),
+});
 
 export type PlatformLoginInput = z.infer<typeof loginSchema>;
 export type CreateCompanyInput = z.infer<typeof createCompanySchema>;
@@ -44,3 +57,10 @@ export type EndImpersonationBodyInput = z.infer<
   typeof endImpersonationBodySchema
 >;
 export type CreatePlatformAdminInput = z.infer<typeof createPlatformAdminSchema>;
+export type PlatformAdminParamsInput = z.infer<typeof platformAdminParamsSchema>;
+export type PlatformForgotPasswordInput = z.infer<
+  typeof platformForgotPasswordSchema
+>;
+export type PlatformResetPasswordInput = z.infer<
+  typeof platformResetPasswordSchema
+>;

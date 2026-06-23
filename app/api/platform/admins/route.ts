@@ -39,6 +39,10 @@ export async function GET(): Promise<Response> {
 
   try {
     const admins = await prisma.platformAdmin.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null,
+      },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -89,10 +93,49 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const passwordHash = await hashPassword(parsed.data.password);
+    const normalizedEmail = parsed.data.email.toLowerCase().trim();
+    const trimmedName = parsed.data.name.trim();
+
+    const existingAdmin = await prisma.platformAdmin.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        isActive: true,
+        deletedAt: true,
+      },
+    });
+
+    if (existingAdmin && existingAdmin.isActive && !existingAdmin.deletedAt) {
+      return Response.json(
+        { error: 'Администратор с таким email уже существует' },
+        { status: 400 },
+      );
+    }
+
+    if (existingAdmin) {
+      const restoredAdmin = await prisma.platformAdmin.update({
+        where: { id: existingAdmin.id },
+        data: {
+          name: trimmedName,
+          passwordHash,
+          isActive: true,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          createdAt: true,
+        },
+      });
+
+      return Response.json(toListItem(restoredAdmin), { status: 201 });
+    }
+
     const admin = await prisma.platformAdmin.create({
       data: {
-        email: parsed.data.email,
-        name: parsed.data.name,
+        email: normalizedEmail,
+        name: trimmedName,
         passwordHash,
       },
       select: {
