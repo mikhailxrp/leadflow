@@ -4,6 +4,61 @@
 
 ---
 
+## 2026-06-23 — Phase 2, Таск 3: Список компаний + блокировка/разблокировка (API + UI)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+- `app/api/platform/companies/route.ts` — добавлен `GET`: `requirePlatformSession()`, список компаний с `_count.users` и `MAX(User.lastLoginAt)` через `groupBy`; ответ `{ id, name, isBlocked, createdAt, userCount, lastLoginAt }`
+- `app/api/platform/companies/[id]/route.ts` — `PATCH { isBlocked }`: Zod `blockCompanySchema`, `prisma.company.update()`, события `COMPANY_BLOCKED` / `COMPANY_UNBLOCKED` с `payload.byPlatformAdminId`
+- `lib/validations/platform.ts` — добавлены `blockCompanySchema` и тип `BlockCompanyInput`
+- `types/platform.ts` — тип `PlatformCompanyListItem` для списка компаний
+- `app/(platform)/layout.tsx` — платформенный layout: сайдбар `#1A1F2E` 220px + `flex-1 overflow-auto`
+- `components/platform/PlatformSidebar.tsx` — навигация (Компании / Администраторы / Активность), Tabler Icons 16px, active link `text-[#10B981]` + `bg-white/5`
+- `components/platform/PlatformSignOutButton.tsx` — `signOut({ redirectTo: '/platform/login' })`
+- `app/(platform)/platform/companies/page.tsx` — Server Component: `requirePlatformSession()`, fetch `GET /api/platform/companies` с cookie из `headers()`
+- `components/platform/CompaniesPageClient.tsx` — шапка «Компании» + кнопка «+ Создать компанию», связка таблицы и модалки
+- `components/platform/CompaniesTable.tsx` — таблица с бейджами статуса, оптимистичная блокировка/разблокировка, клик по строке → `/platform/companies/[id]`, пустое состояние
+- `components/platform/CreateCompanyModal.tsx` — двухшаговая модалка: форма создания → `inviteUrl` с копированием; «Готово» → `router.refresh()`
+
+**Definition of Done:** ✅ Все пункты TASK.md выполнены (`npm run type-check` — без ошибок)
+
+---
+
+## 2026-06-23 — Phase 2, Таск 2: Создание компании — транзакция + lib
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+- `lib/tokens.ts` — `generateToken()` (32 байта → 64 hex) и `hashToken()` (SHA-256) для invite-токенов
+- `constants/defaultCompanyData.ts` — `DEFAULT_COMPANY_SETTINGS`, `DEFAULT_STAGES(companyId)`, `DEFAULT_LOSS_REASONS(companyId)` по `.docs/database.md`
+- `lib/platform/createCompany.ts` — `createCompany()`: одна Prisma-транзакция (Company + 5 этапов + 9 причин отказа + CompanyInvite TTL 7 дней + Event `COMPANY_CREATED`); возвращает plain `inviteToken`
+- `lib/validations/platform.ts` — добавлен `createCompanySchema` (`name`, `adminEmail`)
+- `app/api/platform/companies/route.ts` — `POST`: `requirePlatformSession()` → Zod → `createCompany()` → `{ companyId, inviteUrl }`; 401 без platform-сессии, 400 при невалидном email
+
+**Definition of Done:** ✅ Все пункты TASK.md выполнены (`npm run type-check`, `npm run build` — без ошибок)
+
+---
+
+## 2026-06-23 — Phase 2, Таск 1: lib-фундамент + bootstrap + вход платформенного администратора
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+- `lib/password.ts` — `hashPassword()` и `comparePassword()` через bcrypt (12 rounds)
+- `lib/events.ts` — `writeEvent()`: запись `Event` в БД; `impersonatedByPlatformAdminId` берётся из company-сессии через `auth()`, иначе `null`
+- `lib/platform/auth.ts` — `requirePlatformSession()`: проверка `kind === "platform"`, иначе Response 401
+- `lib/validations/platform.ts` — `loginSchema` (email + password)
+- `lib/auth.ts` — реализован `authorize()` в провайдере `platform-credentials`: поиск `PlatformAdmin` по email, `comparePassword()`, сессия `{ kind: "platform", id, email }`
+- `scripts/bootstrapPlatformAdmin.ts` — идемпотентный bootstrap первого `PlatformAdmin` из `PLATFORM_ADMIN_BOOTSTRAP_*` в `.env`
+- `package.json` — `tsx` в devDependencies, скрипт `bootstrap:platform-admin`
+- `app/(public)/platform/login/page.tsx` — страница входа с `<PlatformLoginForm>`, layout без сайдбара
+- `components/platform/PlatformLoginForm.tsx` — форма email + password, `signIn('platform-credentials')`, общее сообщение об ошибке без раскрытия email; кнопка показа/скрытия пароля
+
+**Definition of Done:** ✅ Все пункты TASK.md выполнены
+
+---
+
 ## 2026-06-22 — Phase 0, Таск 3: Realign `app/` под v4.0-группы + чистка + layout-заглушка
 
 **Статус:** ✅ Завершён
