@@ -4,11 +4,40 @@
 
 ---
 
+## 2026-06-23 — Phase 2, TASK: Impersonation — токены + provider + баннер + события
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/platform/impersonate.ts` — in-memory `Map` одноразовых токенов impersonation с TTL 60 сек, `createImpersonationToken()` и `consumeImpersonationToken()`
+- `lib/auth.ts` — добавлен credentials provider `impersonation`; `authorize()` потребляет токен, проверяет пользователя по `userId + companyId`, создаёт company-сессию с `impersonatedByPlatformAdminId`
+- `app/api/platform/companies/[id]/impersonate/[userId]/route.ts` — `POST` с `requirePlatformSession()`, проверкой принадлежности `userId` компании, выдачей `{ token }`, записью `PLATFORM_IMPERSONATION_STARTED`
+- `app/api/platform/impersonate/end/route.ts` — `POST` только для `kind: "company"` с `impersonatedByPlatformAdminId`, запись `PLATFORM_IMPERSONATION_ENDED`, очистка сессии/cookies, `401` для нецелевых сессий
+- `app/(platform)/platform/companies/[id]/page.tsx` — Server Component страницы компании: загрузка компании, пользователей и агрегатов
+- `components/platform/ImpersonateButton.tsx` — кнопка impersonation (`POST` token endpoint -> `signIn('impersonation', { token, redirectTo: '/today' })`) с loading-состоянием
+- `components/platform/ImpersonationBanner.tsx` — фиксированный баннер режима поддержки, выход через `POST /api/platform/impersonate/end` с переходом на `/platform/login`
+- `app/(app)/layout.tsx` — условный рендер `ImpersonationBanner` для company-сессии с `impersonatedByPlatformAdminId`
+- `lib/validations/platform.ts` + оба impersonation endpoint — добавлена Zod-валидация для новых API handler (`impersonateUserParamsSchema`, `endImpersonationBodySchema`) по требованиям DoD Global
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `app/(public)/accept-invite/page.tsx`
+- `app/api/auth/accept-invite/route.ts`
+- `components/auth/AcceptInviteForm.tsx`
+- `lib/auth/acceptInvite.ts`
+- `lib/validations/auth.ts`
+- `components/platform/CompanyDetailPageClient.tsx`
+- `types/platform.ts`
+
+---
+
 ## 2026-06-23 — Phase 2, Таск 3: Список компаний + блокировка/разблокировка (API + UI)
 
 **Статус:** ✅ Завершён
 
 **Что было сделано:**
+
 - `app/api/platform/companies/route.ts` — добавлен `GET`: `requirePlatformSession()`, список компаний с `_count.users` и `MAX(User.lastLoginAt)` через `groupBy`; ответ `{ id, name, isBlocked, createdAt, userCount, lastLoginAt }`
 - `app/api/platform/companies/[id]/route.ts` — `PATCH { isBlocked }`: Zod `blockCompanySchema`, `prisma.company.update()`, события `COMPANY_BLOCKED` / `COMPANY_UNBLOCKED` с `payload.byPlatformAdminId`
 - `lib/validations/platform.ts` — добавлены `blockCompanySchema` и тип `BlockCompanyInput`
@@ -30,6 +59,7 @@
 **Статус:** ✅ Завершён
 
 **Что было сделано:**
+
 - `lib/tokens.ts` — `generateToken()` (32 байта → 64 hex) и `hashToken()` (SHA-256) для invite-токенов
 - `constants/defaultCompanyData.ts` — `DEFAULT_COMPANY_SETTINGS`, `DEFAULT_STAGES(companyId)`, `DEFAULT_LOSS_REASONS(companyId)` по `.docs/database.md`
 - `lib/platform/createCompany.ts` — `createCompany()`: одна Prisma-транзакция (Company + 5 этапов + 9 причин отказа + CompanyInvite TTL 7 дней + Event `COMPANY_CREATED`); возвращает plain `inviteToken`
@@ -45,6 +75,7 @@
 **Статус:** ✅ Завершён
 
 **Что было сделано:**
+
 - `lib/password.ts` — `hashPassword()` и `comparePassword()` через bcrypt (12 rounds)
 - `lib/events.ts` — `writeEvent()`: запись `Event` в БД; `impersonatedByPlatformAdminId` берётся из company-сессии через `auth()`, иначе `null`
 - `lib/platform/auth.ts` — `requirePlatformSession()`: проверка `kind === "platform"`, иначе Response 401
@@ -64,6 +95,7 @@
 **Статус:** ✅ Завершён
 
 **Что было сделано:**
+
 - Перенесены существующие страницы (без дублирования):
   - `(auth)/login` → `(public)/login`
   - `(app)/dashboard` → `(app)/today`
@@ -89,6 +121,7 @@
 **Статус:** ✅ Завершён
 
 **Что было сделано:**
+
 - `constants/roles.ts` — `ROLE_RANK` + `hasMinRole()` для иерархии ролей
 - `lib/auth.ts` — NextAuth v5 скелет: два credentials-провайдера-заглушки, JWT/session callbacks с `kind: "company" | "platform"`
 - `types/next-auth.d.ts` — module augmentation для `Session`, `User`, `JWT` (`@auth/core/jwt` + `next-auth/jwt`)
@@ -108,6 +141,7 @@
 **Статус:** ✅ Завершён
 
 **Что было сделано:**
+
 - `package.json` — добавлены зависимости: `prisma`, `@prisma/client`, `next-auth@5`, `zod`, `zustand`, `bcrypt` (+ `@types/bcrypt` в devDeps)
 - Добавлены npm scripts: `type-check`, `db:migrate`, `db:generate`
 - `prisma/schema.prisma` — реализована полная схема из `.docs/database.md`:
@@ -116,7 +150,7 @@
   - Все индексы и constraints, включая composite unique на `IntegrationSource([companyId, type, label])`
   - Event.userId и Event.impersonatedByPlatformAdminId — скаляры без FK (событие переживает удаление пользователя)
 - `lib/prisma.ts` — синглтон PrismaClient с dev-global guard (в dev не плодит лишние коннекты)
-- `.env.example` — выровнен по CLAUDE.md (DATABASE_URL, AUTH_SECRET, AUTH_URL, APP_URL, TELEGRAM_BOT_TOKEN, SMTP_*, PLATFORM_ADMIN_BOOTSTRAP_*, без платёжных переменных)
+- `.env.example` — выровнен по CLAUDE.md (DATABASE*URL, AUTH_SECRET, AUTH_URL, APP_URL, TELEGRAM_BOT_TOKEN, SMTP*_, PLATFORM*ADMIN_BOOTSTRAP*_, без платёжных переменных)
 - `npm install` — все зависимости установлены
 - `prisma migrate dev --name init` — миграция применена, все таблицы и enum'ы созданы в БД
 - `npm run type-check` — ошибок нет
