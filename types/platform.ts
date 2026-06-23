@@ -1,3 +1,19 @@
+export type PlatformAdminListItem = {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: string;
+};
+
+export type CompanyActivityItem = {
+  companyId: string;
+  companyName: string;
+  lastLoginAt: string | null;
+  leadCount: number;
+  activeUsers: number;
+  createdAt: string;
+};
+
 export type PlatformCompanyListItem = {
   id: string;
   name: string;

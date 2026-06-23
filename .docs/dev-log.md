@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-06-23 — Phase 2, TASK: Управление платформенными администраторами + активность компаний
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/platform/companyActivity.ts` — `getCompanyActivity(periodStart)`: агрегат по всем компаниям (`lastLoginAt` через `groupBy` Users, `leadCount` за период, `activeUsers` без блокировки, `createdAt`)
+- `lib/validations/platform.ts` — `createPlatformAdminSchema`, `activityPeriodSchema` (7/30/90), тип `CreatePlatformAdminInput`
+- `types/platform.ts` — типы `PlatformAdminListItem` и `CompanyActivityItem`
+- `app/api/platform/admins/route.ts` — `GET` список без `passwordHash`; `POST` с Zod + `hashPassword`, создание `PlatformAdmin`, обработка дубликата email (`P2002` → 400)
+- `app/api/platform/activity/route.ts` — `GET ?period=7|30|90` (дефолт 30), `requirePlatformSession()`, вызов `getCompanyActivity(periodStart)`
+- `app/(platform)/platform/admins/page.tsx` — Server Component: fetch `GET /api/platform/admins` с cookie, передача в таблицу
+- `app/(platform)/platform/activity/page.tsx` — Server Component: fetch `GET /api/platform/activity?period=30`, передача начальных данных
+- `components/platform/PlatformAdminsTable.tsx` — таблица администраторов, модалка создания (Zod на клиенте), `POST` → строка добавляется без перезагрузки
+- `components/platform/CompanyActivityTable.tsx` — переключатель 7/30/90 (перезапрос API), client-side поиск и сортировка, жёлтая подсветка `#F59E0B` для `lastLoginAt = null` или > 30 дней
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+---
+
 ## 2026-06-23 — Phase 2, TASK: Impersonation — токены + provider + баннер + события
 
 **Статус:** ✅ Завершён
