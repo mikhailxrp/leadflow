@@ -1,6 +1,12 @@
 import { createUserPasswordResetToken } from '@/lib/auth/passwordReset';
 import { sendPasswordResetEmail } from '@/lib/auth/sendPasswordResetEmail';
+import { checkRateLimit } from '@/lib/rateLimit';
 import { forgotPasswordSchema } from '@/lib/validations/auth';
+
+function getIp(request: Request): string | undefined {
+  const forwarded = request.headers.get('x-forwarded-for');
+  return forwarded ? (forwarded.split(',')[0]?.trim() || undefined) : undefined;
+}
 
 const GENERIC_SUCCESS_RESPONSE = {
   success: true,
@@ -27,6 +33,12 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  const ip = getIp(request);
+  const rateLimitKey = `${ip}:${parsed.data.email.toLowerCase()}`;
+  if (!checkRateLimit(rateLimitKey, 5, 60 * 60 * 1000)) {
+    return Response.json({ error: 'TOO_MANY_REQUESTS' }, { status: 429 });
+  }
+
   const appUrl = process.env.APP_URL;
   if (!appUrl) {
     console.error('APP_URL is not configured');
@@ -46,6 +58,9 @@ export async function POST(request: Request): Promise<Response> {
 
     return Response.json(GENERIC_SUCCESS_RESPONSE);
   } catch (error) {
+    if (error instanceof Error && error.message === 'USER_NOT_FOUND') {
+      return Response.json({ error: 'USER_NOT_FOUND' }, { status: 400 });
+    }
     console.error('Failed to handle forgot password request:', error);
     return Response.json(GENERIC_SUCCESS_RESPONSE);
   }

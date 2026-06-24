@@ -38,7 +38,12 @@ export default function ForgotPasswordForm() {
       });
 
       if (!res.ok) {
-        setError('Что-то пошло не так. Попробуйте позже.');
+        const data = (await res.json()) as { error?: string };
+        if (data.error === 'USER_NOT_FOUND') {
+          setEmailError('Пользователь с таким email не найден');
+        } else {
+          setError('Что-то пошло не так. Попробуйте позже.');
+        }
         return;
       }
 

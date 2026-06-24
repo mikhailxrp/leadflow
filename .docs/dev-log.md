@@ -24,6 +24,33 @@ npm run delete:company -- <companyId>
 
 ---
 
+## 2026-06-25 — Phase 3, Таск 5: Сброс пароля (API + UI) + rate limiting
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/auth/passwordReset.ts` — `resetUserPassword(token, password)`: поиск токена по `hashToken(token)`; именованные ошибки `TOKEN_INVALID` / `TOKEN_USED` / `TOKEN_EXPIRED`; транзакция — обновление `passwordHash` пользователя + `updateMany` по `userId` (все неиспользованные токены → `usedAt = now()`)
+- `lib/validations/auth.ts` — `resetPasswordSchema` (`token`, `password` min 8) и `ResetPasswordInput`
+- `lib/rateLimit.ts` — in-memory fixed-window limiter (`Map<string, number[]>`); `checkRateLimit(key, limit, windowMs)` → `boolean`; при `key === undefined` (нет `x-forwarded-for` в dev) лимит не применяется — запрос всегда пропускается
+- `app/api/auth/reset-password/route.ts` — POST, публичный; Zod → rate check (IP, 10/час) → `resetUserPassword` → `200 { success: true }` / `400` с кодами токена / `429 TOO_MANY_REQUESTS`
+- `app/(public)/reset-password/page.tsx` — Server Component; `searchParams.token` → prop в форму; без токена — сообщение об ошибке и ссылка на `/forgot-password`
+- `components/auth/ResetPasswordForm.tsx` — Client Component; поле нового пароля (min 8, toggle видимости); POST `/api/auth/reset-password`; маппинг `TOKEN_*` / `TOO_MANY_REQUESTS` / `SERVER_ERROR`; при успехе `router.push('/login?reset=1')`
+- `app/api/auth/forgot-password/route.ts` — rate check после Zod-парсинга: ключ `IP:email`, 5/час → `429`
+- `app/api/auth/accept-invite/route.ts` — rate check по IP до бизнес-логики, 10/час → `429`
+- `app/(public)/login/page.tsx` — баннер при `?reset=1`: «Пароль успешно изменён, войдите» (success `#22C55E`, flat UI)
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `lib/rateLimit.ts` — fixed-window вместо token-bucket из спецификации; при отсутствии IP лимит пропускается (не ключ `"unknown"`, как в TASK)
+- `lib/auth/passwordReset.ts` / `forgot-password` — `createUserPasswordResetToken` бросает `USER_NOT_FOUND` вместо тихого `null`; route возвращает `400 USER_NOT_FOUND` (в Таске 4 был только generic success)
+
+**Out of scope (не делалось):** email после успешного сброса; повторная отправка ссылки со страницы reset; смена пароля изнутри системы (Phase 10); Nginx rate limit; изменения `proxy.ts`
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-25 — Phase 3, Таск 4: Восстановление пароля — запрос (API + UI)
 
 **Статус:** ✅ Завершён
