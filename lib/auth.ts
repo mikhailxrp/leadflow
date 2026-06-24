@@ -1,9 +1,12 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { UserRole } from '@prisma/client';
+import { BlockedCompanyError, BlockedUserError } from '@/lib/auth/authErrors';
+import { writeEvent } from '@/lib/events';
 import { comparePassword } from '@/lib/password';
 import { consumeImpersonationToken } from '@/lib/platform/impersonate';
 import { prisma } from '@/lib/prisma';
+import { loginSchema as companyLoginSchema } from '@/lib/validations/auth';
 import { loginSchema } from '@/lib/validations/platform';
 
 type CompanyAuthUser = {
@@ -29,7 +32,47 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      authorize: async () => null,
+      authorize: async (credentials) => {
+        const parsed = companyLoginSchema.safeParse(credentials);
+        if (!parsed.success) {
+          return null;
+        }
+
+        const { email, password } = parsed.data;
+        const user = await prisma.user.findUnique({
+          where: { email: email.toLowerCase().trim() },
+          include: { company: true },
+        });
+
+        if (!user) {
+          return null;
+        }
+
+        const isValid = await comparePassword(password, user.passwordHash);
+        if (!isValid) {
+          return null;
+        }
+
+        if (user.isBlocked) {
+          throw new BlockedUserError();
+        }
+        if (user.company.isBlocked) {
+          throw new BlockedCompanyError();
+        }
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date() },
+        });
+        await writeEvent(user.companyId, 'LOGIN', { userId: user.id });
+
+        return {
+          kind: 'company' as const,
+          id: user.id,
+          companyId: user.companyId,
+          role: user.role,
+        };
+      },
     }),
     Credentials({
       id: 'platform-credentials',
