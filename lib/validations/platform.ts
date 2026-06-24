@@ -10,9 +10,22 @@ export const createCompanySchema = z.object({
   adminEmail: z.string().email(),
 });
 
-export const blockCompanySchema = z.object({
-  isBlocked: z.boolean(),
-});
+export const blockCompanySchema = z
+  .object({
+    isBlocked: z.boolean(),
+  })
+  .strict();
+
+export const setCompanyPaymentSchema = z
+  .object({
+    nextPaymentAt: z.union([z.string().date(), z.null()]),
+  })
+  .strict();
+
+export const patchCompanySchema = z.union([
+  blockCompanySchema,
+  setCompanyPaymentSchema,
+]);
 
 export const impersonateUserParamsSchema = z.object({
   companyId: z.string().min(1),
@@ -50,6 +63,8 @@ export const platformResetPasswordSchema = z.object({
 export type PlatformLoginInput = z.infer<typeof loginSchema>;
 export type CreateCompanyInput = z.infer<typeof createCompanySchema>;
 export type BlockCompanyInput = z.infer<typeof blockCompanySchema>;
+export type SetCompanyPaymentInput = z.infer<typeof setCompanyPaymentSchema>;
+export type PatchCompanyInput = z.infer<typeof patchCompanySchema>;
 export type ImpersonateUserParamsInput = z.infer<
   typeof impersonateUserParamsSchema
 >;

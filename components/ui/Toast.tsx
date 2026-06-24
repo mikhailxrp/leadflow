@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect } from 'react';
 import IconButton from '@/components/ui/IconButton';
 
 interface ToastProps {

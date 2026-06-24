@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import CompanyDetailPageClient from '@/components/platform/CompanyDetailPageClient';
 import { requirePlatformSession } from '@/lib/platform/auth';
+import { getSubscriptionStatus } from '@/lib/platform/subscription';
 import { prisma } from '@/lib/prisma';
 import type { PlatformCompanyDetail } from '@/types/platform';
 
@@ -19,6 +20,7 @@ async function loadCompanyDetail(
         id: true,
         name: true,
         isBlocked: true,
+        nextPaymentAt: true,
         createdAt: true,
         _count: { select: { leads: true } },
         users: {
@@ -53,6 +55,8 @@ async function loadCompanyDetail(
     return null;
   }
 
+  const subscriptionStatus = getSubscriptionStatus(company.nextPaymentAt);
+
   return {
     id: company.id,
     name: company.name,
@@ -60,6 +64,8 @@ async function loadCompanyDetail(
     createdAt: company.createdAt.toISOString(),
     leadCount: company._count.leads,
     lastLoginAt: lastLoginAggregate._max.lastLoginAt?.toISOString() ?? null,
+    nextPaymentAt: company.nextPaymentAt?.toISOString() ?? null,
+    subscriptionStatus: subscriptionStatus.status,
     users: company.users.map((user) => ({
       id: user.id,
       name: user.name,

@@ -23,7 +23,6 @@ const INITIAL_STATE: NotificationsState = {
 };
 
 interface ProfileNotificationsProps {
-  resetSignal: number;
   onDirtyChange: (dirty: boolean) => void;
 }
 
@@ -32,14 +31,9 @@ function isStateDirty(state: NotificationsState): boolean {
 }
 
 export default function ProfileNotifications({
-  resetSignal,
   onDirtyChange,
 }: ProfileNotificationsProps) {
   const [state, setState] = useState<NotificationsState>(INITIAL_STATE);
-
-  useEffect(() => {
-    setState(INITIAL_STATE);
-  }, [resetSignal]);
 
   useEffect(() => {
     onDirtyChange(isStateDirty(state));

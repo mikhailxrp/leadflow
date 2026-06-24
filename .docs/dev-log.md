@@ -4,6 +4,65 @@
 
 ---
 
+## 2026-06-24 — Phase 3, TASK: Срок подписки компании (дата продления, управление, индикатор)
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `prisma/schema.prisma` — поле `Company.nextPaymentAt DateTime?`, индекс `@@index([nextPaymentAt])`, enum `COMPANY_PAYMENT_UPDATED`
+- `prisma/migrations/20260624185647_add_company_next_payment_at/` — миграция применена
+- `.docs/database.md` — сверка: `nextPaymentAt`, индекс и `COMPANY_PAYMENT_UPDATED` уже описаны, правки не потребовались
+- `lib/platform/subscription.ts` — `getSubscriptionStatus()` с порогом 14 дней (`none` / `ok` / `expiring` / `overdue`), `daysUntilDue`, `server-only`
+- `lib/validations/platform.ts` — `setCompanyPaymentSchema`, `patchCompanySchema` (union: `{ isBlocked }` **или** `{ nextPaymentAt }`)
+- `lib/platform/createCompany.ts` — при создании компании `nextPaymentAt = +1 год`
+- `types/platform.ts` — тип `SubscriptionStatus`, поля `nextPaymentAt` и `subscriptionStatus` в `PlatformCompanyListItem` и `PlatformCompanyDetail`
+- `app/api/platform/companies/route.ts` — `GET`: `nextPaymentAt` в select + вычисленный `subscriptionStatus`
+- `app/api/platform/companies/[id]/route.ts` — `PATCH`: ветвление блокировка / дата продления; событие `COMPANY_PAYMENT_UPDATED { nextPaymentAt, byPlatformAdminId }`
+- `app/(platform)/platform/companies/[id]/page.tsx` — загрузка `nextPaymentAt` и `subscriptionStatus` в детали компании
+- `components/platform/CompaniesTable.tsx` — колонка «Следующий платёж» (дата + бейдж), красная подсветка строки при `expiring | overdue`
+- `components/platform/CompaniesPageClient.tsx` — сводка-баннер «N компаний требуют продления» со ссылками
+- `components/platform/CompanyDetailPageClient.tsx` — блок «Подписка»: дата, статус, `date input`, кнопка «Сбросить», оптимистичное обновление через `PATCH`
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** cron-дайджест email (таск 0.5), авто-блокировка по просрочке, Telegram-уведомления
+
+---
+
+## 2026-06-24 — Fix после DoD-check: критические замечания
+
+**Статус:** ✅ Исправлено
+
+**Что исправлено и почему:**
+
+- `lib/validations/platform.ts` — `blockCompanySchema` и `setCompanyPaymentSchema` переведены в `.strict()`.
+  - **Почему:** по DoD требовалось строгое XOR-поведение `PATCH` (`isBlocked` **или** `nextPaymentAt`). Без `strict` payload с двумя полями мог проходить из-за нестрогих Zod-объектов.
+- Убран `setState` внутри `useEffect` в проблемных компонентах:
+  - `components/dashboard/LeadsChart.tsx`
+  - `components/profile/PersonalSection.tsx`
+  - `components/profile/ContactsSection.tsx`
+  - `components/profile/ProfileNotifications.tsx`
+  - `components/profile/SecuritySection.tsx`
+  - `components/tasks/TaskBlock.tsx`
+  - **Почему:** линтер падал на `react-hooks/set-state-in-effect`, что блокировало критерий `npm run lint`.
+- `components/profile/ProfileLayout.tsx` — для сброса форм добавлены `key` на секции профиля вместо сброса через эффекты.
+  - **Почему:** это сохраняет поведение reset/save и убирает запрещённый паттерн `setState` в `useEffect`.
+- Дополнительно устранены lint-предупреждения, из-за которых `eslint` завершался с ошибкой:
+  - `components/pipeline/PipelineBoard.tsx` — удалён неиспользуемый импорт `PipelineCard`
+  - `components/ui/Toast.tsx` — удалён неиспользуемый `ReactNode`
+  - `components/ui/Avatar.tsx` — добавлен локальный `eslint-disable` для `img` (осознанное использование в этом компоненте)
+
+**Проверка после правок:**
+
+- `npm run type-check` ✅
+- `npm run lint` ✅
+- `npm run build` ✅
+
+---
+
 ## 2026-06-23 — Phase 2, Дополнение: удаление платформенного администратора + восстановление пароля платформы
 
 **Статус:** ✅ Завершён

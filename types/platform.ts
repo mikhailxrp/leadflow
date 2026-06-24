@@ -1,3 +1,5 @@
+export type SubscriptionStatus = 'none' | 'ok' | 'expiring' | 'overdue';
+
 export type PlatformAdminListItem = {
   id: string;
   email: string;
@@ -21,6 +23,8 @@ export type PlatformCompanyListItem = {
   createdAt: string;
   userCount: number;
   lastLoginAt: string | null;
+  nextPaymentAt: string | null;
+  subscriptionStatus: SubscriptionStatus;
 };
 
 export type PlatformCompanyUser = {
@@ -39,6 +43,8 @@ export type PlatformCompanyDetail = {
   createdAt: string;
   leadCount: number;
   lastLoginAt: string | null;
+  nextPaymentAt: string | null;
+  subscriptionStatus: SubscriptionStatus;
   users: PlatformCompanyUser[];
   pendingInviteEmail: string | null;
 };

@@ -1,13 +1,18 @@
 import { writeEvent } from '@/lib/events';
 import { requirePlatformSession } from '@/lib/platform/auth';
+import { getSubscriptionStatus } from '@/lib/platform/subscription';
 import { prisma } from '@/lib/prisma';
-import { blockCompanySchema } from '@/lib/validations/platform';
+import { patchCompanySchema } from '@/lib/validations/platform';
 
 function unauthorizedResponse(error: unknown): Response | null {
   if (error instanceof Response) {
     return error;
   }
   return null;
+}
+
+function parsePaymentDate(value: string): Date {
+  return new Date(`${value}T00:00:00.000Z`);
 }
 
 export async function PATCH(
@@ -34,7 +39,7 @@ export async function PATCH(
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const parsed = blockCompanySchema.safeParse(body);
+  const parsed = patchCompanySchema.safeParse(body);
   if (!parsed.success) {
     return Response.json(
       {
@@ -54,27 +59,69 @@ export async function PATCH(
     return Response.json({ error: 'Company not found' }, { status: 404 });
   }
 
-  const { isBlocked } = parsed.data;
+  if ('isBlocked' in parsed.data) {
+    const { isBlocked } = parsed.data;
+
+    try {
+      const company = await prisma.company.update({
+        where: { id },
+        data: { isBlocked },
+        select: {
+          id: true,
+          name: true,
+          isBlocked: true,
+          createdAt: true,
+        },
+      });
+
+      await writeEvent(id, isBlocked ? 'COMPANY_BLOCKED' : 'COMPANY_UNBLOCKED', {
+        payload: { byPlatformAdminId: session.admin.id },
+      });
+
+      return Response.json(company);
+    } catch (error) {
+      console.error('Failed to update company block status:', error);
+      return Response.json({ error: 'Failed to update company' }, { status: 500 });
+    }
+  }
+
+  const nextPaymentAt =
+    parsed.data.nextPaymentAt === null
+      ? null
+      : parsePaymentDate(parsed.data.nextPaymentAt);
 
   try {
     const company = await prisma.company.update({
       where: { id },
-      data: { isBlocked },
+      data: { nextPaymentAt },
       select: {
         id: true,
         name: true,
         isBlocked: true,
+        nextPaymentAt: true,
         createdAt: true,
       },
     });
 
-    await writeEvent(id, isBlocked ? 'COMPANY_BLOCKED' : 'COMPANY_UNBLOCKED', {
-      payload: { byPlatformAdminId: session.admin.id },
+    await writeEvent(id, 'COMPANY_PAYMENT_UPDATED', {
+      payload: {
+        nextPaymentAt: company.nextPaymentAt?.toISOString() ?? null,
+        byPlatformAdminId: session.admin.id,
+      },
     });
 
-    return Response.json(company);
+    const subscriptionStatus = getSubscriptionStatus(company.nextPaymentAt);
+
+    return Response.json({
+      id: company.id,
+      name: company.name,
+      isBlocked: company.isBlocked,
+      createdAt: company.createdAt.toISOString(),
+      nextPaymentAt: company.nextPaymentAt?.toISOString() ?? null,
+      subscriptionStatus: subscriptionStatus.status,
+    });
   } catch (error) {
-    console.error('Failed to update company block status:', error);
+    console.error('Failed to update company payment date:', error);
     return Response.json({ error: 'Failed to update company' }, { status: 500 });
   }
 }

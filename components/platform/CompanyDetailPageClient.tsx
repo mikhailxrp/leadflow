@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type ReactNode } from 'react';
+import { useState, type ChangeEvent, type ReactNode } from 'react';
 import ImpersonateButton from '@/components/platform/ImpersonateButton';
 import Button from '@/components/ui/Button';
-import type { PlatformCompanyDetail } from '@/types/platform';
+import type { PlatformCompanyDetail, SubscriptionStatus } from '@/types/platform';
 import type { UserRole } from '@prisma/client';
 
 interface CompanyDetailPageClientProps {
@@ -16,6 +16,21 @@ const ROLE_LABELS: Record<UserRole, string> = {
   HEAD: 'Руководитель',
   MANAGER: 'Менеджер',
 };
+
+const SUBSCRIPTION_LABELS: Record<SubscriptionStatus, string> = {
+  none: 'Не задано',
+  ok: 'Активна',
+  expiring: 'Скоро продление',
+  overdue: 'Просрочено',
+};
+
+function toDateInputValue(iso: string | null): string {
+  if (!iso) {
+    return '';
+  }
+
+  return iso.slice(0, 10);
+}
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('ru-RU', {
@@ -37,6 +52,36 @@ function formatLastLogin(value: string | null): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function SubscriptionStatusBadge({
+  status,
+}: {
+  status: SubscriptionStatus;
+}): ReactNode {
+  const isAlert = status === 'expiring' || status === 'overdue';
+
+  if (isAlert) {
+    return (
+      <span className="inline-flex rounded-[20px] bg-[#FEF2F2] px-2.5 py-1 text-[12px] font-medium text-[#DC2626]">
+        {SUBSCRIPTION_LABELS[status]}
+      </span>
+    );
+  }
+
+  if (status === 'none') {
+    return (
+      <span className="inline-flex rounded-[20px] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-text-secondary)]">
+        {SUBSCRIPTION_LABELS[status]}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex rounded-[20px] bg-[#D1FAE5] px-2.5 py-1 text-[12px] font-medium text-[#065F46]">
+      {SUBSCRIPTION_LABELS[status]}
+    </span>
+  );
 }
 
 function CompanyStatusBadge({ isBlocked }: { isBlocked: boolean }): ReactNode {
@@ -84,6 +129,11 @@ export default function CompanyDetailPageClient({
 }: CompanyDetailPageClientProps): ReactNode {
   const [company, setCompany] = useState(initialCompany);
   const [isBlockPending, setIsBlockPending] = useState(false);
+  const [paymentDateInput, setPaymentDateInput] = useState(
+    toDateInputValue(initialCompany.nextPaymentAt),
+  );
+  const [isPaymentPending, setIsPaymentPending] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   async function handleToggleBlock(): Promise<void> {
     const nextBlocked = !company.isBlocked;
@@ -107,6 +157,73 @@ export default function CompanyDetailPageClient({
       setIsBlockPending(false);
     }
   }
+
+  async function handleSavePaymentDate(
+    nextPaymentAt: string | null,
+  ): Promise<void> {
+    const previousCompany = company;
+    const previousInput = paymentDateInput;
+
+    setPaymentError(null);
+    setIsPaymentPending(true);
+    setPaymentDateInput(nextPaymentAt ?? '');
+    setCompany((prev) => ({
+      ...prev,
+      nextPaymentAt: nextPaymentAt
+        ? new Date(`${nextPaymentAt}T00:00:00.000Z`).toISOString()
+        : null,
+    }));
+
+    try {
+      const response = await fetch(`/api/platform/companies/${company.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nextPaymentAt }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update payment date');
+      }
+
+      const updated = (await response.json()) as {
+        nextPaymentAt: string | null;
+        subscriptionStatus: SubscriptionStatus;
+      };
+
+      setCompany((prev) => ({
+        ...prev,
+        nextPaymentAt: updated.nextPaymentAt,
+        subscriptionStatus: updated.subscriptionStatus,
+      }));
+      setPaymentDateInput(toDateInputValue(updated.nextPaymentAt));
+    } catch (error) {
+      console.error(error);
+      setCompany(previousCompany);
+      setPaymentDateInput(previousInput);
+      setPaymentError('Не удалось сохранить дату продления');
+    } finally {
+      setIsPaymentPending(false);
+    }
+  }
+
+  async function handlePaymentDateChange(
+    event: ChangeEvent<HTMLInputElement>,
+  ): Promise<void> {
+    const value = event.target.value;
+    if (!value) {
+      return;
+    }
+
+    await handleSavePaymentDate(value);
+  }
+
+  async function handleClearPaymentDate(): Promise<void> {
+    await handleSavePaymentDate(null);
+  }
+
+  const subscriptionAlert =
+    company.subscriptionStatus === 'expiring' ||
+    company.subscriptionStatus === 'overdue';
 
   return (
     <main className="px-6 py-8">
@@ -182,6 +299,79 @@ export default function CompanyDetailPageClient({
           <p className="text-[14px] text-[var(--color-text-primary)]">
             {formatLastLogin(company.lastLoginAt)}
           </p>
+        </div>
+      </section>
+
+      <section
+        className={`
+          mb-8 rounded-[14px] border border-[0.5px]
+          bg-[var(--color-bg-surface)] p-5
+          ${subscriptionAlert ? 'border-[#FECACA] bg-[#FEF2F2]/40' : 'border-[var(--color-border)]'}
+        `}
+      >
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <h2 className="text-[20px] font-medium text-[var(--color-text-primary)]">
+            Подписка
+          </h2>
+          <SubscriptionStatusBadge status={company.subscriptionStatus} />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className="mb-1 text-[11px] font-medium text-[var(--color-text-secondary)]">
+              Следующий платёж
+            </p>
+            <p
+              className={`text-[14px] ${
+                subscriptionAlert
+                  ? 'text-[#DC2626]'
+                  : 'text-[var(--color-text-primary)]'
+              }`}
+            >
+              {company.nextPaymentAt
+                ? formatDate(company.nextPaymentAt)
+                : 'Не задано'}
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="next-payment-at"
+              className="mb-1 block text-[11px] font-medium text-[var(--color-text-secondary)]"
+            >
+              Установить или изменить дату
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                id="next-payment-at"
+                type="date"
+                value={paymentDateInput}
+                disabled={isPaymentPending}
+                onChange={handlePaymentDateChange}
+                className="
+                  h-[36px] rounded-[6px] border border-[0.5px]
+                  border-[var(--color-border)] bg-[var(--color-bg-surface)]
+                  px-3 text-[13px] text-[var(--color-text-primary)]
+                  disabled:opacity-60
+                "
+              />
+              {company.nextPaymentAt ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={isPaymentPending}
+                  onClick={handleClearPaymentDate}
+                >
+                  Сбросить
+                </Button>
+              ) : null}
+            </div>
+            {paymentError ? (
+              <p className="mt-2 text-[12px] text-[#DC2626]" role="alert">
+                {paymentError}
+              </p>
+            ) : null}
+          </div>
         </div>
       </section>
 

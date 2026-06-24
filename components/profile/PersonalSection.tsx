@@ -18,7 +18,6 @@ const INITIAL_STATE: PersonalState = {
 };
 
 interface PersonalSectionProps {
-  resetSignal: number;
   onDirtyChange: (dirty: boolean) => void;
 }
 
@@ -26,12 +25,8 @@ function isStateDirty(state: PersonalState): boolean {
   return JSON.stringify(state) !== JSON.stringify(INITIAL_STATE);
 }
 
-export default function PersonalSection({ resetSignal, onDirtyChange }: PersonalSectionProps) {
+export default function PersonalSection({ onDirtyChange }: PersonalSectionProps) {
   const [state, setState] = useState<PersonalState>(INITIAL_STATE);
-
-  useEffect(() => {
-    setState(INITIAL_STATE);
-  }, [resetSignal]);
 
   useEffect(() => {
     onDirtyChange(isStateDirty(state));

@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -45,52 +44,42 @@ function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
 }
 
 export default function LeadsChart() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   return (
     <Card padding="lg">
       <h2 className="mb-4 text-[14px] font-medium text-[var(--color-text-primary)]">
         Лиды по дням
       </h2>
       <div className="h-[220px] min-w-0 w-full">
-        {mounted ? (
-          <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-            <AreaChart
-              data={MOCK_CHART_DATA}
-              margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-            >
-              <XAxis
-                dataKey="day"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 11, fill: 'var(--color-text-tertiary)' }}
-                dy={8}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 11, fill: 'var(--color-text-tertiary)' }}
-                width={28}
-              />
-              <Tooltip content={<ChartTooltip />} />
-              <Area
-                type="monotone"
-                dataKey="leads"
-                stroke={CHART_COLOR}
-                strokeWidth={2}
-                fill={CHART_FILL}
-                dot={false}
-                activeDot={{ r: 4, fill: CHART_COLOR, strokeWidth: 0 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="h-full w-full" aria-hidden="true" />
-        )}
+        <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+          <AreaChart
+            data={MOCK_CHART_DATA}
+            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+          >
+            <XAxis
+              dataKey="day"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 11, fill: 'var(--color-text-tertiary)' }}
+              dy={8}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 11, fill: 'var(--color-text-tertiary)' }}
+              width={28}
+            />
+            <Tooltip content={<ChartTooltip />} />
+            <Area
+              type="monotone"
+              dataKey="leads"
+              stroke={CHART_COLOR}
+              strokeWidth={2}
+              fill={CHART_FILL}
+              dot={false}
+              activeDot={{ r: 4, fill: CHART_COLOR, strokeWidth: 0 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </Card>
   );
