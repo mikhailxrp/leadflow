@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-06-24 — Phase 3, Таск 0.5: Авторассылка о приближении продления (email-дайджест + cron)
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/platform/subscriptionReminders.ts` — `collectCompaniesNeedingRenewal()` (все компании с `nextPaymentAt`, без фильтра `isBlocked`, статус через `getSubscriptionStatus`, только `expiring | overdue`, сортировка по дате, явные типы `CompanyNeedingRenewal` / `SubscriptionDigestResult`) и канал-агностичный `sendSubscriptionDigest()` (пустой список → skip; иначе email каждому активному `PlatformAdmin`; задел под Telegram в Phase 13)
+- `lib/platform/sendSubscriptionReminderEmail.ts` — шаблон дайджеста (subject + text + html: компания, дата, «осталось N дней» / «просрочено на N дней»); guard `isEmailConfigured()` с `console.warn` и skip — по образцу `sendPasswordResetEmail.ts`
+- `app/api/platform/cron/subscription-reminders/route.ts` — `GET`/`POST`, защита **только** `CRON_SECRET` (Bearer / `x-cron-secret` / `?key=`), без сессии; `401` при неверном ключе; вызывает `sendSubscriptionDigest()`, ответ `{ companies, emailsSent }`; `dynamic = 'force-dynamic'`
+- `.env.example` — добавлен `CRON_SECRET=`
+- `.docs/dev-log.md` — эта запись + памятка про внешний crontab
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `.docs/phases/_status.md` — в Phase 1 (ручная инфраструктура): пункт в «Результат», таск №5 и примечание, что crontab на VPS раз в сутки дергает эндпоинт (приложение cron само не запускает)
+
+**Out of scope (не делалось):** Telegram-канал, настройка crontab на сервере, изменения схемы БД, дедупликация на стороне приложения, правки `proxy.ts`
+
+**Памятка: внешний crontab на VPS (раз в сутки):**
+
+```bash
+# Пример — подставить APP_URL и CRON_SECRET из .env
+0 9 * * * curl -fsS -X POST \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  "$APP_URL/api/platform/cron/subscription-reminders"
+```
+
+Альтернативы того же секрета: заголовок `x-cron-secret: $CRON_SECRET` или query `?key=$CRON_SECRET`. Дедупликация «не чаще раза в сутки» — на стороне планировщика, не приложения. SMTP не настроен → эндпоинт отвечает `200` с `{ companies, emailsSent: 0 }`, без падения.
+
+---
+
 ## 2026-06-24 — Phase 3, TASK: Срок подписки компании (дата продления, управление, индикатор)
 
 **Статус:** ✅ Завершён
