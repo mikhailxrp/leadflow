@@ -4,6 +4,241 @@
 
 ---
 
+## Вспомогательные скрипты
+
+Одноразовые/служебные скрипты для ручных операций. Запускаются локально через `tsx`, читают `.env` из корня проекта.
+
+### `scripts/deleteCompany.ts` — удаление компании из БД
+
+Полностью удаляет одну компанию и все её данные (лиды, события, пользователи, этапы, причины отказа, приглашения, задачи, напоминания, API-ключи и т.д.) в транзакции, в порядке зависимостей. Каждый запрос ограничен `companyId` — данные других компаний и платформенных администраторов не затрагиваются. Без аргумента или при несуществующем `id` скрипт падает, ничего не удаляя.
+
+Запуск:
+
+```bash
+npx tsx scripts/deleteCompany.ts <companyId>
+# или
+npm run delete:company -- <companyId>
+```
+
+`companyId` берётся из Prisma Studio (`npx prisma studio`, таблица `Company`). Подтверждения нет — удаляется именно та компания, чей id передан.
+
+---
+
+## 2026-06-25 — Phase 3, Таск 5: Сброс пароля (API + UI) + rate limiting
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/auth/passwordReset.ts` — `resetUserPassword(token, password)`: поиск токена по `hashToken(token)`; именованные ошибки `TOKEN_INVALID` / `TOKEN_USED` / `TOKEN_EXPIRED`; транзакция — обновление `passwordHash` пользователя + `updateMany` по `userId` (все неиспользованные токены → `usedAt = now()`)
+- `lib/validations/auth.ts` — `resetPasswordSchema` (`token`, `password` min 8) и `ResetPasswordInput`
+- `lib/rateLimit.ts` — in-memory fixed-window limiter (`Map<string, number[]>`); `checkRateLimit(key, limit, windowMs)` → `boolean`; при `key === undefined` (нет `x-forwarded-for` в dev) лимит не применяется — запрос всегда пропускается
+- `app/api/auth/reset-password/route.ts` — POST, публичный; Zod → rate check (IP, 10/час) → `resetUserPassword` → `200 { success: true }` / `400` с кодами токена / `429 TOO_MANY_REQUESTS`
+- `app/(public)/reset-password/page.tsx` — Server Component; `searchParams.token` → prop в форму; без токена — сообщение об ошибке и ссылка на `/forgot-password`
+- `components/auth/ResetPasswordForm.tsx` — Client Component; поле нового пароля (min 8, toggle видимости); POST `/api/auth/reset-password`; маппинг `TOKEN_*` / `TOO_MANY_REQUESTS` / `SERVER_ERROR`; при успехе `router.push('/login?reset=1')`
+- `app/api/auth/forgot-password/route.ts` — rate check после Zod-парсинга: ключ `IP:email`, 5/час → `429`
+- `app/api/auth/accept-invite/route.ts` — rate check по IP до бизнес-логики, 10/час → `429`
+- `app/(public)/login/page.tsx` — баннер при `?reset=1`: «Пароль успешно изменён, войдите» (success `#22C55E`, flat UI)
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `lib/rateLimit.ts` — fixed-window вместо token-bucket из спецификации; при отсутствии IP лимит пропускается (не ключ `"unknown"`, как в TASK)
+- `lib/auth/passwordReset.ts` / `forgot-password` — `createUserPasswordResetToken` бросает `USER_NOT_FOUND` вместо тихого `null`; route возвращает `400 USER_NOT_FOUND` (в Таске 4 был только generic success)
+
+**Out of scope (не делалось):** email после успешного сброса; повторная отправка ссылки со страницы reset; смена пароля изнутри системы (Phase 10); Nginx rate limit; изменения `proxy.ts`
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
+## 2026-06-25 — Phase 3, Таск 4: Восстановление пароля — запрос (API + UI)
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `prisma/schema.prisma` — модель `UserPasswordResetToken` (зеркало `PlatformAdminPasswordResetToken`): `id`, `userId`, `tokenHash @unique`, `expiresAt`, `usedAt?`, `createdAt`; relation на `User` с `onDelete: Cascade`; индексы по `userId` и `expiresAt`; обратная связь `passwordResetTokens` в `User`
+- `prisma/migrations/20260624220335_add_user_password_reset_token` — миграция таблицы
+- `.docs/database.md` — описание модели `UserPasswordResetToken` и поведения публичного эндпоинта
+- `lib/auth/passwordReset.ts` — `createUserPasswordResetToken(email)`: нормализация `toLowerCase().trim()`, поиск `User` по глобально уникальному `email` без `companyId`, пропуск заблокированных (`isBlocked`); генерация токена, сохранение `hashToken(token)` с TTL 1 час; возврат `{ email, token }` или `null`
+- `lib/auth/sendPasswordResetEmail.ts` — шаблон письма со ссылкой `/reset-password?token=...`; guard `isEmailConfigured()` → `console.warn` и skip без падения
+- `lib/validations/auth.ts` — `forgotPasswordSchema` и `ForgotPasswordInput`
+- `app/api/auth/forgot-password/route.ts` — POST, публичный; Zod-валидация; `resetUrl` из `APP_URL`; generic `{ success: true, message }` при любом исходе (нет пользователя, заблокирован, ошибка SMTP, отсутствие `APP_URL` — только `console.error`/`console.warn`); прецедент платформенного forgot-password
+- `app/(public)/forgot-password/page.tsx` — заглушка «Раздел в разработке» заменена на `<ForgotPasswordForm />`
+- `components/auth/ForgotPasswordForm.tsx` — Client Component: Zod-валидация email до fetch → POST `/api/auth/forgot-password` → экран успеха с generic-текстом (без редиректа и зависания) или ошибка валидации/сети
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** reset-password API и UI (`ResetPasswordForm`, `resetUserPassword`) — Таск 5; `lib/rateLimit.ts` и rate limiting — Таск 5; изменения `proxy.ts` — Таск 5
+
+---
+
+## 2026-06-25 — Phase 3, Таск 3: Приём приглашения — автовход
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `components/auth/AcceptInviteForm.tsx` — после успешного POST `/api/auth/accept-invite` (`200 { success: true }`) вместо безусловного редиректа на `/login?registered=1` вызывается `signIn('company-credentials', { email, password, redirect: false, redirectTo: '/today' })`: `email` — из prop invite (поле disabled/readOnly), `password` — из формы; при успехе `router.push('/today')`; при `signInResult?.error` или исключении — graceful fallback на `/login?registered=1` (аккаунт уже создан, повторный сабмит дал бы `EMAIL_EXISTS`); маппинг ошибок API до создания пользователя (`INVITE_INVALID` / `EMAIL_EXISTS` / `VALIDATION_ERROR` / `SERVER_ERROR`) сохранён
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** forgot/reset-password (Таски 4–5); rate limiting на `accept-invite` (Таск 5); изменения `lib/auth/acceptInvite.ts`, route-хендлера, миграций БД; каркас `/today` (Phase 4); клиентская Zod-предвалидация формы
+
+---
+
+## 2026-06-25 — Фикс: выход из режима поддержки возвращает к списку компаний
+
+**Статус:** ✅ Завершён
+
+**Проблема:** impersonation использует один cookie сессии NextAuth — вход «как поддержка» перезаписывал платформенную сессию компанийной. При выходе `/api/platform/impersonate/end` делал только `signOut` + чистил cookie, поэтому платформенный администратор полностью разлогинивался, а баннер уводил на `/platform/login`. Ожидалось: возврат к списку компаний платформенного администратора.
+
+**Что было реализовано:**
+
+- `lib/platform/impersonate.ts` — добавлено хранилище restore-токенов (TTL 60с, как у токенов impersonation): `createRestoreToken(platformAdminId)` / `consumeRestoreToken(token)`
+- `lib/auth.ts` — новый провайдер `platform-restore` (credentials): потребляет restore-токен, перепроверяет `PlatformAdmin` (`isActive`, `deletedAt: null`), возвращает свежую платформенную сессию `{ kind: 'platform', id, email }`
+- `app/api/platform/impersonate/end/route.ts` — вместо `signOut` + удаления cookie: валидирует impersonation-сессию, пишет `PLATFORM_IMPERSONATION_ENDED`, выдаёт restore-токен по `impersonatedByPlatformAdminId` и возвращает `{ token }` (убраны `signOut`, `cookies`, `SESSION_COOKIE_NAMES`)
+- `components/platform/ImpersonationBanner.tsx` — «Выйти из режима» получает токен и вызывает `signIn('platform-restore', { token, redirectTo: '/platform/companies' })`, перезаписывая impersonation-cookie платформенной сессией и приземляясь на список компаний (вместо `window.location.href = '/platform/login'`)
+
+**Безопасность:** restore-токен создаётся только при валидной impersonation-сессии, обращающейся к `/end`; идентификатор администратора берётся из `session.user.impersonatedByPlatformAdminId`, а не из ввода клиента.
+
+**Известное ограничение:** restore-токены, как и impersonation-токены, хранятся в памяти процесса — не переживают рестарт и не работают между инстансами (соответствует текущей реализации impersonation, не менялось).
+
+**Out of scope:** перенос токенов в БД/Redis; изменения обычного логаута (`LogoutButton`, `PlatformSignOutButton`); правки `proxy.ts`
+
+---
+
+## 2026-06-24 — Phase 3, Таск 2: Логин (UI) + логаут
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `components/auth/LoginForm.tsx` — Client Component вместо заглушки: Zod-валидация (`loginSchema`) до запроса, подсветка полей с ошибкой → `signIn('company-credentials', { email, password, redirect: false, redirectTo: '/today' })` → маппинг `result.code` (`USER_BLOCKED` / `COMPANY_BLOCKED`) в два текста блокировки, иначе generic «Неверный email или пароль» → при успехе `router.push('/today')`; ссылка «Забыли пароль?» на `/forgot-password`
+- `components/layout/LogoutButton.tsx` — реализован `signOut({ redirectTo: '/login' })` вместо заглушки; кнопки выхода в `ProfileLayout` и `today/page.tsx` работают без нового файла в `components/auth/`
+- `app/(public)/login/page.tsx` — Server Component: баннер «Регистрация завершена, войдите» при `searchParams.registered === '1'`
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** приём приглашения и автовход (Таск 3); forgot/reset-password (Таски 4–5); rate limiting логина (Nginx, Phase 1); каркас рабочей зоны / сайдбар (Phase 4); изменения в `authorize()` / `lib/auth.ts` / `authErrors.ts` (Таск 1)
+
+---
+
+## 2026-06-24 — Phase 3, Таск 1: `company-credentials` — authorize + двойная блокировка с кодами
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/auth.ts` — реализован `authorize` провайдера `company-credentials`: `loginSchema.safeParse` → `findUnique` по `email.toLowerCase().trim()` с `include: { company: true }` → `comparePassword` → `return null` при отсутствии пользователя или неверном пароле → `BlockedUserError` / `BlockedCompanyError` при блокировке → `update lastLoginAt` → `writeEvent(companyId, 'LOGIN', { userId })` → возврат `{ kind: 'company', id, companyId, role }`; провайдеры `platform-credentials` и `impersonation` не затронуты
+- `lib/auth/authErrors.ts` — `BlockedUserError` и `BlockedCompanyError extends CredentialsSignin` с публичными `code = 'USER_BLOCKED' | 'COMPANY_BLOCKED'`
+- `lib/validations/auth.ts` — `loginSchema` (`email`, `password`) и тип `LoginInput`
+- `types/next-auth.d.ts` / `types/session.ts` — проверены, изменения не потребовались (company-форма сессии уже покрыта)
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** UI формы входа, клиентский `signIn`, маппинг `result.code` в тексты, логаут (Таск 2); автовход после приёма приглашения (Таск 3); forgot/reset password (Таски 4–5); rate limiting и правки `proxy.ts` (Таск 5)
+
+---
+
+## 2026-06-24 — Phase 3, Таск 0.5: Авторассылка о приближении продления (email-дайджест + cron)
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/platform/subscriptionReminders.ts` — `collectCompaniesNeedingRenewal()` (все компании с `nextPaymentAt`, без фильтра `isBlocked`, статус через `getSubscriptionStatus`, только `expiring | overdue`, сортировка по дате, явные типы `CompanyNeedingRenewal` / `SubscriptionDigestResult`) и канал-агностичный `sendSubscriptionDigest()` (пустой список → skip; иначе email каждому активному `PlatformAdmin`; задел под Telegram в Phase 13)
+- `lib/platform/sendSubscriptionReminderEmail.ts` — шаблон дайджеста (subject + text + html: компания, дата, «осталось N дней» / «просрочено на N дней»); guard `isEmailConfigured()` с `console.warn` и skip — по образцу `sendPasswordResetEmail.ts`
+- `app/api/platform/cron/subscription-reminders/route.ts` — `GET`/`POST`, защита **только** `CRON_SECRET` (Bearer / `x-cron-secret` / `?key=`), без сессии; `401` при неверном ключе; вызывает `sendSubscriptionDigest()`, ответ `{ companies, emailsSent }`; `dynamic = 'force-dynamic'`
+- `.env.example` — добавлен `CRON_SECRET=`
+- `.docs/dev-log.md` — эта запись + памятка про внешний crontab
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `.docs/phases/_status.md` — в Phase 1 (ручная инфраструктура): пункт в «Результат», таск №5 и примечание, что crontab на VPS раз в сутки дергает эндпоинт (приложение cron само не запускает)
+
+**Out of scope (не делалось):** Telegram-канал, настройка crontab на сервере, изменения схемы БД, дедупликация на стороне приложения, правки `proxy.ts`
+
+**Памятка: внешний crontab на VPS (раз в сутки):**
+
+```bash
+# Пример — подставить APP_URL и CRON_SECRET из .env
+0 9 * * * curl -fsS -X POST \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  "$APP_URL/api/platform/cron/subscription-reminders"
+```
+
+Альтернативы того же секрета: заголовок `x-cron-secret: $CRON_SECRET` или query `?key=$CRON_SECRET`. Дедупликация «не чаще раза в сутки» — на стороне планировщика, не приложения. SMTP не настроен → эндпоинт отвечает `200` с `{ companies, emailsSent: 0 }`, без падения.
+
+---
+
+## 2026-06-24 — Phase 3, TASK: Срок подписки компании (дата продления, управление, индикатор)
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `prisma/schema.prisma` — поле `Company.nextPaymentAt DateTime?`, индекс `@@index([nextPaymentAt])`, enum `COMPANY_PAYMENT_UPDATED`
+- `prisma/migrations/20260624185647_add_company_next_payment_at/` — миграция применена
+- `.docs/database.md` — сверка: `nextPaymentAt`, индекс и `COMPANY_PAYMENT_UPDATED` уже описаны, правки не потребовались
+- `lib/platform/subscription.ts` — `getSubscriptionStatus()` с порогом 14 дней (`none` / `ok` / `expiring` / `overdue`), `daysUntilDue`, `server-only`
+- `lib/validations/platform.ts` — `setCompanyPaymentSchema`, `patchCompanySchema` (union: `{ isBlocked }` **или** `{ nextPaymentAt }`)
+- `lib/platform/createCompany.ts` — при создании компании `nextPaymentAt = +1 год`
+- `types/platform.ts` — тип `SubscriptionStatus`, поля `nextPaymentAt` и `subscriptionStatus` в `PlatformCompanyListItem` и `PlatformCompanyDetail`
+- `app/api/platform/companies/route.ts` — `GET`: `nextPaymentAt` в select + вычисленный `subscriptionStatus`
+- `app/api/platform/companies/[id]/route.ts` — `PATCH`: ветвление блокировка / дата продления; событие `COMPANY_PAYMENT_UPDATED { nextPaymentAt, byPlatformAdminId }`
+- `app/(platform)/platform/companies/[id]/page.tsx` — загрузка `nextPaymentAt` и `subscriptionStatus` в детали компании
+- `components/platform/CompaniesTable.tsx` — колонка «Следующий платёж» (дата + бейдж), красная подсветка строки при `expiring | overdue`
+- `components/platform/CompaniesPageClient.tsx` — сводка-баннер «N компаний требуют продления» со ссылками
+- `components/platform/CompanyDetailPageClient.tsx` — блок «Подписка»: дата, статус, `date input`, кнопка «Сбросить», оптимистичное обновление через `PATCH`
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** cron-дайджест email (таск 0.5), авто-блокировка по просрочке, Telegram-уведомления
+
+---
+
+## 2026-06-24 — Fix после DoD-check: критические замечания
+
+**Статус:** ✅ Исправлено
+
+**Что исправлено и почему:**
+
+- `lib/validations/platform.ts` — `blockCompanySchema` и `setCompanyPaymentSchema` переведены в `.strict()`.
+  - **Почему:** по DoD требовалось строгое XOR-поведение `PATCH` (`isBlocked` **или** `nextPaymentAt`). Без `strict` payload с двумя полями мог проходить из-за нестрогих Zod-объектов.
+- Убран `setState` внутри `useEffect` в проблемных компонентах:
+  - `components/dashboard/LeadsChart.tsx`
+  - `components/profile/PersonalSection.tsx`
+  - `components/profile/ContactsSection.tsx`
+  - `components/profile/ProfileNotifications.tsx`
+  - `components/profile/SecuritySection.tsx`
+  - `components/tasks/TaskBlock.tsx`
+  - **Почему:** линтер падал на `react-hooks/set-state-in-effect`, что блокировало критерий `npm run lint`.
+- `components/profile/ProfileLayout.tsx` — для сброса форм добавлены `key` на секции профиля вместо сброса через эффекты.
+  - **Почему:** это сохраняет поведение reset/save и убирает запрещённый паттерн `setState` в `useEffect`.
+- Дополнительно устранены lint-предупреждения, из-за которых `eslint` завершался с ошибкой:
+  - `components/pipeline/PipelineBoard.tsx` — удалён неиспользуемый импорт `PipelineCard`
+  - `components/ui/Toast.tsx` — удалён неиспользуемый `ReactNode`
+  - `components/ui/Avatar.tsx` — добавлен локальный `eslint-disable` для `img` (осознанное использование в этом компоненте)
+
+**Проверка после правок:**
+
+- `npm run type-check` ✅
+- `npm run lint` ✅
+- `npm run build` ✅
+
+---
+
 ## 2026-06-23 — Phase 2, Дополнение: удаление платформенного администратора + восстановление пароля платформы
 
 **Статус:** ✅ Завершён

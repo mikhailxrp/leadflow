@@ -30,7 +30,6 @@ function MaxIcon(): ReactNode {
 }
 
 interface ContactsSectionProps {
-  resetSignal: number;
   onDirtyChange: (dirty: boolean) => void;
 }
 
@@ -38,12 +37,8 @@ function isStateDirty(state: ContactsState): boolean {
   return JSON.stringify(state) !== JSON.stringify(INITIAL_STATE);
 }
 
-export default function ContactsSection({ resetSignal, onDirtyChange }: ContactsSectionProps) {
+export default function ContactsSection({ onDirtyChange }: ContactsSectionProps) {
   const [state, setState] = useState<ContactsState>(INITIAL_STATE);
-
-  useEffect(() => {
-    setState(INITIAL_STATE);
-  }, [resetSignal]);
 
   useEffect(() => {
     onDirtyChange(isStateDirty(state));

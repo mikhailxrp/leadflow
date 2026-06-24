@@ -9,6 +9,11 @@ import { generateToken, hashToken } from '@/lib/tokens';
 
 const INVITE_EXPIRY_DAYS = 7;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MS_PER_YEAR = 365 * MS_PER_DAY;
+
+function defaultNextPaymentAt(from: Date = new Date()): Date {
+  return new Date(from.getTime() + MS_PER_YEAR);
+}
 
 export type CreateCompanyInput = {
   name: string;
@@ -31,6 +36,7 @@ export async function createCompany({
       data: {
         name,
         settings: DEFAULT_COMPANY_SETTINGS,
+        nextPaymentAt: defaultNextPaymentAt(),
       },
     });
 

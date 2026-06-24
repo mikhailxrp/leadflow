@@ -3,11 +3,19 @@
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import Button from '@/components/ui/Button';
+import type { SubscriptionStatus } from '@/types/platform';
 import type { PlatformCompanyListItem } from '@/types/platform';
 
 interface CompaniesTableProps {
   companies: PlatformCompanyListItem[];
 }
+
+const SUBSCRIPTION_LABELS: Record<SubscriptionStatus, string> = {
+  none: 'Не задано',
+  ok: 'Активна',
+  expiring: 'Скоро продление',
+  overdue: 'Просрочено',
+};
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('ru-RU', {
@@ -45,6 +53,40 @@ function StatusBadge({ isBlocked }: { isBlocked: boolean }): ReactNode {
       Активна
     </span>
   );
+}
+
+function SubscriptionBadge({
+  status,
+}: {
+  status: SubscriptionStatus;
+}): ReactNode {
+  const isAlert = status === 'expiring' || status === 'overdue';
+
+  if (isAlert) {
+    return (
+      <span className="inline-flex rounded-[20px] bg-[#FEF2F2] px-2.5 py-1 text-[12px] font-medium text-[#DC2626]">
+        {SUBSCRIPTION_LABELS[status]}
+      </span>
+    );
+  }
+
+  if (status === 'none') {
+    return (
+      <span className="inline-flex rounded-[20px] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-text-secondary)]">
+        {SUBSCRIPTION_LABELS[status]}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex rounded-[20px] bg-[#D1FAE5] px-2.5 py-1 text-[12px] font-medium text-[#065F46]">
+      {SUBSCRIPTION_LABELS[status]}
+    </span>
+  );
+}
+
+function isSubscriptionAlert(status: SubscriptionStatus): boolean {
+  return status === 'expiring' || status === 'overdue';
 }
 
 export default function CompaniesTable({
@@ -108,12 +150,13 @@ export default function CompaniesTable({
         bg-[var(--color-bg-surface)]
       "
     >
-      <table className="w-full min-w-[900px] text-left">
+      <table className="w-full min-w-[1050px] text-left">
         <thead>
           <tr className="border-b border-[0.5px] border-[var(--color-border)]">
             {[
               'Название',
               'Статус',
+              'Следующий платёж',
               'Пользователей',
               'Последний вход',
               'Создана',
@@ -134,18 +177,22 @@ export default function CompaniesTable({
         <tbody>
           {companies.map((company) => {
             const isPending = pendingIds.has(company.id);
+            const subscriptionAlert = isSubscriptionAlert(company.subscriptionStatus);
             const rowTextClass = company.isBlocked
               ? 'text-[var(--color-text-secondary)]'
-              : 'text-[var(--color-text-primary)]';
+              : subscriptionAlert
+                ? 'text-[#DC2626]'
+                : 'text-[var(--color-text-primary)]';
 
             return (
               <tr
                 key={company.id}
-                className="
+                className={`
                   border-b border-[0.5px] border-[var(--color-border)]
                   last:border-b-0 transition-colors duration-150
                   hover:bg-[var(--color-bg-surface-2)]
-                "
+                  ${subscriptionAlert ? 'bg-[#FEF2F2]/40' : ''}
+                `}
               >
                 <td className={`px-4 py-3 text-[14px] ${rowTextClass}`}>
                   <Link
@@ -161,6 +208,21 @@ export default function CompaniesTable({
                     className="block -mx-4 -my-3 px-4 py-3"
                   >
                     <StatusBadge isBlocked={company.isBlocked} />
+                  </Link>
+                </td>
+                <td className="px-4 py-3">
+                  <Link
+                    href={`/platform/companies/${company.id}`}
+                    className="block -mx-4 -my-3 px-4 py-3"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <span className={`text-[14px] ${rowTextClass}`}>
+                        {company.nextPaymentAt
+                          ? formatDate(company.nextPaymentAt)
+                          : '—'}
+                      </span>
+                      <SubscriptionBadge status={company.subscriptionStatus} />
+                    </div>
                   </Link>
                 </td>
                 <td className={`px-4 py-3 text-[14px] ${rowTextClass}`}>

@@ -65,6 +65,7 @@ enum EventType {
   COMPANY_CREATED
   COMPANY_BLOCKED
   COMPANY_UNBLOCKED
+  COMPANY_PAYMENT_UPDATED
   PLATFORM_IMPERSONATION_STARTED
   PLATFORM_IMPERSONATION_ENDED
 }
@@ -94,11 +95,12 @@ enum ImportStatus {
 }
 
 model Company {
-  id        String   @id @default(cuid())
-  name      String
-  isBlocked Boolean  @default(false)
-  settings  Json     @default("{}")
-  createdAt DateTime @default(now())
+  id            String    @id @default(cuid())
+  name          String
+  isBlocked     Boolean   @default(false)
+  nextPaymentAt DateTime?
+  settings      Json      @default("{}")
+  createdAt     DateTime  @default(now())
 
   users              User[]
   leads              Lead[]
@@ -113,6 +115,8 @@ model Company {
   integrationSources IntegrationSource[]
   assignmentRules    AssignmentRule[]
   invites            CompanyInvite[]
+
+  @@index([nextPaymentAt])
 }
 
 model User {
@@ -128,18 +132,33 @@ model User {
   lastLoginAt             DateTime?
   createdAt               DateTime  @default(now())
 
-  company          Company          @relation(fields: [companyId], references: [id])
-  assignedLeads    Lead[]           @relation("AssignedManager")
-  comments         Comment[]
-  tasksCreated     Task[]           @relation("TaskCreator")
-  tasksAssigned    Task[]           @relation("TaskAssignee")
-  remindersCreated Reminder[]
-  importBatches    ImportBatch[]
-  rulesAsAssignee  AssignmentRule[] @relation("RuleAssignee")
-  rulesAsFallback  AssignmentRule[] @relation("RuleFallback")
+  company              Company                  @relation(fields: [companyId], references: [id])
+  assignedLeads        Lead[]                   @relation("AssignedManager")
+  comments             Comment[]
+  tasksCreated         Task[]                   @relation("TaskCreator")
+  tasksAssigned        Task[]                   @relation("TaskAssignee")
+  remindersCreated     Reminder[]
+  importBatches        ImportBatch[]
+  rulesAsAssignee      AssignmentRule[]         @relation("RuleAssignee")
+  rulesAsFallback      AssignmentRule[]         @relation("RuleFallback")
+  passwordResetTokens  UserPasswordResetToken[]
 
   @@index([companyId])
   @@index([role])
+}
+
+model UserPasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model PlatformAdmin {

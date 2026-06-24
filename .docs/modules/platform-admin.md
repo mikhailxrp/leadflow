@@ -34,6 +34,7 @@
 - Каждый такой вход и каждое действие внутри него — прозрачно зафиксированы
 - Платформенный администратор видит активность компаний (не лиды как рабочий процесс)
 - Может создавать других платформенных администраторов
+- Ведёт дату продления подписки компании (годовой офлайн-договор) и автоматически получает email-напоминания о приближающихся/просроченных сроках
 
 **Не входит в модуль:**
 
@@ -194,6 +195,43 @@ PATCH /api/platform/companies/:id { isBlocked: true }
 
 ---
 
+## Срок подписки компании (продление)
+
+### Поведение
+
+Компания работает по годовому **офлайн-договору**; биллинга внутри продукта нет. Платформенный администратор ведёт **дату следующего платежа** как напоминание о продлении — это не тариф и не оплата, а одно поле даты. Полная семантика — `.docs/database.md` → «Срок подписки компании».
+
+- `Company.nextPaymentAt` (nullable) — дата следующего платежа. При создании компании по умолчанию `+1 год`; платформенный администратор может изменить/сбросить.
+- Статус продления **вычисляется на лету** (`lib/platform/subscription.ts`): `none` / `ok` / `expiring` (≤ 14 дней до даты) / `overdue` (дата прошла).
+- В списке и карточке компании дата видна; `expiring | overdue` подсвечиваются красным. На `/platform/companies` — сводка-баннер «N компаний требуют продления».
+- **Просрочка не блокирует** ни вход, ни приём лидов — заблокировать компанию остаётся отдельным ручным решением.
+- Изменение даты → событие `COMPANY_PAYMENT_UPDATED { nextPaymentAt, byPlatformAdminId }`.
+
+### Установка даты
+
+```
+PATCH /api/platform/companies/:id  { nextPaymentAt: "2027-06-24" | null }
+  → обновляет Company.nextPaymentAt
+  → событие COMPANY_PAYMENT_UPDATED
+```
+
+Тот же роут, что и блокировка; поля независимы — обрабатывается присланное (`isBlocked` или `nextPaymentAt`).
+
+### Автоуведомление о приближении срока
+
+Чтобы с ростом числа компаний не проверять список вручную каждый день, ежедневный дайджест-email уходит всем активным платформенным администраторам.
+
+```
+GET/POST /api/platform/cron/subscription-reminders   (ключ CRON_SECRET в заголовке/параметре, без сессии)
+  → выбирает компании со статусом expiring | overdue (lib/platform/subscriptionReminders.ts)
+  → шлёт email-дайджест каждому активному платформенному администратору (lib/email.ts)
+  → если таких компаний нет — письмо не отправляется; если SMTP не настроен — graceful skip
+```
+
+Триггерит внешний планировщик (системный crontab на VPS, раз в сутки) — машинный вызов, не платформенная сессия. Канал спроектирован расширяемым: Telegram добавляется позже поверх `sendSubscriptionDigest()` (после `lib/telegram.ts` и `PlatformAdmin.telegramChatId`, Phase 13). **Email — обязательный канал.**
+
+---
+
 ## Управление платформенными администраторами
 
 ### Поведение (PLAT-02)
@@ -213,7 +251,8 @@ GET/POST /api/platform/admins
 | --- | --- | --- | --- |
 | POST | `/api/platform/login` | Вход | Public |
 | GET/POST | `/api/platform/companies` | Список / создание | `kind: "platform"` |
-| PATCH | `/api/platform/companies/:id` | Блокировка/разблокировка | `kind: "platform"` |
+| PATCH | `/api/platform/companies/:id` | Блокировка/разблокировка, дата продления (`nextPaymentAt`) | `kind: "platform"` |
+| GET/POST | `/api/platform/cron/subscription-reminders` | Email-дайджест о приближении продления (машинный вызов) | `CRON_SECRET` (без сессии) |
 | POST | `/api/platform/companies/:id/impersonate/:userId` | Вход от имени компании | `kind: "platform"` |
 | POST | `/api/platform/impersonate/end` | Завершение impersonation | `kind: "company"` + `impersonatedByPlatformAdminId` заполнен |
 | GET/POST | `/api/platform/admins` | Управление платформенными администраторами | `kind: "platform"` |
@@ -243,8 +282,10 @@ app/
         ├── companies/
         │   ├── route.ts                          # GET, POST
         │   └── [id]/
-        │       ├── route.ts                        # PATCH (блокировка)
+        │       ├── route.ts                        # PATCH (блокировка + nextPaymentAt)
         │       └── impersonate/[userId]/route.ts
+        ├── cron/
+        │   └── subscription-reminders/route.ts     # дайджест о продлении (CRON_SECRET)
         ├── impersonate/end/route.ts
         ├── admins/route.ts
         └── activity/route.ts
@@ -252,8 +293,11 @@ app/
 lib/
 └── platform/
     ├── auth.ts                # отдельная проверка сессии PlatformAdmin
-    ├── createCompany.ts        # транзакция создания + приглашения
+    ├── createCompany.ts        # транзакция создания + приглашения (nextPaymentAt = +1 год)
     ├── impersonate.ts
+    ├── subscription.ts             # getSubscriptionStatus (none/ok/expiring/overdue)
+    ├── subscriptionReminders.ts    # выборка + sendSubscriptionDigest
+    ├── sendSubscriptionReminderEmail.ts
     └── companyActivity.ts
 
 scripts/
@@ -280,6 +324,8 @@ components/
 5. **Любое прикладное действие во время impersonation помечается `impersonatedByPlatformAdminId`** — это поле выставляется на уровне `lib/events.ts`, не требует ручного указания в каждом месте, где пишется событие (берётся из сессии автоматически).
 6. **Блокировка компании не имеет отдельного guard на каждый мутирующий эндпоинт** — проверяется один раз, в `authorize()`, при входе.
 7. **`CompanyInvite.tokenHash` — одноразовый и с TTL**, как и токен восстановления пароля.
+8. **`Company.nextPaymentAt` — не биллинг:** ручная дата-напоминание о продлении офлайн-договора без процессинга/тарифов/фичагейтов; просрочка не ограничивает доступ автоматически (блокировка — отдельное ручное действие).
+9. **Cron-эндпоинт уведомлений защищён `CRON_SECRET`, не сессией** — единственный платформенный путь без `kind: "platform"`, т.к. вызывается машиной (внешним планировщиком), а не человеком.
 
 ---
 

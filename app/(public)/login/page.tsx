@@ -6,7 +6,13 @@ export const metadata: Metadata = {
   title: 'Вход',
 };
 
-export default function LoginPage() {
+interface LoginPageProps {
+  searchParams: Promise<{ registered?: string; reset?: string }>;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { registered, reset } = await searchParams;
+
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-8">
       <div className="w-full max-w-[400px]">
@@ -20,6 +26,24 @@ export default function LoginPage() {
               LeadFlow
             </span>
           </div>
+
+          {registered === '1' && (
+            <p
+              className="mb-6 rounded-[6px] border border-[0.5px] border-[#10B981] bg-[rgba(16,185,129,0.08)] px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
+              role="status"
+            >
+              Регистрация завершена, войдите
+            </p>
+          )}
+
+          {reset === '1' && (
+            <p
+              className="mb-6 rounded-[6px] border border-[0.5px] border-[#22C55E] bg-[rgba(34,197,94,0.08)] px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
+              role="status"
+            >
+              Пароль успешно изменён, войдите
+            </p>
+          )}
 
           <header className="mb-6">
             <h1 className="mb-1 text-[20px] font-medium text-[var(--color-text-primary)]">

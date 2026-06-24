@@ -40,3 +40,34 @@ export function consumeImpersonationToken(
     platformAdminId: data.platformAdminId,
   };
 }
+
+type RestoreData = {
+  platformAdminId: string;
+  expiresAt: number;
+};
+
+const restoreTokens = new Map<string, RestoreData>();
+
+export function createRestoreToken(platformAdminId: string): string {
+  const token = crypto.randomUUID();
+  restoreTokens.set(token, {
+    platformAdminId,
+    expiresAt: Date.now() + IMPERSONATION_TOKEN_TTL_MS,
+  });
+  return token;
+}
+
+export function consumeRestoreToken(token: string): string | null {
+  const data = restoreTokens.get(token);
+  if (!data) {
+    return null;
+  }
+
+  if (Date.now() > data.expiresAt) {
+    restoreTokens.delete(token);
+    return null;
+  }
+
+  restoreTokens.delete(token);
+  return data.platformAdminId;
+}

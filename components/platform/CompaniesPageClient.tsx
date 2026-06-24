@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import CompaniesTable from '@/components/platform/CompaniesTable';
 import CreateCompanyModal from '@/components/platform/CreateCompanyModal';
@@ -9,10 +10,17 @@ interface CompaniesPageClientProps {
   companies: PlatformCompanyListItem[];
 }
 
+function needsRenewal(status: PlatformCompanyListItem['subscriptionStatus']): boolean {
+  return status === 'expiring' || status === 'overdue';
+}
+
 export default function CompaniesPageClient({
   companies,
 }: CompaniesPageClientProps): ReactNode {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const renewalCompanies = companies.filter((company) =>
+    needsRenewal(company.subscriptionStatus),
+  );
 
   return (
     <main className="px-6 py-8">
@@ -34,6 +42,42 @@ export default function CompaniesPageClient({
           + Создать компанию
         </button>
       </div>
+
+      {renewalCompanies.length > 0 ? (
+        <section
+          className="
+            mb-6 rounded-[14px] border border-[#FECACA]
+            bg-[#FEF2F2] px-4 py-3
+          "
+          aria-live="polite"
+        >
+          <p className="text-[14px] font-medium text-[#DC2626]">
+            {renewalCompanies.length}{' '}
+            {renewalCompanies.length === 1
+              ? 'компания требует'
+              : renewalCompanies.length < 5
+                ? 'компании требуют'
+                : 'компаний требуют'}{' '}
+            продления:
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            {renewalCompanies.map((company) => (
+              <li key={company.id}>
+                <Link
+                  href={`/platform/companies/${company.id}`}
+                  className="
+                    text-[13px] text-[#DC2626] underline
+                    underline-offset-2 transition-colors duration-150
+                    hover:text-[#991B1B]
+                  "
+                >
+                  {company.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <CompaniesTable companies={companies} />
 

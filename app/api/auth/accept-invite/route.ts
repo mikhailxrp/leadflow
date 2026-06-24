@@ -1,7 +1,18 @@
 import { acceptInvite } from '@/lib/auth/acceptInvite';
+import { checkRateLimit } from '@/lib/rateLimit';
 import { acceptInviteSchema } from '@/lib/validations/auth';
 
+function getIp(request: Request): string | undefined {
+  const forwarded = request.headers.get('x-forwarded-for');
+  return forwarded ? (forwarded.split(',')[0]?.trim() || undefined) : undefined;
+}
+
 export async function POST(request: Request): Promise<Response> {
+  const ip = getIp(request);
+  if (!checkRateLimit(ip, 10, 60 * 60 * 1000)) {
+    return Response.json({ success: false, error: 'TOO_MANY_REQUESTS' }, { status: 429 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();

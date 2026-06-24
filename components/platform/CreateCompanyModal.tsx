@@ -94,6 +94,10 @@ export default function CreateCompanyModal({
 
       setInviteUrl(data.inviteUrl);
       setStep('success');
+      // Освежаем список сразу после создания, пока модалка ещё показывает
+      // ссылку-приглашение: иначе при закрытии окна фоном/Escape (минуя кнопку
+      // «Готово») список останется старым до ручной перезагрузки страницы.
+      router.refresh();
     } catch (error) {
       console.error(error);
       setServerError('Не удалось создать компанию');
@@ -114,7 +118,6 @@ export default function CreateCompanyModal({
   function handleDone(): void {
     resetState();
     onClose();
-    router.refresh();
   }
 
   if (!isOpen) {

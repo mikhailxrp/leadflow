@@ -10,7 +10,8 @@
     "type-check": "tsc --noEmit",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "bootstrap:platform-admin": "npx tsx scripts/bootstrapPlatformAdmin.ts"
+    "bootstrap:platform-admin": "npx tsx scripts/bootstrapPlatformAdmin.ts",
+    "delete:company": "npx tsx scripts/deleteCompany.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

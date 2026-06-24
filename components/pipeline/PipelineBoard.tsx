@@ -14,7 +14,7 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState, type ReactNode } from 'react';
-import PipelineCard, { PipelineCardOverlay } from '@/components/pipeline/PipelineCard';
+import { PipelineCardOverlay } from '@/components/pipeline/PipelineCard';
 import PipelineColumn, { type PipelineLead } from '@/components/pipeline/PipelineColumn';
 
 const LEAD_DETAIL_PATH = '/leads/1';

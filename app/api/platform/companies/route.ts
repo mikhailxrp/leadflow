@@ -1,5 +1,6 @@
 import { createCompany } from '@/lib/platform/createCompany';
 import { requirePlatformSession } from '@/lib/platform/auth';
+import { getSubscriptionStatus } from '@/lib/platform/subscription';
 import { prisma } from '@/lib/prisma';
 import { createCompanySchema } from '@/lib/validations/platform';
 
@@ -29,6 +30,7 @@ export async function GET(): Promise<Response> {
           id: true,
           name: true,
           isBlocked: true,
+          nextPaymentAt: true,
           createdAt: true,
           _count: { select: { users: true } },
         },
@@ -43,15 +45,21 @@ export async function GET(): Promise<Response> {
       lastLogins.map((row) => [row.companyId, row._max.lastLoginAt]),
     );
 
-    const result = companies.map((company) => ({
-      id: company.id,
-      name: company.name,
-      isBlocked: company.isBlocked,
-      createdAt: company.createdAt.toISOString(),
-      userCount: company._count.users,
-      lastLoginAt:
-        lastLoginByCompanyId.get(company.id)?.toISOString() ?? null,
-    }));
+    const result = companies.map((company) => {
+      const subscriptionStatus = getSubscriptionStatus(company.nextPaymentAt);
+
+      return {
+        id: company.id,
+        name: company.name,
+        isBlocked: company.isBlocked,
+        createdAt: company.createdAt.toISOString(),
+        userCount: company._count.users,
+        lastLoginAt:
+          lastLoginByCompanyId.get(company.id)?.toISOString() ?? null,
+        nextPaymentAt: company.nextPaymentAt?.toISOString() ?? null,
+        subscriptionStatus: subscriptionStatus.status,
+      };
+    });
 
     return Response.json(result);
   } catch (error) {

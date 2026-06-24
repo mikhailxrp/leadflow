@@ -20,7 +20,6 @@ const INITIAL_STATE: SecurityState = {
 };
 
 interface SecuritySectionProps {
-  resetSignal: number;
   onDirtyChange: (dirty: boolean) => void;
 }
 
@@ -41,14 +40,9 @@ const inputBaseClass = `
   focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]
 `;
 
-export default function SecuritySection({ resetSignal, onDirtyChange }: SecuritySectionProps) {
+export default function SecuritySection({ onDirtyChange }: SecuritySectionProps) {
   const [state, setState] = useState<SecurityState>(INITIAL_STATE);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-
-  useEffect(() => {
-    setState(INITIAL_STATE);
-    setShowCurrentPassword(false);
-  }, [resetSignal]);
 
   useEffect(() => {
     onDirtyChange(isStateDirty(state));
