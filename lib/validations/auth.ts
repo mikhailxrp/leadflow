@@ -11,5 +11,10 @@ export const acceptInviteSchema = z.object({
   password: z.string().min(8),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;

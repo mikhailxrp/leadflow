@@ -300,6 +300,26 @@ model User {
 
 `lastLoginAt` обновляется при каждом успешном входе — нужен платформенному администратору для отчёта об активности компаний, не используется в логике внутри компании. Лимита на число пользователей нет — тарифов больше нет.
 
+### `UserPasswordResetToken`
+
+```prisma
+model UserPasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+```
+
+Хранит хэш токена восстановления пароля пользователя компании. Сам токен (plaintext) возвращается только в момент создания — в БД хранится только `hashToken(token)` (SHA-256). TTL — 1 час (`expiresAt`). Поле `usedAt` проставляется при успешном сбросе. Публичный эндпоинт `POST /api/auth/forgot-password` всегда возвращает одинаковый ответ вне зависимости от того, найден ли пользователь — защита от перечисления email.
+
 ### `PlatformAdmin`
 
 ```prisma

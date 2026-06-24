@@ -24,6 +24,30 @@ npm run delete:company -- <companyId>
 
 ---
 
+## 2026-06-25 — Phase 3, Таск 4: Восстановление пароля — запрос (API + UI)
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `prisma/schema.prisma` — модель `UserPasswordResetToken` (зеркало `PlatformAdminPasswordResetToken`): `id`, `userId`, `tokenHash @unique`, `expiresAt`, `usedAt?`, `createdAt`; relation на `User` с `onDelete: Cascade`; индексы по `userId` и `expiresAt`; обратная связь `passwordResetTokens` в `User`
+- `prisma/migrations/20260624220335_add_user_password_reset_token` — миграция таблицы
+- `.docs/database.md` — описание модели `UserPasswordResetToken` и поведения публичного эндпоинта
+- `lib/auth/passwordReset.ts` — `createUserPasswordResetToken(email)`: нормализация `toLowerCase().trim()`, поиск `User` по глобально уникальному `email` без `companyId`, пропуск заблокированных (`isBlocked`); генерация токена, сохранение `hashToken(token)` с TTL 1 час; возврат `{ email, token }` или `null`
+- `lib/auth/sendPasswordResetEmail.ts` — шаблон письма со ссылкой `/reset-password?token=...`; guard `isEmailConfigured()` → `console.warn` и skip без падения
+- `lib/validations/auth.ts` — `forgotPasswordSchema` и `ForgotPasswordInput`
+- `app/api/auth/forgot-password/route.ts` — POST, публичный; Zod-валидация; `resetUrl` из `APP_URL`; generic `{ success: true, message }` при любом исходе (нет пользователя, заблокирован, ошибка SMTP, отсутствие `APP_URL` — только `console.error`/`console.warn`); прецедент платформенного forgot-password
+- `app/(public)/forgot-password/page.tsx` — заглушка «Раздел в разработке» заменена на `<ForgotPasswordForm />`
+- `components/auth/ForgotPasswordForm.tsx` — Client Component: Zod-валидация email до fetch → POST `/api/auth/forgot-password` → экран успеха с generic-текстом (без редиректа и зависания) или ошибка валидации/сети
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** reset-password API и UI (`ResetPasswordForm`, `resetUserPassword`) — Таск 5; `lib/rateLimit.ts` и rate limiting — Таск 5; изменения `proxy.ts` — Таск 5
+
+---
+
 ## 2026-06-25 — Phase 3, Таск 3: Приём приглашения — автовход
 
 **Статус:** ✅ Завершён

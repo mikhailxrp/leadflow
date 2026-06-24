@@ -132,18 +132,33 @@ model User {
   lastLoginAt             DateTime?
   createdAt               DateTime  @default(now())
 
-  company          Company          @relation(fields: [companyId], references: [id])
-  assignedLeads    Lead[]           @relation("AssignedManager")
-  comments         Comment[]
-  tasksCreated     Task[]           @relation("TaskCreator")
-  tasksAssigned    Task[]           @relation("TaskAssignee")
-  remindersCreated Reminder[]
-  importBatches    ImportBatch[]
-  rulesAsAssignee  AssignmentRule[] @relation("RuleAssignee")
-  rulesAsFallback  AssignmentRule[] @relation("RuleFallback")
+  company              Company                  @relation(fields: [companyId], references: [id])
+  assignedLeads        Lead[]                   @relation("AssignedManager")
+  comments             Comment[]
+  tasksCreated         Task[]                   @relation("TaskCreator")
+  tasksAssigned        Task[]                   @relation("TaskAssignee")
+  remindersCreated     Reminder[]
+  importBatches        ImportBatch[]
+  rulesAsAssignee      AssignmentRule[]         @relation("RuleAssignee")
+  rulesAsFallback      AssignmentRule[]         @relation("RuleFallback")
+  passwordResetTokens  UserPasswordResetToken[]
 
   @@index([companyId])
   @@index([role])
+}
+
+model UserPasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model PlatformAdmin {

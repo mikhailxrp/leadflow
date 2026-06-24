@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@iconify/react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent, type ReactNode } from 'react';
@@ -26,6 +27,7 @@ export default function AcceptInviteForm({
   const router = useRouter();
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -101,15 +103,34 @@ export default function AcceptInviteForm({
         autoComplete="name"
       />
 
-      <Input
-        label="Пароль"
-        type="password"
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-        required
-        minLength={8}
-        autoComplete="new-password"
-      />
+      <div className="flex flex-col gap-1.5">
+        <label
+          htmlFor="invite-password"
+          className="text-[12px] font-normal leading-5 text-[var(--color-text-secondary)]"
+        >
+          Пароль
+        </label>
+        <div className="relative">
+          <input
+            id="invite-password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
+            className="h-[36px] w-full rounded-[6px] border border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] px-3 pr-9 text-[14px] text-[var(--color-text-primary)] outline-none transition-all duration-150 placeholder:text-[var(--color-text-tertiary)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] transition-colors duration-150 hover:text-[var(--color-text-secondary)]"
+            aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+          >
+            <Icon icon={showPassword ? 'tabler:eye-off' : 'tabler:eye'} className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
       <p className="-mt-2 text-[12px] text-[var(--color-text-secondary)]">
         Не менее 8 символов
       </p>
