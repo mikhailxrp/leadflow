@@ -1,13 +1,7 @@
-import { cookies } from 'next/headers';
-import { auth, signOut } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 import { writeEvent } from '@/lib/events';
+import { createRestoreToken } from '@/lib/platform/impersonate';
 import { endImpersonationBodySchema } from '@/lib/validations/platform';
-
-const SESSION_COOKIE_NAMES = [
-  'authjs.session-token',
-  '__Secure-authjs.session-token',
-  '__Host-authjs.session-token',
-] as const;
 
 export async function POST(request: Request): Promise<Response> {
   const contentLengthHeader = request.headers.get('content-length');
@@ -66,16 +60,11 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: 'Failed to end impersonation' }, { status: 500 });
   }
 
-  try {
-    await signOut({ redirect: false });
-  } catch {
-    // signOut may throw NEXT_REDIRECT in Route Handlers — cookies cleared below
-  }
+  // Restore the platform admin session instead of fully signing out, so the
+  // admin returns to the platform area rather than being logged out entirely.
+  // The client consumes this token via signIn('platform-restore'), which
+  // overwrites the company impersonation cookie with a platform session.
+  const restoreToken = createRestoreToken(impersonatedByPlatformAdminId);
 
-  const cookieStore = await cookies();
-  for (const name of SESSION_COOKIE_NAMES) {
-    cookieStore.delete(name);
-  }
-
-  return Response.json({ ok: true });
+  return Response.json({ token: restoreToken });
 }

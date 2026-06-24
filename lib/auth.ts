@@ -4,7 +4,10 @@ import type { UserRole } from '@prisma/client';
 import { BlockedCompanyError, BlockedUserError } from '@/lib/auth/authErrors';
 import { writeEvent } from '@/lib/events';
 import { comparePassword } from '@/lib/password';
-import { consumeImpersonationToken } from '@/lib/platform/impersonate';
+import {
+  consumeImpersonationToken,
+  consumeRestoreToken,
+} from '@/lib/platform/impersonate';
 import { prisma } from '@/lib/prisma';
 import { loginSchema as companyLoginSchema } from '@/lib/validations/auth';
 import { loginSchema } from '@/lib/validations/platform';
@@ -151,6 +154,42 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           companyId: user.companyId,
           role: user.role,
           impersonatedByPlatformAdminId: data.platformAdminId,
+        };
+      },
+    }),
+    Credentials({
+      id: 'platform-restore',
+      name: 'PlatformRestore',
+      credentials: {
+        token: { label: 'Token', type: 'text' },
+      },
+      authorize: async (credentials) => {
+        const token = credentials?.token;
+        if (typeof token !== 'string' || token.length === 0) {
+          return null;
+        }
+
+        const platformAdminId = consumeRestoreToken(token);
+        if (!platformAdminId) {
+          return null;
+        }
+
+        const admin = await prisma.platformAdmin.findFirst({
+          where: {
+            id: platformAdminId,
+            isActive: true,
+            deletedAt: null,
+          },
+        });
+
+        if (!admin) {
+          return null;
+        }
+
+        return {
+          kind: 'platform' as const,
+          id: admin.id,
+          email: admin.email,
         };
       },
     }),

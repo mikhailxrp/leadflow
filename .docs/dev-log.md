@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-06-25 — Фикс: выход из режима поддержки возвращает к списку компаний
+
+**Статус:** ✅ Завершён
+
+**Проблема:** impersonation использует один cookie сессии NextAuth — вход «как поддержка» перезаписывал платформенную сессию компанийной. При выходе `/api/platform/impersonate/end` делал только `signOut` + чистил cookie, поэтому платформенный администратор полностью разлогинивался, а баннер уводил на `/platform/login`. Ожидалось: возврат к списку компаний платформенного администратора.
+
+**Что было реализовано:**
+
+- `lib/platform/impersonate.ts` — добавлено хранилище restore-токенов (TTL 60с, как у токенов impersonation): `createRestoreToken(platformAdminId)` / `consumeRestoreToken(token)`
+- `lib/auth.ts` — новый провайдер `platform-restore` (credentials): потребляет restore-токен, перепроверяет `PlatformAdmin` (`isActive`, `deletedAt: null`), возвращает свежую платформенную сессию `{ kind: 'platform', id, email }`
+- `app/api/platform/impersonate/end/route.ts` — вместо `signOut` + удаления cookie: валидирует impersonation-сессию, пишет `PLATFORM_IMPERSONATION_ENDED`, выдаёт restore-токен по `impersonatedByPlatformAdminId` и возвращает `{ token }` (убраны `signOut`, `cookies`, `SESSION_COOKIE_NAMES`)
+- `components/platform/ImpersonationBanner.tsx` — «Выйти из режима» получает токен и вызывает `signIn('platform-restore', { token, redirectTo: '/platform/companies' })`, перезаписывая impersonation-cookie платформенной сессией и приземляясь на список компаний (вместо `window.location.href = '/platform/login'`)
+
+**Безопасность:** restore-токен создаётся только при валидной impersonation-сессии, обращающейся к `/end`; идентификатор администратора берётся из `session.user.impersonatedByPlatformAdminId`, а не из ввода клиента.
+
+**Известное ограничение:** restore-токены, как и impersonation-токены, хранятся в памяти процесса — не переживают рестарт и не работают между инстансами (соответствует текущей реализации impersonation, не менялось).
+
+**Out of scope:** перенос токенов в БД/Redis; изменения обычного логаута (`LogoutButton`, `PlatformSignOutButton`); правки `proxy.ts`
+
+---
+
 ## 2026-06-24 — Phase 3, Таск 2: Логин (UI) + логаут
 
 **Статус:** ✅ Завершён

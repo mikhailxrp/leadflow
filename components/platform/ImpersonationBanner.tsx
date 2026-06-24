@@ -1,9 +1,10 @@
 'use client';
 
+import { signIn } from 'next-auth/react';
 import { useState, type ReactNode } from 'react';
 import Button from '@/components/ui/Button';
 
-const PLATFORM_LOGIN_PATH = '/platform/login';
+const PLATFORM_COMPANIES_PATH = '/platform/companies';
 
 export default function ImpersonationBanner(): ReactNode {
   const [isEnding, setIsEnding] = useState(false);
@@ -20,7 +21,12 @@ export default function ImpersonationBanner(): ReactNode {
         throw new Error('Failed to end impersonation');
       }
 
-      window.location.href = PLATFORM_LOGIN_PATH;
+      const data = (await response.json()) as { token: string };
+
+      await signIn('platform-restore', {
+        token: data.token,
+        redirectTo: PLATFORM_COMPANIES_PATH,
+      });
     } catch (error) {
       console.error('Failed to end impersonation:', error);
       setIsEnding(false);
