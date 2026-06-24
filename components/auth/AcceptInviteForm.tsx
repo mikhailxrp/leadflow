@@ -1,5 +1,6 @@
 'use client';
 
+import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import Button from '@/components/ui/Button';
@@ -50,7 +51,29 @@ export default function AcceptInviteForm({
         return;
       }
 
-      router.push('/login?registered=1');
+      // Аккаунт создан. Автовход тем же паролем. Email — из приглашения
+      // (поле в форме disabled), совпадает с записью созданного пользователя.
+      // Если автовход не удался — аккаунт уже существует, поэтому показывать
+      // ошибку и предлагать повторный сабмит нельзя (упрётся в EMAIL_EXISTS):
+      // graceful fallback на форму входа с баннером об успешной регистрации.
+      try {
+        const signInResult = await signIn('company-credentials', {
+          email,
+          password,
+          redirect: false,
+          redirectTo: '/today',
+        });
+
+        if (signInResult?.error) {
+          router.push('/login?registered=1');
+          return;
+        }
+
+        router.push('/today');
+      } catch (signInError) {
+        console.error('Auto sign-in after invite failed:', signInError);
+        router.push('/login?registered=1');
+      }
     } catch (submitError) {
       console.error('Accept invite failed:', submitError);
       setError(ERROR_MESSAGES.SERVER_ERROR);

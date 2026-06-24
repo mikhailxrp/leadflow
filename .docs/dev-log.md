@@ -4,6 +4,42 @@
 
 ---
 
+## Вспомогательные скрипты
+
+Одноразовые/служебные скрипты для ручных операций. Запускаются локально через `tsx`, читают `.env` из корня проекта.
+
+### `scripts/deleteCompany.ts` — удаление компании из БД
+
+Полностью удаляет одну компанию и все её данные (лиды, события, пользователи, этапы, причины отказа, приглашения, задачи, напоминания, API-ключи и т.д.) в транзакции, в порядке зависимостей. Каждый запрос ограничен `companyId` — данные других компаний и платформенных администраторов не затрагиваются. Без аргумента или при несуществующем `id` скрипт падает, ничего не удаляя.
+
+Запуск:
+
+```bash
+npx tsx scripts/deleteCompany.ts <companyId>
+# или
+npm run delete:company -- <companyId>
+```
+
+`companyId` берётся из Prisma Studio (`npx prisma studio`, таблица `Company`). Подтверждения нет — удаляется именно та компания, чей id передан.
+
+---
+
+## 2026-06-25 — Phase 3, Таск 3: Приём приглашения — автовход
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `components/auth/AcceptInviteForm.tsx` — после успешного POST `/api/auth/accept-invite` (`200 { success: true }`) вместо безусловного редиректа на `/login?registered=1` вызывается `signIn('company-credentials', { email, password, redirect: false, redirectTo: '/today' })`: `email` — из prop invite (поле disabled/readOnly), `password` — из формы; при успехе `router.push('/today')`; при `signInResult?.error` или исключении — graceful fallback на `/login?registered=1` (аккаунт уже создан, повторный сабмит дал бы `EMAIL_EXISTS`); маппинг ошибок API до создания пользователя (`INVITE_INVALID` / `EMAIL_EXISTS` / `VALIDATION_ERROR` / `SERVER_ERROR`) сохранён
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** forgot/reset-password (Таски 4–5); rate limiting на `accept-invite` (Таск 5); изменения `lib/auth/acceptInvite.ts`, route-хендлера, миграций БД; каркас `/today` (Phase 4); клиентская Zod-предвалидация формы
+
+---
+
 ## 2026-06-25 — Фикс: выход из режима поддержки возвращает к списку компаний
 
 **Статус:** ✅ Завершён
