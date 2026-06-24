@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-06-24 — Phase 3, Таск 2: Логин (UI) + логаут
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `components/auth/LoginForm.tsx` — Client Component вместо заглушки: Zod-валидация (`loginSchema`) до запроса, подсветка полей с ошибкой → `signIn('company-credentials', { email, password, redirect: false, redirectTo: '/today' })` → маппинг `result.code` (`USER_BLOCKED` / `COMPANY_BLOCKED`) в два текста блокировки, иначе generic «Неверный email или пароль» → при успехе `router.push('/today')`; ссылка «Забыли пароль?» на `/forgot-password`
+- `components/layout/LogoutButton.tsx` — реализован `signOut({ redirectTo: '/login' })` вместо заглушки; кнопки выхода в `ProfileLayout` и `today/page.tsx` работают без нового файла в `components/auth/`
+- `app/(public)/login/page.tsx` — Server Component: баннер «Регистрация завершена, войдите» при `searchParams.registered === '1'`
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** приём приглашения и автовход (Таск 3); forgot/reset-password (Таски 4–5); rate limiting логина (Nginx, Phase 1); каркас рабочей зоны / сайдбар (Phase 4); изменения в `authorize()` / `lib/auth.ts` / `authErrors.ts` (Таск 1)
+
+---
+
+## 2026-06-24 — Phase 3, Таск 1: `company-credentials` — authorize + двойная блокировка с кодами
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/auth.ts` — реализован `authorize` провайдера `company-credentials`: `loginSchema.safeParse` → `findUnique` по `email.toLowerCase().trim()` с `include: { company: true }` → `comparePassword` → `return null` при отсутствии пользователя или неверном пароле → `BlockedUserError` / `BlockedCompanyError` при блокировке → `update lastLoginAt` → `writeEvent(companyId, 'LOGIN', { userId })` → возврат `{ kind: 'company', id, companyId, role }`; провайдеры `platform-credentials` и `impersonation` не затронуты
+- `lib/auth/authErrors.ts` — `BlockedUserError` и `BlockedCompanyError extends CredentialsSignin` с публичными `code = 'USER_BLOCKED' | 'COMPANY_BLOCKED'`
+- `lib/validations/auth.ts` — `loginSchema` (`email`, `password`) и тип `LoginInput`
+- `types/next-auth.d.ts` / `types/session.ts` — проверены, изменения не потребовались (company-форма сессии уже покрыта)
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** UI формы входа, клиентский `signIn`, маппинг `result.code` в тексты, логаут (Таск 2); автовход после приёма приглашения (Таск 3); forgot/reset password (Таски 4–5); rate limiting и правки `proxy.ts` (Таск 5)
+
+---
+
 ## 2026-06-24 — Phase 3, Таск 0.5: Авторассылка о приближении продления (email-дайджест + cron)
 
 **Статус:** ✅ Завершён
