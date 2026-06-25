@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import ShellGate from '@/components/layout/ShellGate';
 import './globals.css';
 
 const inter = Inter({
@@ -28,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="ru" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <ShellGate>{children}</ShellGate>
+        {children}
       </body>
     </html>
   );

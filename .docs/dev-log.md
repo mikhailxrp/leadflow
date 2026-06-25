@@ -24,6 +24,31 @@ npm run delete:company -- <companyId>
 
 ---
 
+## 2026-06-25 — Phase 4, Таск 1: Роль-зависимая оболочка (серверная сессия → пропсы) + навигация
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `constants/navItems.ts` — поле `minRole: UserRole` в `SidebarNavItem`; пункты «Контроль» (`/control`, `HEAD`) и «Отчёты» (`/reports`, `HEAD`); хелпер `getNavItemsForRole(role)` — фильтр через `hasMinRole`
+- `components/layout/AppShell.tsx` — Server Component: `auth()` → `prisma.user.findUnique({ where: { id, companyId }, select: { name: true } })` → `getNavItemsForRole(role)` → `AppLayout` + `Sidebar` (`items`, `userName`, `userInitials`); `computeInitials()` внутри оболочки (пустое имя → `?`, одно слово → первая буква, несколько → первая + последняя); `ImpersonationBanner` при `impersonatedByPlatformAdminId`; без сессии компании — только `children` (публичные/платформенные маршруты без сайдбара)
+- `app/(app)/layout.tsx` — обёртка `children` в `<AppShell>`; логика баннера impersonation убрана (переехала в `AppShell`)
+- `app/(management)/layout.tsx` — обёртка `children` в `<AppShell>`
+- `app/(admin)/layout.tsx` — обёртка `children` в `<AppShell>`
+- `app/layout.tsx` — убран `ShellGate`; только `html`/`body`, `globals.css`, метаданные
+- `components/layout/ShellGate.tsx` — удалён
+- `components/layout/Sidebar.tsx` — `userName` и `userInitials` обязательные пропсы (дефолты «Администратор» / «АД» убраны)
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** атом `Select` и переключатель темы (Таск 2); реальные агрегаты `/today` (Таск 3); зачистка мок-данных в шаблонах (Таск 4); содержимое `/control` и `/reports`; изменения `lib/auth.ts`, JWT и типов сессии
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-25 — Phase 3, Таск 5: Сброс пароля (API + UI) + rate limiting
 
 **Статус:** ✅ Завершён

@@ -4,7 +4,6 @@ import { Icon } from '@iconify/react';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
 import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
 
 interface ResetPasswordFormProps {
   token: string;

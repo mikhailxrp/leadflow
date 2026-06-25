@@ -16,8 +16,8 @@ interface NavItem {
 
 interface SidebarProps {
   items: NavItem[];
-  userInitials?: string;
-  userName?: string;
+  userInitials: string;
+  userName: string;
 }
 
 interface SidebarContentProps {
@@ -109,11 +109,7 @@ function SidebarContent({
   );
 }
 
-export default function Sidebar({
-  items,
-  userInitials = 'АД',
-  userName = 'Администратор',
-}: SidebarProps) {
+export default function Sidebar({ items, userInitials, userName }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
