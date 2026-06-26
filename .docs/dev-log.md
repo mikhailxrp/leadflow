@@ -24,6 +24,37 @@ npm run delete:company -- <companyId>
 
 ---
 
+## 2026-06-26 — Phase 4, Таск 4: Зачистка шаблонов от хардкода → пустые состояния
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/(app)/leads/page.tsx` — Server Component: удалены `MOCK_LEADS` (8 записей), `LeadRow`, `LEADS_COLUMNS`; счётчик `248` в заголовке убран; `LeadsTable` и `LeadsPagination` заменены пустым состоянием «Пока нет лидов»; `LeadsFilters` оставлен как структурная заглушка
+- `app/(app)/leads/[id]/page.tsx` — Server Component: `metadata.title` → `'Лид'`; `LeadHeader`, `LeadContacts`, `LeadMarketing`, `LeadYandex`, `LeadCustomFields` с хардкод-пропсами убраны; заглушка «Данные лида появятся в Phase 7»; `LeadSidebar`, `LeadComments`, `LeadHistory`, `TaskBlock` — без изменений структуры
+- `app/(admin)/admin/settings/page.tsx` — Server Component: `auth()` → `prisma.company.findUniqueOrThrow({ where: { id: session.user.companyId }, select: { name, nextPaymentAt } })` → пропсы в `<SystemSection>`
+- `components/pipeline/PipelineBoard.tsx` — Client Component: удалены `INITIAL_STAGES` (5 этапов, 15 карточек) и `LEAD_DETAIL_PATH`; `useState<PipelineStage[]>([])`; пустое состояние «Этапы воронки появятся в Phase 8/9»; DnD-механизм (`sensors`, `handleDragStart/End/Cancel`, `moveLead`, `findLead`) сохранён; `handleCardClick` — TODO-заглушка для Phase 9
+- `components/tasks/TasksBoard.tsx` — Client Component: удалены `MOCK_TASKS` (6 задач) и `MOCK_LEAD_DETAIL_PATH`; `useState<TaskItem[]>([])`; `totalCount = tasks.length`; `ASSIGNEE_FILTER_OPTIONS` — только `{ value: 'any', label: 'Любой' }`; убрана проверка `task.assignee !== "Алексей Д."` для вкладки «Мои»; `handleTaskClick` → `router.push(\`/leads/${task.lead.id}?taskId=${task.id}\`)`; пустое состояние «Нет задач»; пустые группы не рендерятся
+- `components/users/UsersTable.tsx` — Client Component: удалён `MOCK_USERS` (5 записей); `useState<User[]>([])`; пустое состояние «Нет пользователей» в `<tbody>`
+- `components/integrations/ApiKeysTable.tsx` — Client Component: удалён `MOCK_API_KEYS` (2 ключа); `useState<ApiKeyRow[]>([])`; пустое состояние «Нет API-ключей» в `<tbody>`
+- `components/leads/LeadComments.tsx` — Client Component: удалён `MOCK_COMMENTS` (3 комментария); счётчик `0`; пустое состояние «Нет комментариев»; форма добавления сохранена
+- `components/leads/LeadHistory.tsx` — Server Component: удалён `MOCK_HISTORY` (3 события); пустое состояние «Нет событий»
+- `components/leads/LeadSidebar.tsx` — Client Component: удалены `INITIAL_STATUS`, `INITIAL_MANAGER`, `STATUS_OPTIONS`, `MANAGER_OPTIONS`; `FilterSelect` → `DisabledSelect` с опцией «—»; кнопка «Сохранить изменения» всегда `disabled`
+- `components/leads/CreateLeadForm.tsx` — Client Component: `tags: []`, `source: 'other'`, `stageId: ''`; удалены `STAGE_OPTIONS`, хардкод-менеджеры из `MANAGER_OPTIONS`, тип `PipelineStatus`, `selectedStage`/`dotClass`; поле «Этап воронки» — `<select disabled>` с «—»; превью-карточка — `status="new"`
+- `components/leads/LeadsFilters.tsx` — Client Component: из `MANAGER_OPTIONS` убраны хардкод-имена; оставлен только `{ value: '', label: 'Менеджер' }`
+- `components/settings/SystemSection.tsx` — Server Component: пропсы `companyName: string`, `nextPaymentAt: Date | null`; `'ООО «Пример»'` → `companyName`; `'31.12.2026'` → `nextPaymentAt ? toLocaleDateString('ru-RU') : '—'`; строка «Лицензия: Активна» убрана
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `app/(admin)/admin/settings/page.tsx` — явная проверка `session.kind !== 'company'` и `redirect('/login')` (defense-in-depth поверх `proxy.ts`)
+- `app/(app)/leads/page.tsx` — убрана `LeadsPagination` вместе с таблицей (в TASK — «оставить как структурную заглушку», но без данных таблица не имеет смысла)
+
+**Out of scope (не делалось):** data-fetching лидов, задач, пользователей, этапов, менеджеров, API-ключей (Phase 5–18); валидация и submit `CreateLeadForm` (Phase 5), `LeadSidebar` (Phase 7); фильтр «Мои задачи» по текущему пользователю сессии (Phase 15); DnD-API смены этапа (Phase 9); загрузка настроек уведомлений/напоминаний/распределения из БД (Phase 17); `NotificationsSection`, `RemindersSection`, `DistributionSection`, `SecuritySection` — не тронуты
+
+**Проверки:** `npm run type-check` — без ошибок; `npm run build` — успешно
+
+---
+
 ## 2026-06-26 — Phase 4, Таск 3: Дашборд — реальные агрегаты + пустые состояния + design_system.md
 
 **Статус:** ✅ Завершён

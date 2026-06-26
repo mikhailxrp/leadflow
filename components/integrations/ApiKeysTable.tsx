@@ -5,8 +5,6 @@ import { useState, type ReactNode } from 'react';
 import Button from '@/components/ui/Button';
 import IconButton from '@/components/ui/IconButton';
 
-const HIDDEN_KEY = '••••••••••••';
-
 interface ApiKeyRow {
   id: string;
   name: string;
@@ -14,23 +12,6 @@ interface ApiKeyRow {
   key: string;
   created: string;
 }
-
-const MOCK_API_KEYS: ApiKeyRow[] = [
-  {
-    id: '1',
-    name: 'Основной лендинг',
-    source: 'Универсальный',
-    key: 'lk_live_abc123xyz789',
-    created: '12.10.2023',
-  },
-  {
-    id: '2',
-    name: 'Промо акция',
-    source: 'Универсальный',
-    key: 'lk_live_promo456def',
-    created: '05.11.2023',
-  },
-];
 
 function PlusIcon(): ReactNode {
   return (
@@ -48,6 +29,7 @@ function PlusIcon(): ReactNode {
 
 export default function ApiKeysTable(): ReactNode {
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+  const [apiKeys] = useState<ApiKeyRow[]>([]);
 
   function handleToggleVisibility(id: string): void {
     // TODO: показ полного ключа через API (одноразовый reveal)
@@ -87,40 +69,51 @@ export default function ApiKeysTable(): ReactNode {
             </tr>
           </thead>
           <tbody>
-            {MOCK_API_KEYS.map((row) => (
-              <tr
-                key={row.id}
-                className="border-b border-[var(--color-border)] border-[0.5px] last:border-0"
-              >
-                <td className="whitespace-nowrap px-3 py-3 text-[13px] font-medium text-[var(--color-text-primary)]">
-                  {row.name}
-                </td>
-                <td className="whitespace-nowrap px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
-                  {row.source}
-                </td>
-                <td className="whitespace-nowrap px-3 py-3 font-mono text-[13px] text-[var(--color-text-secondary)]">
-                  {visibleKeys.has(row.id) ? row.key : HIDDEN_KEY}
-                </td>
-                <td className="whitespace-nowrap px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
-                  {row.created}
-                </td>
-                <td className="whitespace-nowrap px-3 py-3">
-                  <div className="flex items-center gap-1">
-                    <IconButton
-                      aria-label={`Показать ключ «${row.name}»`}
-                      onClick={() => handleToggleVisibility(row.id)}
-                      icon={<Icon icon="lucide:eye" className="h-4 w-4" />}
-                    />
-                    <IconButton
-                      className="hover:text-[#DC2626]"
-                      aria-label={`Удалить ключ «${row.name}»`}
-                      onClick={() => handleDelete(row.id)}
-                      icon={<Icon icon="lucide:trash-2" className="h-4 w-4" />}
-                    />
-                  </div>
+            {apiKeys.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-3 py-8 text-center text-[14px] text-[var(--color-text-secondary)]"
+                >
+                  Нет API-ключей
                 </td>
               </tr>
-            ))}
+            ) : (
+              apiKeys.map((row) => (
+                <tr
+                  key={row.id}
+                  className="border-b border-[var(--color-border)] border-[0.5px] last:border-0"
+                >
+                  <td className="whitespace-nowrap px-3 py-3 text-[13px] font-medium text-[var(--color-text-primary)]">
+                    {row.name}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
+                    {row.source}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3 font-mono text-[13px] text-[var(--color-text-secondary)]">
+                    {visibleKeys.has(row.id) ? row.key : '••••••••••••'}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
+                    {row.created}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <div className="flex items-center gap-1">
+                      <IconButton
+                        aria-label={`Показать ключ «${row.name}»`}
+                        onClick={() => handleToggleVisibility(row.id)}
+                        icon={<Icon icon="lucide:eye" className="h-4 w-4" />}
+                      />
+                      <IconButton
+                        className="hover:text-[#DC2626]"
+                        aria-label={`Удалить ключ «${row.name}»`}
+                        onClick={() => handleDelete(row.id)}
+                        icon={<Icon icon="lucide:trash-2" className="h-4 w-4" />}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
