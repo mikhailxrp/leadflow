@@ -36,6 +36,39 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-26 — Phase 7, Таск 2: «Взял в работу» + закрытие + quick-close
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/api/leads/[id]/take/route.ts` — API Route (server): `POST`; сессия `kind === 'company'`, `MANAGER+`; `visibilityWhere`; идемпотентность через `findFirst` по `LEAD_TAKEN_IN_WORK` → 400 `ALREADY_TAKEN` с `takenAt`; иначе `writeEvent('LEAD_TAKEN_IN_WORK', ...)`
+- `app/api/leads/[id]/close/route.ts` — API Route (server): `POST`; `closeLeadSchema`; видимость; `impersonatedByPlatformAdminId` из сессии → `closeLead(...)`; LOST без причины → 400 `LOSS_REASON_REQUIRED`
+- `app/api/loss-reasons/route.ts` — API Route (server): `GET` read-only; `where: { companyId }`, `orderBy: { order: 'asc' }`; `{ id, label }[]`; доступен любой company-сессии (`MANAGER+`)
+- `lib/leads/closeLead.ts` — `$transaction`: `findFirstOrThrow`, проверка `lossReasonId` для LOST, `Lead.updateMany(closeType/closedAt/lossReasonId)`, `tx.event.create` (`LEAD_WON` / `LEAD_LOST` с `payload: { lossReasonId }` для LOST) с явным `impersonatedByPlatformAdminId`; `ValidationError` для бизнес-ошибок
+- `lib/validations/leads.ts` — `closeLeadSchema` через `z.discriminatedUnion('closeType', ...)`: `WON` без `lossReasonId`, `LOST` с `lossReasonId: z.string().min(1)`; экспорт `CloseLeadInput`
+- `components/leads/TakeInWorkButton.tsx` — Client Component: пропсы `leadId`, `hasTakenInWork`, `takenAt`; `POST .../take` → `router.refresh()`; после взятия — read-only метка «Взято в работу» + время
+- `components/leads/CloseLeadMenu.tsx` — Client Component: dropdown «Закрыть сделкой» (прямой POST WON) / «Закрыть отказом» (открывает модалку); скрыт при `isClosed`
+- `components/leads/CloseAsLostModal.tsx` — Client Component: `GET /api/loss-reasons`; обязательный select; submit disabled без выбора; `POST .../close { LOST, lossReasonId }` → `router.refresh()`
+- `components/leads/LeadSidebar.tsx` — обновлён: `TakeInWorkButton` + `CloseLeadMenu` вместо disabled-заглушек; ответственный — read-only текст; бейдж WON/LOST при `closeType != null`
+- `components/leads/LeadRowQuickActions.tsx` — Client Component: обёртка `CloseLeadMenu` для строки списка; guard `closeType !== null` → не рендерится
+- `components/leads/LeadsTable.tsx` — обновлён: `LeadRowQuickActions` в колонке действий рядом с «Открыть»
+
+**Учтённые точки риска:**
+
+- `closeLead` пишет событие через `tx.event.create`, не `writeEvent` — совместимо с `$transaction` и impersonation
+- `closeLeadSchema` — `z.discriminatedUnion`, не optional `lossReasonId`; дублирующая проверка LOST без причины в handler и в транзакции
+- `GET /api/loss-reasons` — порог `MANAGER+` (любая company-сессия), не только ADMIN
+- `TakeInWorkButton` — «глупый» компонент с пропсами, без self-fetch (данные карточки — таск 4)
+- `LeadRowQuickActions` — кнопка «Закрыть» скрыта при `closeType != null`
+- Все три эндпоинта проверяют `session.kind === 'company'`; платформенная сессия → 401
+
+**Out of scope (не делалось):** `getLeadById` и полный серверный рендер `/leads/[id]` (таск 4); комментарии (таск 3); история событий (таск 4); CRUD причин отказа (Phase 7.5); назначение ответственного (Phase 11); задачи и промпт при смене этапа (Phase 14/15)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 7, Таск 1: API карточки лида — `GET` / `PATCH` / `DELETE`
 
 **Статус:** ✅ Завершён

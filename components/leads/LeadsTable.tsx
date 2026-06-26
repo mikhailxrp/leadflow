@@ -6,6 +6,7 @@ import type { LeadListItem } from "@/lib/leads/getLeads";
 import type { RiskResult } from "@/lib/risk/computeRisk";
 import RiskBadge from "@/components/leads/RiskBadge";
 import DuplicateBadge from "@/components/leads/DuplicateBadge";
+import LeadRowQuickActions from "@/components/leads/LeadRowQuickActions";
 
 const SOURCE_LABELS: Record<string, string> = {
   tilda: "Tilda",
@@ -105,12 +106,15 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
               </td>
 
               <td className="px-4 py-3">
-                <Link
-                  href={`/leads/${lead.id}`}
-                  className="leads-open-link text-[var(--color-primary)] hover:underline"
-                >
-                  Открыть
-                </Link>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/leads/${lead.id}`}
+                    className="leads-open-link text-[var(--color-primary)] hover:underline whitespace-nowrap"
+                  >
+                    Открыть
+                  </Link>
+                  <LeadRowQuickActions leadId={lead.id} closeType={lead.closeType} />
+                </div>
               </td>
             </tr>
           ))}

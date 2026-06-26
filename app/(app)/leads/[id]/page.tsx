@@ -31,7 +31,13 @@ export default async function LeadDetailPage({
         <div className="flex min-w-0 flex-1 flex-col gap-6" />
 
         <aside className="flex w-full shrink-0 flex-col gap-6 lg:w-[440px]">
-          <LeadSidebar />
+          <LeadSidebar
+            leadId={id}
+            hasTakenInWork={false}
+            takenAt={null}
+            closeType={null}
+            assignedTo={null}
+          />
           <LeadComments />
           <TaskBlock leadId={id} highlightTaskId={taskId} />
           <LeadHistory />

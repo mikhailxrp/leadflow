@@ -50,6 +50,12 @@ export const updateLeadSchema = z.object({
   comment: z.string().optional(),
 });
 
+export const closeLeadSchema = z.discriminatedUnion('closeType', [
+  z.object({ closeType: z.literal('WON') }),
+  z.object({ closeType: z.literal('LOST'), lossReasonId: z.string().min(1) }),
+]);
+
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export type LeadsQueryInput = z.infer<typeof leadsQuerySchema>;
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
+export type CloseLeadInput = z.infer<typeof closeLeadSchema>;
