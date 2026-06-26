@@ -36,6 +36,27 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-26 — Phase 5, Таск 3: `flagPossibleDuplicates()` + постдействия приёма
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/intake/flagPossibleDuplicates.ts` — `flagPossibleDuplicates(leadId, companyId)`: ранний выход если нет `phone` и `email`; поиск до 5 совпадений по `phone OR email` (тот же `companyId`, `id != leadId`); на каждое совпадение — `prisma.duplicateFlag.create(...)` + `writeEvent(companyId, 'DUPLICATE_FLAGGED', { payload: { matchedLeadId, matchType }, leadId })`; `matchType`: `'PHONE'` при совпадении телефона, иначе `'EMAIL'`; OR-условия через imperative push (`orConditions: Prisma.LeadWhereInput[]`) без каста; ошибки глотаются внутри `try/catch`, наружу не пробрасываются
+- `app/api/webhooks/tilda/[companyId]/route.ts` — `const lead = await createLead(...)`; fire-and-forget `void flagPossibleDuplicates(lead.id, companyId).catch(console.error)` перед `return`
+- `app/api/webhooks/wordpress/[companyId]/route.ts` — то же
+- `app/api/webhooks/leads/route.ts` — то же
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- Константа `MAX_DUPLICATE_MATCHES = 5` вместо magic number в `take`
+
+**Out of scope (не делалось):** `autoAssignLead()`, `notifyNewLead()` (Phase 11–13); UI отображения пометки дубля (Phase 6/7); `POST /api/leads` с синхронным дедупом (Таск 4); автоматизированные тесты
+
+**Проверки:** `npm run type-check` — без ошибок; smoke-чек-лист из DoD — ручной (webhook в заблокированную компанию, нестандартные поля → `customFields`, два webhook с одним phone → `DuplicateFlag`)
+
+---
+
 ## 2026-06-26 — Phase 5, Таск 2: Webhook-эндпоинты + rate limit + здоровье источника
 
 **Статус:** ✅ Завершён
