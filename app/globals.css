@@ -116,7 +116,7 @@
   --color-bg-surface-2: #f1f5f9;
   --color-text-primary: #0f172a;
   --color-text-secondary: #64748b;
-  --color-text-tertiary: #94a3b8;
+  --color-text-tertiary: #76879b;
   --color-border: rgba(15, 23, 42, 0.1);
 }
 
@@ -126,7 +126,7 @@
   --color-bg-surface-2: #252b3b;
   --color-text-primary: #e2e8f0;
   --color-text-secondary: #94a3b8;
-  --color-text-tertiary: #475569;
+  --color-text-tertiary: #7b8ca3;
   --color-border: rgba(255, 255, 255, 0.08);
   /* Sidebar темнее в dark-теме */
   --color-sidebar-bg: #0f1117;
@@ -152,6 +152,14 @@ body {
   color: var(--color-text-primary);
   background-color: var(--color-bg-page);
   -webkit-font-smoothing: antialiased;
+}
+
+[data-theme='dark'] .leads-open-link {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 h1,

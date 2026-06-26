@@ -1,26 +1,26 @@
-'use client';
+"use client";
 
-import { type ReactNode } from 'react';
-import Link from 'next/link';
-import type { LeadListItem } from '@/lib/leads/getLeads';
-import type { RiskResult } from '@/lib/risk/computeRisk';
-import RiskBadge from '@/components/leads/RiskBadge';
-import DuplicateBadge from '@/components/leads/DuplicateBadge';
+import { type ReactNode } from "react";
+import Link from "next/link";
+import type { LeadListItem } from "@/lib/leads/getLeads";
+import type { RiskResult } from "@/lib/risk/computeRisk";
+import RiskBadge from "@/components/leads/RiskBadge";
+import DuplicateBadge from "@/components/leads/DuplicateBadge";
 
 const SOURCE_LABELS: Record<string, string> = {
-  tilda: 'Tilda',
-  yandex: 'Яндекс Директ',
-  wordpress: 'WordPress',
-  api: 'API',
-  manual: 'Вручную',
-  csv: 'Импорт',
+  tilda: "Tilda",
+  yandex: "Яндекс Директ",
+  wordpress: "WordPress",
+  api: "API",
+  manual: "Вручную",
+  csv: "Импорт",
 };
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
+  return new Date(iso).toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
   });
 }
 
@@ -34,16 +34,22 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
       <table className="w-full border-collapse text-[13px]">
         <thead>
           <tr className="border-b border-[0.5px] border-[var(--color-border)]">
-            {['Клиент', 'Источник', 'Ответственный', 'Этап', 'Риск', 'Создан', ''].map(
-              (col) => (
-                <th
-                  key={col}
-                  className="px-4 py-3 text-left font-medium text-[var(--color-text-secondary)]"
-                >
-                  {col}
-                </th>
-              ),
-            )}
+            {[
+              "Клиент",
+              "Источник",
+              "Ответственный",
+              "Этап",
+              "Риск",
+              "Создан",
+              "",
+            ].map((col) => (
+              <th
+                key={col}
+                className="px-4 py-3 text-left font-medium text-[var(--color-text-secondary)]"
+              >
+                {col}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -58,7 +64,7 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
                     href={`/leads/${lead.id}`}
                     className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-primary)] transition-colors"
                   >
-                    {lead.name ?? '—'}
+                    {lead.name ?? "—"}
                   </Link>
                   {lead.hasDuplicate && <DuplicateBadge />}
                 </div>
@@ -74,7 +80,11 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
               </td>
 
               <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                {lead.assignedTo?.name ?? <span className="text-[var(--color-text-tertiary)]">Не назначен</span>}
+                {lead.assignedTo?.name ?? (
+                  <span className="text-[var(--color-text-tertiary)]">
+                    Не назначен
+                  </span>
+                )}
               </td>
 
               <td className="px-4 py-3">
@@ -97,7 +107,7 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
               <td className="px-4 py-3">
                 <Link
                   href={`/leads/${lead.id}`}
-                  className="text-[var(--color-primary)] hover:underline"
+                  className="leads-open-link text-[var(--color-primary)] hover:underline"
                 >
                   Открыть
                 </Link>
