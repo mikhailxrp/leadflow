@@ -36,6 +36,87 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-26 — Phase 6, Таск 3: UI `/leads` — LeadsTable + фильтры (URL-params) + пагинация
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `components/leads/LeadsTable.tsx` — Client Component: колонки Клиент (имя + телефон), Источник, Ответственный, Этап (бейдж по `stage.color`), Риск (`RiskBadge`), Создан, «Открыть»; имя — `<Link href="/leads/{id}">`; `<DuplicateBadge />` при `hasDuplicate`; единственное действие из строки — ссылка «Открыть»
+- `components/leads/RiskBadge.tsx` — Server Component: пропсы `{ level, reason }`; цвета через CSS-переменные (`green/yellow/red/grey` → Норма / Внимание / Риск / Закрыт); `reason` → атрибут `title`
+- `components/leads/DuplicateBadge.tsx` — иконка-предупреждение без пропсов; `title` и `aria-label` «Возможный дубль»; без ссылки (Phase 7)
+- `components/leads/LeadsFilters.tsx` — `useSearchParams()` + `useRouter()` вместо локального `useState`; проп `managers: ManagerOption[]`; `STATUS_OPTIONS`: `'' / open / won / lost`; URL-параметр менеджера — `assignedToId`; при смене фильтра `params.set('page', '1')`; «Сбросить» → `router.push('/leads')`
+- `components/leads/LeadsPagination.tsx` — обязательные пропсы `total`, `page`, `pageSize`; навигация через URL (`params.set('page', …)`); удалены `TOTAL_ITEMS`, `PAGE_SIZE`, `TOTAL_PAGES` и локальный `useState`; `getPageItems` сохранена
+- `app/(app)/leads/page.tsx` — async Server Component; `await searchParams` (Next.js 16); guard `session.kind !== 'company'` → `redirect('/login')`; `session as CompanySession`; параллельно `getLeadsWithRisk` + `getManagers`; пустое состояние «Лиды не найдены»; `<LeadsFilters>` и `<LeadsPagination>` обёрнуты в `<Suspense>`
+
+**Учтённые точки риска:**
+
+- Оба компонента с `useSearchParams()` (`LeadsFilters`, `LeadsPagination`) обёрнуты в `<Suspense>` на странице
+- URL-параметр менеджера — `assignedToId`, не `manager`; период — `period`, не `from/to`
+- `page` читается только из URL и пропсов сервера, локальный `useState` для страницы удалён
+- После guard сессии — явный `session as CompanySession` для `getLeadsWithRisk`
+
+**Out of scope (не делалось):** страница карточки `/leads/:id` (Phase 7); быстрые действия из строки (Phase 11, 15); изменения API и `lib/leads/getManagers.ts`
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
+## 2026-06-26 — Phase 6, Таск 2: `lib/risk/` + интеграция риска в `GET /api/leads`
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/risk/computeRisk.ts` — pure function `computeRisk(input: RiskInput): RiskResult`; типы `RiskLevel`, `RiskResult`, `ReactionNorms`, `RiskInput`; 8 приоритетов по `phase-6.md`: закрыт WON/LOST → grey; нет ответственного → red; нет первого ответа (норма) → red; застрял на этапе → red; просрочена открытая задача → yellow; нет открытой задачи → yellow; приближается срок первого ответа → yellow; иначе green; 0 запросов к БД
+- `lib/risk/resolveApplicableNorm.ts` — pure function; приоритет нормы: `byUser` > `byStage` > `bySource` > `defaultMinutes`; возвращает `{ defaultMinutes, reminderBeforePercent, workHoursOnly }`
+- `lib/risk/workHoursUtils.ts` — `minutesSinceCreated(createdAt, now, workHoursOnly)`: в Phase 6 обе ветки (`workHoursOnly` true/false) считают wall-clock минуты; полная логика рабочих часов — Phase 17
+- `lib/risk/computeRiskBatch.ts` — принимает `LeadListItem[]` + `companySettings` + `prisma`; ровно 2 Prisma-запроса (`Promise.all`: events `LEAD_TAKEN_IN_WORK`/`STAGE_CHANGED` + tasks `TODO`/`IN_PROGRESS`); группировка по `leadId` в памяти; `createdAt` ISO-строка → `new Date(lead.createdAt)`; fallback `lastStageChangedAt` → `createdAt`; возвращает `Array<LeadListItem & { risk: RiskResult }>`
+- `lib/leads/getLeads.ts` — `stageTimeLimitDays: number | null` в типе `LeadListItem.stage` и в Prisma `select`; `getLeads` дополнительно возвращает `companySettings` для батча; экспорт `getLeadsWithRisk(params, session)` — обёртка `getLeads` + `computeRiskBatch`; тип `GetLeadsWithRiskResult`
+- `app/api/leads/route.ts` — GET делегирует в `getLeadsWithRisk`; ответ `{ leads, total, page, pageSize }`, каждый лид с `risk: { level, reason }`
+
+**Учтённые точки риска:**
+
+- `stageTimeLimitDays` синхронно в типе и `select`; `null` → `?? companySettings.stageStuckDaysDefault` в `computeRisk`
+- `createdAt: string` → `new Date(lead.createdAt)` в `computeRiskBatch`, без `as`
+- Ключ ответа API — `leads`, не `items`
+- N+1 исключён: только 2 запроса на весь батч, без цикла по Prisma
+- Порядок приоритетов 5/6 по `phase-6.md`: сначала `overdueOpenTask != null`, затем `!hasOpenTask`
+- `computeRisk.ts` и `resolveApplicableNorm.ts` без Prisma-импортов
+
+**Out of scope (не делалось):** полная ветка `workHoursOnly = true` (Phase 17); хранение риска в БД; UI (`RiskBadge`, `LeadsTable`) — Таск 3; другие эндпоинты (`/api/leads/:id`, Kanban, «Сегодня»)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
+## 2026-06-26 — Phase 6, Таск 1: `lib/leads/` + `GET /api/leads` (сервер, без риска)
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/leads/visibilityFilter.ts` — pure function `visibilityWhere(role, userId, leadVisibility)`: HEAD/ADMIN через `hasMinRole(role, 'HEAD')` → `{}`; MANAGER + `leadVisibility=OWN` → `{ assignedToId: userId }`; MANAGER + `ALL` → `{}`
+- `lib/leads/getLeads.ts` — `getLeads(params, session)`: загрузка `company.settings` → извлечение `leadVisibility`; сборка `where` через `AND: [{ companyId }, visibility, …фильтры]`; параллельно `findMany` + `count`; экспорт типов `LeadListItem`, `GetLeadsResult`; `hasDuplicate` из `_count.duplicateFlagsAsLead > 0`; сортировка `createdAt desc`
+- `lib/leads/getManagers.ts` — `getManagers(companyId)`: активные пользователи (`isBlocked: false`), `orderBy: name asc`, тип `ManagerOption`
+- `lib/validations/leads.ts` — `leadsQuerySchema` + `LeadsQueryInput`: `search`, `source`, `assignedToId`, `status` (`''` | `open` | `won` | `lost`), `period` (`''` | `today` | `week` | `month`), `page`, `pageSize` (max из константы)
+- `constants/leads.ts` — `UNASSIGNED_MANAGER_ID = 'unassigned'`, `DEFAULT_LEADS_PAGE_SIZE = 20`, `MAX_LEADS_PAGE_SIZE = 100`
+- `app/api/leads/route.ts` — `GET`: только `session.kind === 'company'` → иначе `401`; query-параметры через `leadsQuerySchema.safeParse` → `400` при ошибке; делегирование в `getLeads`; `POST` не изменён
+
+**Учтённые точки риска:**
+
+- `assignedToId === 'unassigned'` → `{ assignedToId: null }` в `buildAssignedToFilter`, строка в Prisma не передаётся
+- `companyId` — первый элемент `AND`, visibility и остальные фильтры добавляются отдельными условиями (не spread поверх `companyId`)
+- `hasDuplicate` — только `_count.duplicateFlagsAsLead`, не `matchedLead`
+- `visibilityWhere` принимает `(role, userId, leadVisibility)`, не `session`; `leadVisibility` читается из `company.settings` внутри `getLeads`
+- Поиск: `name`/`email` — `contains` + `mode: 'insensitive'`; `phone` — plain `contains`
+
+**Out of scope (не делалось):** `computeRisk` / `computeRiskBatch` (Таск 2); UI (`LeadsTable`, `RiskBadge`, `DuplicateBadge`, обновление `page.tsx`, URL-params в `LeadsFilters`) — Таск 3
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 5, Таск 4: Ручное создание лида — POST /api/leads (синхронный дедуп → 409) + UI
 
 **Статус:** ✅ Завершён
