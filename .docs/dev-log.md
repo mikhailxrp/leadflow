@@ -36,6 +36,32 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-26 — Phase 7, Таск 1: API карточки лида — `GET` / `PATCH` / `DELETE`
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/api/leads/[id]/route.ts` — API Route (server):
+  - `GET` — `findFirst` с `{ id, companyId }` + `visibilityWhere`; select контактов, `source` / `utm` / `marketing` / `customFields` / `closeType` / `closedAt` / `stage` / `assignedTo` / `lossReason` / `_count.duplicateFlagsAsLead`; риск через `computeRiskBatch` (массив из одного элемента); идемпотентный `LEAD_OPENED` (`recordLeadOpenedOnce` — `findFirst` по `{ leadId, userId, type }` перед `writeEvent`)
+  - `PATCH` — только `name` / `phone` / `email` / `comment` через `updateLeadSchema` + `buildUpdateData`; `updateMany` с `where: { id, companyId }` + `visibilityWhere`; событие `LEAD_UPDATED`; пустое тело или без изменяемых полей → 400
+  - `DELETE` — только `hasMinRole(role, 'ADMIN')`; `LEAD_DELETED` с `leadId: null` и `payload: { deletedLeadId, name, phone }` **до** `deleteMany`; `where: { id, companyId }`
+- `lib/validations/leads.ts` — `updateLeadSchema`: опциональные `name` (trim + min 1), `phone`, `email`, `comment`; без `.passthrough()` и без полей приёма; экспорт `UpdateLeadInput`
+
+**Учтённые точки риска:**
+
+- Чужой/невидимый лид (режим `OWN`) → 404 на GET и PATCH, не 403
+- `LEAD_DELETED` пишется с `leadId: null`, чтобы событие пережило каскадное удаление
+- `PATCH` не использует `.passthrough()` — лишние поля не попадают в Prisma `data`
+- `updateMany` / `deleteMany` включают `companyId` в `where` напрямую, не только через предварительный GET
+- Все handlers проверяют `session.kind === 'company'`; GET/PATCH требуют `MANAGER+`, DELETE — `ADMIN`
+
+**Out of scope (не делалось):** UI карточки `/leads/[id]`; `POST /take`, `POST /close`; комментарии; история событий; список дублей; смена этапа (Phase 9)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 6, Таск 3: UI `/leads` — LeadsTable + фильтры (URL-params) + пагинация
 
 **Статус:** ✅ Завершён

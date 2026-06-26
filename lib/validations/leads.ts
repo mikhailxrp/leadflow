@@ -39,5 +39,17 @@ export const leadsQuerySchema = z.object({
     .default(DEFAULT_LEADS_PAGE_SIZE),
 });
 
+/**
+ * Lead card PATCH — contact fields only; no intake fields (source, utm, customFields).
+ * No .passthrough() — unknown keys must not reach Prisma update data.
+ */
+export const updateLeadSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  phone: z.string().optional(),
+  email: z.string().optional(),
+  comment: z.string().optional(),
+});
+
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export type LeadsQueryInput = z.infer<typeof leadsQuerySchema>;
+export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
