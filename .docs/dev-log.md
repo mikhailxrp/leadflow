@@ -36,6 +36,33 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-26 — Phase 7, Таск 3: Комментарии — API + лента в карточке
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/validations/leads.ts` — `commentSchema`: `text` с `trim`, `min(1)`, `max(5000)`; экспорт `CommentInput`
+- `app/api/leads/[id]/comments/route.ts` — API Route (server):
+  - `GET` — сессия `kind === 'company'`, `MANAGER+`; `findAccessibleLead` с `visibilityWhere`; `prisma.comment.findMany` с `where: { leadId, lead: { companyId } }`, `orderBy: { createdAt: 'asc' }`, select `id, text, createdAt, user.name`; чужой/невидимый лид → 404
+  - `POST` — `commentSchema`; проверка доступа к лиду; `prisma.comment.create({ leadId, userId, text })` → затем `writeEvent('COMMENTED', { leadId, userId })` **вне транзакции**; ответ 201 с созданным комментарием; невалидное тело → 400
+- `components/leads/LeadComments.tsx` — Client Component: пропсы `leadId`, `comments[]` (SSR); лента с автором и временем (`whitespace-pre-wrap`, React-экранирование); счётчик из `comments.length`; пустое состояние «Нет комментариев»; textarea с `maxLength={5000}` → `POST .../comments` → `router.refresh()`; состояния loading/error
+- `app/(app)/leads/[id]/page.tsx` — Server Component: `auth()` → redirect при отсутствии company-сессии; проверка видимости лида (`visibilityWhere`) → `notFound()`; самостоятельная `prisma.comment.findMany` с `where: { leadId, lead: { companyId } }` (без `getLeadById`); сериализация `createdAt` в ISO; передача `leadId` + `comments` в `LeadComments`; заглушка основного контента карточки сохранена
+
+**Учтённые точки риска:**
+
+- Тенант-фильтр комментариев через `lead: { companyId }`, не только по `leadId`
+- Доступ к лиду проверяется до чтения/создания комментариев (`findAccessibleLead` / `visibilityWhere` в page и API)
+- `writeEvent` вызывается после `comment.create`, не внутри `$transaction`
+- `LeadComments` получает `leadId` пропсом — `handleSubmit` постит на корректный эндпоинт
+- Серверная выборка в `page.tsx` без `getLeadById` — отдельный `findMany`, как оговорено для таска 3
+
+**Out of scope (не делалось):** `getLeadById` и полный UI карточки (таск 4); история событий / `eventLabels.ts` (таск 4); блок дублей (таск 4); `TaskBlock`; редактирование и удаление комментариев
+
+**Проверки:** `npx tsc --noEmit` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 7, Таск 2: «Взял в работу» + закрытие + quick-close
 
 **Статус:** ✅ Завершён
