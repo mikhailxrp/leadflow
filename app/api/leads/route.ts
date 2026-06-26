@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import { createLead } from '@/lib/intake/createLead';
 import { findPossibleDuplicates } from '@/lib/intake/findPossibleDuplicates';
 import { flagPossibleDuplicates } from '@/lib/intake/flagPossibleDuplicates';
-import { getLeads } from '@/lib/leads/getLeads';
+import { getLeadsWithRisk } from '@/lib/leads/getLeads';
 import { createLeadSchema, leadsQuerySchema } from '@/lib/validations/leads';
 import type { CompanySession } from '@/types/session';
 
@@ -12,6 +12,10 @@ export async function GET(request: Request): Promise<Response> {
 
   if (!session || session.kind !== 'company' || !session.user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!hasMinRole(session.user.role, 'MANAGER')) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -30,10 +34,10 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await getLeads(parsed.data, session as CompanySession);
+    const result = await getLeadsWithRisk(parsed.data, session as CompanySession);
     return Response.json(result);
   } catch (error) {
-    console.error('[GET /api/leads] getLeads failed:', error);
+    console.error('[GET /api/leads] getLeadsWithRisk failed:', error);
     return Response.json({ error: 'INTERNAL_ERROR' }, { status: 500 });
   }
 }

@@ -5,6 +5,8 @@ import {
 } from '@/constants/defaultCompanyData';
 import { UNASSIGNED_MANAGER_ID } from '@/constants/leads';
 import { visibilityWhere } from '@/lib/leads/visibilityFilter';
+import { computeRiskBatch } from '@/lib/risk/computeRiskBatch';
+import type { RiskResult } from '@/lib/risk/computeRisk';
 import { prisma } from '@/lib/prisma';
 import type { LeadsQueryInput } from '@/lib/validations/leads';
 import type { CompanySession } from '@/types/session';
@@ -23,11 +25,24 @@ export type LeadListItem = {
   closeType: CloseType | null;
   hasDuplicate: boolean;
   assignedTo: { id: string; name: string } | null;
-  stage: { id: string; name: string; color: string };
+  stage: {
+    id: string;
+    name: string;
+    color: string;
+    stageTimeLimitDays: number | null;
+  };
 };
 
 export type GetLeadsResult = {
-  items: LeadListItem[];
+  leads: LeadListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  companySettings: Prisma.JsonValue;
+};
+
+export type GetLeadsWithRiskResult = {
+  leads: Array<LeadListItem & { risk: RiskResult }>;
   total: number;
   page: number;
   pageSize: number;
@@ -191,6 +206,7 @@ export async function getLeads(
             id: true,
             name: true,
             color: true,
+            stageTimeLimitDays: true,
           },
         },
         _count: {
@@ -203,7 +219,7 @@ export async function getLeads(
     prisma.lead.count({ where }),
   ]);
 
-  const items: LeadListItem[] = leads.map((lead) => ({
+  const mappedLeads: LeadListItem[] = leads.map((lead) => ({
     id: lead.id,
     name: lead.name,
     phone: lead.phone,
@@ -217,9 +233,26 @@ export async function getLeads(
   }));
 
   return {
-    items,
+    leads: mappedLeads,
     total,
     page: params.page,
     pageSize: params.pageSize,
+    companySettings: company.settings,
+  };
+}
+
+export async function getLeadsWithRisk(
+  params: LeadsQueryInput,
+  session: CompanySession,
+): Promise<GetLeadsWithRiskResult> {
+  const { leads, total, page, pageSize, companySettings } = await getLeads(params, session);
+
+  const leadsWithRisk = await computeRiskBatch(leads, companySettings, prisma);
+
+  return {
+    leads: leadsWithRisk,
+    total,
+    page,
+    pageSize,
   };
 }

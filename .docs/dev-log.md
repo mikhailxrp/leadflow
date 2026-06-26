@@ -36,6 +36,34 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-26 — Phase 6, Таск 2: `lib/risk/` + интеграция риска в `GET /api/leads`
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/risk/computeRisk.ts` — pure function `computeRisk(input: RiskInput): RiskResult`; типы `RiskLevel`, `RiskResult`, `ReactionNorms`, `RiskInput`; 8 приоритетов по `phase-6.md`: закрыт WON/LOST → grey; нет ответственного → red; нет первого ответа (норма) → red; застрял на этапе → red; просрочена открытая задача → yellow; нет открытой задачи → yellow; приближается срок первого ответа → yellow; иначе green; 0 запросов к БД
+- `lib/risk/resolveApplicableNorm.ts` — pure function; приоритет нормы: `byUser` > `byStage` > `bySource` > `defaultMinutes`; возвращает `{ defaultMinutes, reminderBeforePercent, workHoursOnly }`
+- `lib/risk/workHoursUtils.ts` — `minutesSinceCreated(createdAt, now, workHoursOnly)`: в Phase 6 обе ветки (`workHoursOnly` true/false) считают wall-clock минуты; полная логика рабочих часов — Phase 17
+- `lib/risk/computeRiskBatch.ts` — принимает `LeadListItem[]` + `companySettings` + `prisma`; ровно 2 Prisma-запроса (`Promise.all`: events `LEAD_TAKEN_IN_WORK`/`STAGE_CHANGED` + tasks `TODO`/`IN_PROGRESS`); группировка по `leadId` в памяти; `createdAt` ISO-строка → `new Date(lead.createdAt)`; fallback `lastStageChangedAt` → `createdAt`; возвращает `Array<LeadListItem & { risk: RiskResult }>`
+- `lib/leads/getLeads.ts` — `stageTimeLimitDays: number | null` в типе `LeadListItem.stage` и в Prisma `select`; `getLeads` дополнительно возвращает `companySettings` для батча; экспорт `getLeadsWithRisk(params, session)` — обёртка `getLeads` + `computeRiskBatch`; тип `GetLeadsWithRiskResult`
+- `app/api/leads/route.ts` — GET делегирует в `getLeadsWithRisk`; ответ `{ leads, total, page, pageSize }`, каждый лид с `risk: { level, reason }`
+
+**Учтённые точки риска:**
+
+- `stageTimeLimitDays` синхронно в типе и `select`; `null` → `?? companySettings.stageStuckDaysDefault` в `computeRisk`
+- `createdAt: string` → `new Date(lead.createdAt)` в `computeRiskBatch`, без `as`
+- Ключ ответа API — `leads`, не `items`
+- N+1 исключён: только 2 запроса на весь батч, без цикла по Prisma
+- Порядок приоритетов 5/6 по `phase-6.md`: сначала `overdueOpenTask != null`, затем `!hasOpenTask`
+- `computeRisk.ts` и `resolveApplicableNorm.ts` без Prisma-импортов
+
+**Out of scope (не делалось):** полная ветка `workHoursOnly = true` (Phase 17); хранение риска в БД; UI (`RiskBadge`, `LeadsTable`) — Таск 3; другие эндпоинты (`/api/leads/:id`, Kanban, «Сегодня»)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 6, Таск 1: `lib/leads/` + `GET /api/leads` (сервер, без риска)
 
 **Статус:** ✅ Завершён
