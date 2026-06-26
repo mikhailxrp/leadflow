@@ -24,6 +24,29 @@ npm run delete:company -- <companyId>
 
 ---
 
+## 2026-06-26 — Phase 5, Таск 1: lib/intake/ ядро — parseBody + normalizeLead + createLead + fieldAliases
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `constants/fieldAliases.ts` — карта `FIELD_ALIASES` (name/имя/фио, phone/телефон/tel, email/e-mail/почта, comment/комментарий/сообщение и др.); набор `MARKETING_FIELDS` (gclid, yclid, fbclid, roistat, _ym_uid и др.) для `Lead.marketing`
+- `lib/intake/parseBody.ts` — server-side lib: разбор тела запроса (JSON, `application/x-www-form-urlencoded`, `multipart/form-data`, fallback raw text → JSON → url-encoded); не бросает исключение — возвращает `Record<string, unknown>` или `{}`
+- `lib/intake/normalizeLead.ts` — server-side lib: `normalizeLead(raw, source)` → `NormalizedLead`; регистронезависимый маппинг через `FIELD_ALIASES`; `utm_*` → `utm`; маркетинговые поля → `marketing`; остальное → `customFields` с оригинальным ключом; пустые значения стандартных полей → `null`; первое распознанное значение побеждает при дублях алиасов
+- `lib/intake/createLead.ts` — server-side lib: `createLead(raw, source, companyId)`; `stageId` через `pipelineStage.findFirst({ where: { companyId }, orderBy: { order: 'asc' } })`; `prisma.$transaction`: `tx.lead.create(...)` + `tx.event.create({ type: 'LEAD_CREATED', ... })`; `assignedToId: null`; без `writeEvent` внутри транзакции
+- `lib/validations/intake.ts` — мягкая Zod-схема `intakeLeadSchema`: все стандартные поля optional/nullable, `utm`/`marketing`/`customFields` как `z.record(z.unknown())`, `.passthrough()` — не отклоняет нестандартную структуру
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `parseBody` — поддержка `multipart/form-data` (в TASK указаны только JSON, form-urlencoded и raw text)
+- `fieldAliases` — расширенный набор синонимов (фио, full_name, mobile, description и др.) и маркетинговых полей (calltouch, comagic, metrika и др.)
+
+**Out of scope (не делалось):** webhook-эндпоинты tilda/wordpress/leads (Таск 2); `verifyApiKey`, `touchIntegrationSource`, rate limiting (Таск 2); `flagPossibleDuplicates` (Таск 3); `POST /api/leads` и UI ручного создания (Таск 4); `autoAssignLead`, `notifyNewLead` (Phase 11–13)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 4, Таск 4: Зачистка шаблонов от хардкода → пустые состояния
 
 **Статус:** ✅ Завершён
