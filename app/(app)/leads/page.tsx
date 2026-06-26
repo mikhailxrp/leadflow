@@ -1,6 +1,15 @@
+import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { auth } from '@/lib/auth';
+import { getLeadsWithRisk } from '@/lib/leads/getLeads';
+import { getManagers } from '@/lib/leads/getManagers';
+import { leadsQuerySchema } from '@/lib/validations/leads';
+import type { CompanySession } from '@/types/session';
 import LeadsFilters from '@/components/leads/LeadsFilters';
+import LeadsTable from '@/components/leads/LeadsTable';
+import LeadsPagination from '@/components/leads/LeadsPagination';
 import { PageContent } from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import Button from '@/components/ui/Button';
@@ -17,7 +26,33 @@ function PlusIcon() {
   );
 }
 
-export default function LeadsPage() {
+interface LeadsPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function LeadsPage({ searchParams }: LeadsPageProps) {
+  const session = await auth();
+
+  if (!session || session.kind !== 'company') {
+    redirect('/login');
+  }
+
+  const companySession = session as CompanySession;
+  const rawParams = await searchParams;
+
+  const normalized: Record<string, string> = {};
+  for (const [key, val] of Object.entries(rawParams)) {
+    if (typeof val === 'string') normalized[key] = val;
+    else if (Array.isArray(val)) normalized[key] = val[0] ?? '';
+  }
+
+  const params = leadsQuerySchema.parse(normalized);
+
+  const [{ leads, total, page, pageSize }, managers] = await Promise.all([
+    getLeadsWithRisk(params, companySession),
+    getManagers(companySession.user.companyId),
+  ]);
+
   return (
     <>
       <PageHeader
@@ -33,12 +68,27 @@ export default function LeadsPage() {
 
       <PageContent>
         <div className="flex flex-col gap-4">
-          <LeadsFilters />
+          <Suspense
+            fallback={
+              <div className="h-[52px] animate-pulse rounded-[12px] bg-[var(--color-bg-surface-2)]" />
+            }
+          >
+            <LeadsFilters managers={managers} />
+          </Suspense>
 
-          <div className="flex items-center justify-center rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] py-16">
-            <p className="text-[14px] text-[var(--color-text-secondary)]">Пока нет лидов</p>
-          </div>
+          {leads.length === 0 ? (
+            <div className="flex items-center justify-center rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] py-16">
+              <p className="text-[14px] text-[var(--color-text-secondary)]">Лиды не найдены</p>
+            </div>
+          ) : (
+            <LeadsTable leads={leads} />
+          )}
 
+          {total > 0 && (
+            <Suspense fallback={<div className="h-7" />}>
+              <LeadsPagination total={total} page={page} pageSize={pageSize} />
+            </Suspense>
+          )}
         </div>
       </PageContent>
     </>

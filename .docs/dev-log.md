@@ -36,6 +36,32 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-26 — Phase 6, Таск 3: UI `/leads` — LeadsTable + фильтры (URL-params) + пагинация
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `components/leads/LeadsTable.tsx` — Client Component: колонки Клиент (имя + телефон), Источник, Ответственный, Этап (бейдж по `stage.color`), Риск (`RiskBadge`), Создан, «Открыть»; имя — `<Link href="/leads/{id}">`; `<DuplicateBadge />` при `hasDuplicate`; единственное действие из строки — ссылка «Открыть»
+- `components/leads/RiskBadge.tsx` — Server Component: пропсы `{ level, reason }`; цвета через CSS-переменные (`green/yellow/red/grey` → Норма / Внимание / Риск / Закрыт); `reason` → атрибут `title`
+- `components/leads/DuplicateBadge.tsx` — иконка-предупреждение без пропсов; `title` и `aria-label` «Возможный дубль»; без ссылки (Phase 7)
+- `components/leads/LeadsFilters.tsx` — `useSearchParams()` + `useRouter()` вместо локального `useState`; проп `managers: ManagerOption[]`; `STATUS_OPTIONS`: `'' / open / won / lost`; URL-параметр менеджера — `assignedToId`; при смене фильтра `params.set('page', '1')`; «Сбросить» → `router.push('/leads')`
+- `components/leads/LeadsPagination.tsx` — обязательные пропсы `total`, `page`, `pageSize`; навигация через URL (`params.set('page', …)`); удалены `TOTAL_ITEMS`, `PAGE_SIZE`, `TOTAL_PAGES` и локальный `useState`; `getPageItems` сохранена
+- `app/(app)/leads/page.tsx` — async Server Component; `await searchParams` (Next.js 16); guard `session.kind !== 'company'` → `redirect('/login')`; `session as CompanySession`; параллельно `getLeadsWithRisk` + `getManagers`; пустое состояние «Лиды не найдены»; `<LeadsFilters>` и `<LeadsPagination>` обёрнуты в `<Suspense>`
+
+**Учтённые точки риска:**
+
+- Оба компонента с `useSearchParams()` (`LeadsFilters`, `LeadsPagination`) обёрнуты в `<Suspense>` на странице
+- URL-параметр менеджера — `assignedToId`, не `manager`; период — `period`, не `from/to`
+- `page` читается только из URL и пропсов сервера, локальный `useState` для страницы удалён
+- После guard сессии — явный `session as CompanySession` для `getLeadsWithRisk`
+
+**Out of scope (не делалось):** страница карточки `/leads/:id` (Phase 7); быстрые действия из строки (Phase 11, 15); изменения API и `lib/leads/getManagers.ts`
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 6, Таск 2: `lib/risk/` + интеграция риска в `GET /api/leads`
 
 **Статус:** ✅ Завершён
