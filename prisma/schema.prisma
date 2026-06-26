@@ -319,6 +319,7 @@ model ApiKey {
   company Company @relation(fields: [companyId], references: [id])
 
   @@index([companyId])
+  @@index([keyHash])
 }
 
 model IntegrationSource {

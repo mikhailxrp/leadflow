@@ -22,6 +22,46 @@ npm run delete:company -- <companyId>
 
 `companyId` берётся из Prisma Studio (`npx prisma studio`, таблица `Company`). Подтверждения нет — удаляется именно та компания, чей id передан.
 
+### `scripts/seedTestApiKey.ts` — тестовый API-ключ для universal webhook
+
+Генерирует криптостойкий plain key, сохраняет SHA-256 хэш в `ApiKey`, выводит ключ один раз в консоль. Повторный запуск не создаёт дубль (проверка по `name: "test-api-key"`). Привязывает ключ к первой компании в БД.
+
+Запуск:
+
+```bash
+npx tsx scripts/seedTestApiKey.ts
+# или
+npm run seed:api-key
+```
+
+---
+
+## 2026-06-26 — Phase 5, Таск 2: Webhook-эндпоинты + rate limit + здоровье источника
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/api/webhooks/tilda/[companyId]/route.ts` — `POST`; `params: Promise<{ companyId: string }>` + `await params`; rate limit 60/мин по IP; тестовый запрос Tilda (`body['test'] === 'test'`) после `parseBody` → 200 без лида; `createLead` + `touchIntegrationSource`; без проверки `isBlocked`
+- `app/api/webhooks/wordpress/[companyId]/route.ts` — то же для WordPress; JSON и form-urlencoded через `parseBody` без дополнительной логики
+- `app/api/webhooks/leads/route.ts` — universal webhook: `companyId` только из `verifyApiKey`; без/невалидный ключ → 401, `touchIntegrationSource` не вызывается; rate limit по IP до верификации, по `ApiKey.id` после; `createLead` + `touchIntegrationSource`
+- `lib/intake/verifyApiKey.ts` — SHA-256 хэш-сравнение (не bcrypt); возвращает `{ companyId, sourceLabel, apiKeyId } | null`; plain ключ не логируется
+- `lib/intake/touchIntegrationSource.ts` — upsert по `companyId_type_label`; успех → `lastUsedAt`, `errorCount: 0`; провал → `lastErrorAt`, `errorCount++`
+- `scripts/seedTestApiKey.ts` — генерация криптостойкого ключа, SHA-256 хэш, создание `ApiKey` в БД, вывод plain key; повторный запуск не создаёт дубль (проверка по `name`)
+- `package.json` — скрипт `"seed:api-key": "npx tsx scripts/seedTestApiKey.ts"`
+- Удалены пустые стабы `app/api/webhooks/tilda/route.ts` и `app/api/webhooks/wordpress/route.ts` (без `[companyId]`)
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `lib/validations/webhooks.ts` — Zod-схема `webhookBodySchema` (`z.record(z.unknown())`) для тела webhook-запросов
+- Tilda/WordPress — проверка существования компании по `companyId` из пути → 404, если компания не найдена
+- Universal webhook — извлечение ключа из заголовка `X-API-Key` или query-параметра `key`
+- `verifyApiKey` — дополнительное поле `apiKeyId` в ответе для rate limit по идентификатору ключа
+
+**Out of scope (не делалось):** `flagPossibleDuplicates()` и постдействия (Таск 3); `autoAssignLead`, `notifyNewLead` (Phase 11–13); UI генерации и управления API-ключами (Phase 18); Яндекс Директ (Phase 22); `GET /api/leads` (Phase 6); ручное создание лида через UI (Таск 4)
+
+**Проверки:** `npm run type-check` — без ошибок
+
 ---
 
 ## 2026-06-26 — Phase 5, Таск 1: lib/intake/ ядро — parseBody + normalizeLead + createLead + fieldAliases

@@ -158,7 +158,7 @@ export default function PipelineBoard(): ReactNode {
     setActiveLead(null);
   }, []);
 
-  const handleCardClick = useCallback((_id: string): void => {
+  const handleCardClick = useCallback((): void => {
     // TODO: Phase 9 — navigate to /leads/[id]
   }, []);
 
