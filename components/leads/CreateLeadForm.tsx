@@ -2,17 +2,22 @@
 
 import { Icon } from '@iconify/react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   useCallback,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import DuplicateWarningModal, {
+  type PossibleDuplicatePreview,
+} from '@/components/leads/DuplicateWarningModal';
 import LeadPreviewCard from '@/components/leads/LeadPreviewCard';
 import TagInput from '@/components/leads/TagInput';
 import Toggle from '@/components/settings/Toggle';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { createLeadSchema } from '@/lib/validations/leads';
 
 export type LeadPriority = 'low' | 'normal' | 'high';
 
@@ -218,14 +223,76 @@ function CollapsibleFields({ open, children }: CollapsibleFieldsProps) {
   );
 }
 
+function buildRequestBody(
+  formState: CreateLeadFormState,
+  confirmDuplicate = false,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    name: formState.name.trim(),
+    source: formState.source,
+  };
+
+  const phone = formState.phone.trim();
+  if (phone) {
+    body.phone = phone;
+  }
+
+  const email = formState.email.trim();
+  if (email) {
+    body.email = email;
+  }
+
+  const company = formState.company.trim();
+  if (company) {
+    body.company = company;
+  }
+
+  const comment = formState.comment.trim();
+  if (comment) {
+    body.comment = comment;
+  }
+
+  const utmSource = formState.utmSource.trim();
+  if (utmSource) {
+    body.utm_source = utmSource;
+  }
+
+  const utmMedium = formState.utmMedium.trim();
+  if (utmMedium) {
+    body.utm_medium = utmMedium;
+  }
+
+  const utmTerm = formState.utmTerm.trim();
+  if (utmTerm) {
+    body.utm_term = utmTerm;
+  }
+
+  const utmContent = formState.utmContent.trim();
+  if (utmContent) {
+    body.utm_content = utmContent;
+  }
+
+  if (confirmDuplicate) {
+    body.confirmDuplicate = true;
+  }
+
+  return body;
+}
+
 export default function CreateLeadForm() {
+  const router = useRouter();
   const [state, setState] = useState<CreateLeadFormState>(INITIAL_STATE);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [duplicates, setDuplicates] = useState<PossibleDuplicatePreview[] | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const update = useCallback(<K extends keyof CreateLeadFormState>(
     key: K,
     value: CreateLeadFormState[K],
   ): void => {
     setState((prev) => ({ ...prev, [key]: value }));
+    setFieldErrors({});
   }, []);
 
   const managerLabel = useMemo(
@@ -233,10 +300,82 @@ export default function CreateLeadForm() {
     [state.managerId],
   );
 
-  const isSubmitDisabled = state.name.trim().length === 0;
+  const isSubmitDisabled = state.name.trim().length === 0 || isSubmitting;
+
+  const submitLead = useCallback(
+    async (confirmDuplicate = false): Promise<void> => {
+      const parseResult = createLeadSchema.safeParse({
+        name: state.name.trim(),
+        phone: state.phone.trim() || undefined,
+        email: state.email.trim() || undefined,
+      });
+
+      if (!parseResult.success) {
+        const errors: Record<string, string> = {};
+        for (const issue of parseResult.error.issues) {
+          const key = String(issue.path[0] ?? '');
+          if (key) errors[key] = issue.message;
+        }
+        setFieldErrors(errors);
+        return;
+      }
+
+      setFieldErrors({});
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      try {
+        const response = await fetch('/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildRequestBody(state, confirmDuplicate)),
+        });
+
+        if (response.status === 409) {
+          const data = (await response.json()) as {
+            error?: string;
+            possibleDuplicates?: PossibleDuplicatePreview[];
+          };
+
+          if (data.error === 'POSSIBLE_DUPLICATE' && data.possibleDuplicates) {
+            setDuplicates(data.possibleDuplicates);
+            return;
+          }
+        }
+
+        if (!response.ok) {
+          setSubmitError('Не удалось создать лид. Проверьте данные и попробуйте снова.');
+          return;
+        }
+
+        const data = (await response.json()) as { id: string };
+        setDuplicates(null);
+        router.push(`/leads/${data.id}`);
+      } catch (error) {
+        console.error('[CreateLeadForm] submit failed:', error);
+        setSubmitError('Не удалось создать лид. Попробуйте позже.');
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [router, state],
+  );
 
   function handleSubmit(): void {
-    console.log('Create lead', state);
+    void submitLead(false);
+  }
+
+  function handleConfirmDuplicate(): void {
+    void submitLead(true);
+  }
+
+  function handleOpenExisting(leadId: string): void {
+    setDuplicates(null);
+    router.push(`/leads/${leadId}`);
+  }
+
+  function handleCloseDuplicateModal(): void {
+    setDuplicates(null);
   }
 
   return (
@@ -258,6 +397,11 @@ export default function CreateLeadForm() {
                       onChange={(event) => update('name', event.target.value)}
                       placeholder="Введите имя"
                     />
+                    {fieldErrors.name ? (
+                      <span className="text-[12px] text-[#EF4444]" role="alert">
+                        {fieldErrors.name}
+                      </span>
+                    ) : null}
                   </div>
 
                   <div className="flex flex-col gap-1.5">
@@ -546,7 +690,14 @@ export default function CreateLeadForm() {
           bg-[var(--color-bg-surface)] px-6 py-3
         "
       >
-        <span className="text-[12px] text-[var(--color-text-tertiary)]">*Обязательные поля</span>
+        <div className="flex flex-col gap-1">
+          <span className="text-[12px] text-[var(--color-text-tertiary)]">*Обязательные поля</span>
+          {submitError ? (
+            <span className="text-[12px] text-[#EF4444]" role="alert">
+              {submitError}
+            </span>
+          ) : null}
+        </div>
 
         <div className="flex items-center gap-3">
           <Link href="/leads">
@@ -562,10 +713,20 @@ export default function CreateLeadForm() {
             className={isSubmitDisabled ? 'opacity-50' : ''}
             onClick={handleSubmit}
           >
-            Создать лид
+            {isSubmitting ? 'Создание…' : 'Создать лид'}
           </Button>
         </div>
       </footer>
+
+      {duplicates ? (
+        <DuplicateWarningModal
+          duplicates={duplicates}
+          loading={isSubmitting}
+          onConfirm={handleConfirmDuplicate}
+          onOpenExisting={handleOpenExisting}
+          onClose={handleCloseDuplicateModal}
+        />
+      ) : null}
     </div>
   );
 }

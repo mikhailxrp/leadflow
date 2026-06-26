@@ -36,6 +36,35 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-26 — Phase 5, Таск 4: Ручное создание лида — POST /api/leads (синхронный дедуп → 409) + UI
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/api/leads/route.ts` — `POST`: только `session.kind === 'company'` → иначе `401`; `hasMinRole(session.user.role, 'MANAGER')` → иначе `403`; `companyId` из сессии; `createLeadSchema.safeParse` → пустой `name` даёт `400`; `const { confirmDuplicate, ...rest } = parsed.data` — флаг не попадает в `createLead`; синхронный дедуп до сохранения через `findPossibleDuplicates` → при совпадении без `confirmDuplicate` — `409 { error: "POSSIBLE_DUPLICATE", possibleDuplicates: [{ id, name, matchType }] }`, лид не создаётся; без совпадений — `createLead(rest, 'manual', companyId)` → `201 { id }`; с `confirmDuplicate: true` — создание + fire-and-forget `void flagPossibleDuplicates(lead.id, companyId).catch(console.error)`
+- `lib/validations/leads.ts` — `createLeadSchema`: `name` обязателен (`z.string().trim().min(1)`), `phone`/`email` опциональны без проверки формата, `confirmDuplicate?: boolean`, `.passthrough()` для остальных полей формы
+- `components/leads/DuplicateWarningModal.tsx` — Client Component: превью совпадений (имя, тип «Телефон»/«Email»), кнопки «Всё равно создать» / «Открыть существующий», loading state на подтверждении
+- `components/leads/CreateLeadForm.tsx` — `handleSubmit` → `fetch('/api/leads')`; `buildRequestBody` трансформирует UTM (`utmSource` → `utm_source` и т.д.) до отправки; обработка `409` → открытие `DuplicateWarningModal`; повтор с `confirmDuplicate: true` или переход на `/leads/:id`; кнопка «Создать лид» недоступна во время запроса; `stageId`, `managerId`, `tags`, `priority`, напоминания в тело запроса не отправляются
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `lib/intake/findPossibleDuplicates.ts` — выделен синхронный SELECT-дедуп (до 5 совпадений по `phone OR email`, `matchType`: `PHONE` / `EMAIL`); отделён от `flagPossibleDuplicates`, который пишет `DuplicateFlag` только после подтверждённого создания
+
+**Учтённые точки риска:**
+
+- UTM camelCase → underscore в `buildRequestBody`, иначе поля ушли бы в `customFields`
+- `confirmDuplicate` деструктурируется в route до `createLead`, не через `normalizeLead`
+- Синхронный дедуп — только чтение; `DuplicateFlag` — только после `createLead` с `confirmDuplicate: true`
+- `Lead.source` всегда `'manual'`; маркетинговый `source` из формы (`call`, `referral` и др.) уходит в `customFields`
+- `hasMinRole(role, 'MANAGER')` добавлен явно, хотя пропускает всех пользователей компании
+
+**Out of scope (не делалось):** `GET /api/leads` (Phase 6); `stageId`/`managerId` из формы (Phase 11); напоминания из формы (Phase 14); `tags`/`priority` (будущие фазы); SSE/Telegram о новом лиде (Phase 12–13); `autoAssignLead` (Phase 11); полноценный список `/leads` (Phase 6)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 5, Таск 3: `flagPossibleDuplicates()` + постдействия приёма
 
 **Статус:** ✅ Завершён
