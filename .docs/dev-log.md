@@ -24,6 +24,30 @@ npm run delete:company -- <companyId>
 
 ---
 
+## 2026-06-26 — Phase 4, Таск 3: Дашборд — реальные агрегаты + пустые состояния + design_system.md
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/(app)/today/page.tsx` — Server Component: `auth()` → `companyId`, редирект без сессии компании; 4 Prisma-счётчика через `Promise.all` с `where: { companyId }` (всего / новых сегодня `createdAt >= todayStart` / в работе `closeType: null` / сделок `closeType: 'WON'`); дата в хедере через `Intl.DateTimeFormat('ru-RU')` вместо хардкода «7 июня 2026»; пропсы в `StatsRow`
+- `components/dashboard/StatsRow.tsx` — Server Component: интерфейс `StatsRowProps` с 4 числами; константа `STATS` удалена
+- `components/dashboard/RecentLeads.tsx` — Server Component: `'use client'` и `MOCK_LEADS` убраны; пустое состояние «Пока нет лидов» в карточке; заголовок и ссылка «Все лиды →» сохранены
+- `components/dashboard/LeadsChart.tsx` — Client Component: `MOCK_CHART_DATA`, recharts (`AreaChart`, `Tooltip`) и импорты удалены; пустое состояние «Пока нет данных» внутри `Card`, высота 220px сохранена
+- `.docs/design_system.md` — 7 расхождений с кодом: LeadCRM → LeadFlow (§1, §5.1 ASCII); Tabler Icons → Lucide через `@iconify/react` (§6); `--color-sidebar-item-active-bg` → `--color-sidebar-item-active`; убран `--color-sidebar-bg-dark`, тёмная тема переопределяет `--color-sidebar-bg`; dark `--color-text-secondary` `#64748B` → `#94A3B8` (§2.5 и §9); адаптив сайдбара — 2 состояния (220px desktop / скрыт + бургер), без icon-rail 60px; JetBrains Mono → `ui-monospace` с пометкой «не подключён»
+- `CLAUDE.md` — ссылка в таблице документации: `design-system.md` → `design_system.md`
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `today/page.tsx` — явная проверка `session.kind !== 'company'` и `redirect('/login')` (defense-in-depth поверх `proxy.ts`)
+- `today/page.tsx` — явные типы возврата `Promise<JSX.Element>` / `JSX.Element` для `BellIcon`
+
+**Out of scope (не делалось):** реальные данные для `RecentLeads` (Phase 6/19) и `LeadsChart` (Phase 21); зачистка мок-данных вне дашборда (Таск 4); полноценный экран «Сегодня» (Phase 19); удаление `recharts` из зависимостей; правило §10 «Иконки — только Tabler outline» в конце `design_system.md` (§6 уже обновлён на Lucide)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 4, Таск 2: Атом Select + переключатель темы (light/dark)
 
 **Статус:** ✅ Завершён

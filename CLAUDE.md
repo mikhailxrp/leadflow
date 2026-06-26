@@ -48,7 +48,7 @@
 | Текущий таск                                   | `TASK.md`                         |
 | Definition of Done                             | `.docs/dod-global.md`             |
 | Журнал сессий                                  | `.docs/dev-log.md`                |
-| Дизайн-система                                 | `.docs/design-system.md`          |
+| Дизайн-система                                 | `.docs/design_system.md`          |
 
 ---
 

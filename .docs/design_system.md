@@ -1,4 +1,4 @@
-# Design System — LeadCRM
+# Design System — LeadFlow
 
 > Единый источник правды для дизайна и верстки.  
 > Используется в: Visily (генерация макетов), агент (верстка компонентов), разработка (CSS-переменные).
@@ -34,11 +34,10 @@
 
 |Токен|HEX|Использование|
 |---|---|---|
-|`--color-sidebar-bg`|`#1A1F2E`|Фон сайдбара (светлая тема)|
-|`--color-sidebar-bg-dark`|`#0F1117`|Фон сайдбара (тёмная тема)|
+|`--color-sidebar-bg`|`#1A1F2E`|Фон сайдбара (тёмная тема переопределяет напрямую)|
 |`--color-sidebar-text`|`#94A3B8`|Текст навигации (inactive)|
 |`--color-sidebar-text-active`|`#34D399`|Текст навигации (active)|
-|`--color-sidebar-item-active-bg`|`rgba(16,185,129,0.15)`|Фон активного пункта меню|
+|`--color-sidebar-item-active`|`rgba(16,185,129,0.15)`|Фон активного пункта меню|
 
 ### 2.3 Семантические цвета
 
@@ -70,7 +69,7 @@
 |`--color-bg-surface`|`#1E2433`|Фон карточек, таблиц|
 |`--color-bg-surface-2`|`#252B3B`|Фон второстепенных блоков|
 |`--color-text-primary`|`#E2E8F0`|Основной текст|
-|`--color-text-secondary`|`#64748B`|Вторичный текст, метки|
+|`--color-text-secondary`|`#94A3B8`|Вторичный текст, метки|
 |`--color-text-tertiary`|`#475569`|Плейсхолдеры, подсказки|
 |`--color-border`|`rgba(255,255,255,0.08)`|Границы элементов|
 
@@ -78,7 +77,7 @@
 
 ## 3. Типографика
 
-Шрифт: **Inter** (основной), **JetBrains Mono** (код, API-ключи, хекс-значения)
+Шрифт: **Inter** (основной), `ui-monospace` (код, API-ключи, хекс-значения; JetBrains Mono не подключён)
 
 |Роль|Размер|Вес|Использование|
 |---|---|---|---|
@@ -132,7 +131,7 @@
 
 Структура:
 ┌─────────────────────┐
-│ ● LeadCRM           │  ← Логотип: dot #10B981 + название белый
+│ ● LeadFlow          │  ← Логотип: dot #10B981 + название белый
 │                     │
 │ ⊞ Дашборд     ←active│  ← Активный: bg rgba(16,185,129,0.15), текст #34D399
 │ 👥 Лиды             │  ← Неактивный: текст #94A3B8
@@ -311,7 +310,7 @@ auto-dismiss: 5 секунд
 
 ## 6. Иконки
 
-Библиотека: **Tabler Icons** (outline only)
+Библиотека: **Lucide** через `@iconify/react`
 
 |Раздел|Иконка|
 |---|---|
@@ -376,9 +375,8 @@ display: flex, align-items: center, justify-content: space-between
 
 |Брейкпоинт|Поведение|
 |---|---|
-|`≥ 1280px`|Полный layout, sidebar 220px|
-|`≥ 768px`|Sidebar 60px (только иконки, без текста)|
-|`< 768px`|Sidebar скрыт, бургер-кнопка в хедере|
+|`≥ 1024px` (lg)|Полный layout, sidebar 220px виден|
+|`< 1024px`|Sidebar скрыт, бургер-кнопка в хедере открывает overlay|
 |Таблицы на мобильном|`overflow-x: auto`, горизонтальный скролл|
 |Kanban на мобильном|Вертикальный стек колонок|
 |Метрики на мобильном|2 колонки вместо 4|
@@ -440,7 +438,7 @@ display: flex, align-items: center, justify-content: space-between
   --color-bg-surface: #1E2433;
   --color-bg-surface-2: #252B3B;
   --color-text-primary: #E2E8F0;
-  --color-text-secondary: #64748B;
+  --color-text-secondary: #94A3B8;
   --color-text-tertiary: #475569;
   --color-border: rgba(255, 255, 255, 0.08);
 
