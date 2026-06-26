@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon } from '@iconify/react';
 import PlatformSignOutButton from '@/components/platform/PlatformSignOutButton';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 const NAV_ITEMS = [
   {
@@ -70,6 +71,9 @@ export default function PlatformSidebar() {
       </nav>
 
       <div className="border-t border-white/5 p-3">
+        <div className="mb-1 flex justify-end px-1">
+          <ThemeToggle className="text-[#94A3B8] hover:bg-white/[0.06] hover:text-white" />
+        </div>
         <PlatformSignOutButton />
       </div>
     </aside>

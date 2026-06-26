@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import ThemeProvider from '@/components/providers/ThemeProvider';
 
 const inter = Inter({
   variable: '--font-sans',
@@ -28,17 +27,17 @@ export default function RootLayout({
   return (
     <html lang="ru" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
-        {/* Анти-FOUC: выставляем data-theme до гидрации React */}
+        {/* Анти-FOUC: применяем data-theme до гидрации React.
+            Для платформенного раздела (/platform) — ключ theme_platform,
+            для всех остальных — theme. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light'){document.documentElement.dataset.theme=t;}else if(window.matchMedia('(prefers-color-scheme: dark)').matches){document.documentElement.dataset.theme='dark';}}catch(e){}})();`,
+            __html: `(function(){try{var k=location.pathname.startsWith('/platform')?'theme_platform':'theme';var t=localStorage.getItem(k);if(t==='dark'||t==='light'){document.documentElement.dataset.theme=t;}else if(window.matchMedia('(prefers-color-scheme: dark)').matches){document.documentElement.dataset.theme='dark';}}catch(e){}})();`,
           }}
         />
       </head>
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>
-          {children}
-        </ThemeProvider>
+        {children}
       </body>
     </html>
   );

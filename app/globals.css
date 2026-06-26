@@ -118,6 +118,13 @@
   --color-text-secondary: #64748b;
   --color-text-tertiary: #76879b;
   --color-border: rgba(15, 23, 42, 0.1);
+
+  --color-badge-success-bg: #d1fae5;
+  --color-badge-success-text: #065f46;
+  --color-badge-danger-bg: #fef2f2;
+  --color-badge-danger-text: #dc2626;
+  --color-badge-danger-border: #fecaca;
+  --color-badge-danger-row: rgba(254, 242, 242, 0.5);
 }
 
 [data-theme="dark"] {
@@ -130,6 +137,13 @@
   --color-border: rgba(255, 255, 255, 0.08);
   /* Sidebar темнее в dark-теме */
   --color-sidebar-bg: #0f1117;
+
+  --color-badge-success-bg: rgba(6, 78, 59, 0.35);
+  --color-badge-success-text: #34d399;
+  --color-badge-danger-bg: rgba(127, 29, 29, 0.3);
+  --color-badge-danger-text: #f87171;
+  --color-badge-danger-border: rgba(127, 29, 29, 0.45);
+  --color-badge-danger-row: rgba(127, 29, 29, 0.12);
 }
 
 /* ================================================================

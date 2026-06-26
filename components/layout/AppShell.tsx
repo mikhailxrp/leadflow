@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import ThemeProvider from '@/components/providers/ThemeProvider';
 import AppLayout from '@/components/layout/AppLayout';
 import Sidebar from '@/components/layout/Sidebar';
 import ImpersonationBanner from '@/components/platform/ImpersonationBanner';
@@ -37,9 +38,11 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
   const isImpersonating = Boolean(impersonatedByPlatformAdminId);
 
   return (
-    <AppLayout sidebar={<Sidebar items={navItems} userName={userName} userInitials={userInitials} />}>
-      {isImpersonating && <ImpersonationBanner />}
-      {children}
-    </AppLayout>
+    <ThemeProvider storageKey={`theme_user_${id}`}>
+      <AppLayout sidebar={<Sidebar items={navItems} userName={userName} userInitials={userInitials} />}>
+        {isImpersonating && <ImpersonationBanner />}
+        {children}
+      </AppLayout>
+    </ThemeProvider>
   );
 }
