@@ -24,6 +24,31 @@ npm run delete:company -- <companyId>
 
 ---
 
+## 2026-06-26 — Phase 4, Таск 2: Атом Select + переключатель темы (light/dark)
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `components/ui/Select.tsx` — Client Component: кастомный дропдаун под дизайн-систему; скрытый нативный `<select>` (`sr-only`) для accessibility и сериализации форм; визуальный триггер-кнопка (36px, border 0.5px, `--radius-sm`, focus/open border `#10B981`, placeholder `--color-text-tertiary`) + шеврон `lucide:chevron-down`; абсолютный `<ul role="listbox">` с hover `--color-bg-surface-2` и активной опцией `--color-primary`; закрытие по `mousedown` вне компонента с cleanup в `useEffect`
+- `components/providers/ThemeProvider.tsx` — Client Component: React Context `{ theme, toggleTheme }`; SSR-безопасный дефолт `'light'`; чтение `localStorage('theme')` / `prefers-color-scheme` в `useEffect`; запись в `localStorage` + `document.documentElement.dataset.theme` при переключении; хук `useTheme()`
+- `components/ui/ThemeToggle.tsx` — Client Component: `IconButton` size sm; иконка `lucide:sun` в dark / `lucide:moon` в light; `aria-label` на русском
+- `app/layout.tsx` — `suppressHydrationWarning` на `<html>`; инлайн-скрипт в `<head>` (анти-FOUC: `data-theme` до гидрации); обёртка `{children}` в `<ThemeProvider>`
+- `components/layout/Sidebar.tsx` — `<ThemeToggle />` в нижней секции рядом с аватаром; фон сайдбара через `bg-[var(--color-sidebar-bg)]` — тёмный в обеих темах
+- `components/index.ts` — экспорт `Select` и `ThemeToggle`
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `ThemeProvider` — `startTransition` при синхронизации темы из `localStorage` на монтировании (снижение риска hydration mismatch)
+- `Select` — триггер на `<button type="button">` вместо `<div>` (лучше для клавиатуры и a11y)
+- `ThemeToggle` — кастомный `className` под тёмный сайдбар (`text-[#94A3B8]`, hover на белом фоне)
+
+**Out of scope (не делалось):** обновление `design_system.md` (Таск 3); реальные агрегаты дашборда `/today` (Таск 3); зачистка мок-данных в шаблонах (Таск 4); поиск и виртуализация в Select; промежуточный icon-rail сайдбара (60px)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-25 — Phase 4, Таск 1: Роль-зависимая оболочка (серверная сессия → пропсы) + навигация
 
 **Статус:** ✅ Завершён
