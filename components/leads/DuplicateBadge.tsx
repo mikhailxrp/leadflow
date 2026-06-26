@@ -1,11 +1,17 @@
 import { type ReactNode } from 'react';
+import Link from 'next/link';
 
-export default function DuplicateBadge(): ReactNode {
+interface DuplicateBadgeProps {
+  matchedLeadId: string;
+}
+
+export default function DuplicateBadge({ matchedLeadId }: DuplicateBadgeProps): ReactNode {
   return (
-    <span
-      title="Возможный дубль"
-      className="inline-flex items-center text-[var(--color-warning)]"
+    <Link
+      href={`/leads/${matchedLeadId}`}
+      title="Возможный дубль — перейти к связанному лиду"
       aria-label="Возможный дубль"
+      className="inline-flex items-center text-[var(--color-warning)] transition-opacity duration-150 hover:opacity-70"
     >
       <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
         <path
@@ -14,6 +20,6 @@ export default function DuplicateBadge(): ReactNode {
           clipRule="evenodd"
         />
       </svg>
-    </span>
+    </Link>
   );
 }

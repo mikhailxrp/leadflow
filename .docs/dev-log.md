@@ -36,6 +36,43 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-27 — Phase 7, Таск 4: getLeadById + UI карточки + история + дубли + финальная сборка
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/leads/getLeadById.ts` — Server function (только чтение): лид + этап + ответственный + риск (`computeRiskBatch`) + `hasTakenInWork` / `takenAt` (из событий `LEAD_TAKEN_IN_WORK`) + `hasDuplicate` (оба направления `_count`) + комментарии + события с резолвом `userId → User.name` и `lossReasonId → LossReason.label` (type guard на `payload`); дубли через `OR: [{ leadId }, { matchedLeadId }]` с вычислением «другой стороны»; `visibilityWhere`; `null` для чужого/невидимого лида; **без** `writeEvent` / `LEAD_OPENED`
+- `constants/eventLabels.ts` — `getEventLabel()` + тип `HistoryEventItem`; маппинг Phase 7 типов (`LEAD_CREATED`, `LEAD_OPENED`, `LEAD_UPDATED`, `LEAD_TAKEN_IN_WORK`, `LEAD_WON`, `LEAD_LOST`, `DUPLICATE_FLAGGED`, `LEAD_DELETED`, `COMMENTED`); нейтральный фолбэк «Событие в журнале»
+- `app/api/leads/[id]/events/route.ts` — `GET`: сессия `company` + видимость лида → 401/404; `where: { leadId, companyId }`, `orderBy: { createdAt: 'desc' }`; batch-резолв имён и причин отказа; ответ `{ id, type, createdAt, userName, lossReasonLabel }[]`
+- `app/api/leads/[id]/duplicates/route.ts` — `GET`: сессия + видимость; `DuplicateFlag` по обоим направлениям; ответ `{ id, matchType, matchedLead: { id, name, phone } }[]`
+- `components/leads/LeadEditForm.tsx` — Client: форма `name/phone/email/comment`; клиентская валидация `updateLeadSchema`; `PATCH /api/leads/:id` → `router.refresh()` + toast
+- `components/leads/DeleteLeadModal.tsx` — Client: модалка подтверждения; кнопка только при `hasMinRole(role, 'ADMIN')`; `DELETE /api/leads/:id` → редирект `/leads`
+- `components/leads/DuplicateBlock.tsx` — Server: блок «Похожие лиды»; ссылки `/leads/:matchedId` + тип совпадения; пустое состояние «Дублей не обнаружено»
+- `components/leads/LeadHistory.tsx` — SSR-проп `events[]`; строки через `getEventLabel`; пустое состояние «Нет событий»
+- `components/leads/DuplicateBadge.tsx` — проп `matchedLeadId`; иконка обёрнута в `<Link href="/leads/{matchedLeadId}">`
+- `components/leads/LeadHeader.tsx` — убраны фейковый `PipelineStatus` и `StatusBadge`; реальный этап — инлайн-бейдж с `style={{ backgroundColor: stage.color }}`; бейдж WON/LOST при `closeType`
+- `components/leads/LeadContacts.tsx` — пропсы `name/phone/email/createdAt`; `null` → «не указан»
+- `components/leads/LeadCustomFields.tsx` — проп `fields: Record<string, unknown>`; `renderValue(v: unknown)`; пустой объект → компонент не рендерится
+- `components/leads/LeadMarketing.tsx` — пропсы `source`, `marketing`, `utm`; динамический key-value; пустые блоки marketing/utm не рендерятся
+- `app/(app)/leads/[id]/page.tsx` — финальная сборка: `getLeadById` → `notFound()` при `null`; левая колонка (Header, RiskBadge, Contacts, DuplicateBlock, Marketing, CustomFields, EditForm, DeleteModal); правая (`LeadSidebar` с реальными `hasTakenInWork/takenAt/closeType/assignedTo`, Comments, TaskBlock-плейсхолдер, History); адаптив `flex-col lg:flex-row`
+- `lib/leads/getLeads.ts` — `firstMatchedLeadId` для `DuplicateBadge` в списке лидов
+
+**Учтённые точки риска:**
+
+- `getLeadById` не пишет `LEAD_OPENED` — побочный эффект только в `GET /api/leads/:id` (таск 1)
+- `DuplicateFlag` — запрос с `OR` по обоим направлениям; «другой» лид вычисляется по `flag.leadId === id`
+- `Event.payload` — `extractLossReasonId` через type guard, без `any`
+- `LeadHeader` — инлайн-бейдж этапа с `stage.color`, не `StatusBadge`
+- `customFields` / `marketing` / `utm` — `renderValue()` для нестроковых значений
+- `LeadSidebar` получает реальные данные из `getLeadById`, не захардкоженные заглушки
+
+**Out of scope (не делалось):** `LeadYandex.tsx` (Phase 22); полноценный `TaskBlock` (Phase 15); смена этапа (Phase 9); назначение ответственного (Phase 11); новые Prisma-миграции
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 7, Таск 3: Комментарии — API + лента в карточке
 
 **Статус:** ✅ Завершён

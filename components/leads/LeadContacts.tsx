@@ -1,12 +1,11 @@
-import Avatar from "@/components/ui/Avatar";
-import Card from "@/components/ui/Card";
+import Avatar from '@/components/ui/Avatar';
+import Card from '@/components/ui/Card';
 
 interface LeadContactsProps {
-  initials: string;
-  name: string;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
   createdAt: string;
-  phone: string;
-  email: string;
 }
 
 function PhoneIcon() {
@@ -47,49 +46,66 @@ function EmailIcon() {
   );
 }
 
-export default function LeadContacts({
-  initials,
-  name,
-  createdAt,
-  phone,
-  email,
-}: LeadContactsProps) {
+function getInitials(name: string | null): string {
+  if (!name) return '?';
+  return name
+    .split(' ')
+    .slice(0, 2)
+    .map((part) => part[0] ?? '')
+    .join('')
+    .toUpperCase();
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+export default function LeadContacts({ name, phone, email, createdAt }: LeadContactsProps) {
   return (
     <Card padding="lg">
       <div className="mb-5 flex items-center gap-4">
-        <Avatar
-          initials={initials}
-          size="lg"
-          className="h-14 w-14 text-[15px]"
-        />
+        <Avatar initials={getInitials(name)} size="lg" className="h-14 w-14 text-[15px]" />
         <div>
           <p className="text-[18px] font-medium text-[var(--color-text-primary)]">
-            {name}
+            {name ?? <span className="text-[var(--color-text-tertiary)]">Без имени</span>}
           </p>
           <p className="text-[13px] text-[var(--color-text-tertiary)]">
-            Добавлен {createdAt}
+            Добавлен {formatDate(createdAt)}
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 border-t border-[var(--color-border)] border-[0.5px] pt-3 pb-3 px-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 border-t border-[0.5px] border-[var(--color-border)] px-3 pb-3 pt-3 sm:grid-cols-2">
         <div className="flex items-center gap-2.5">
           <PhoneIcon />
-          <a
-            href={`tel:${phone.replace(/\s/g, "")}`}
-            className="text-[14px] text-[var(--color-text-primary)] transition-colors duration-150 hover:text-[var(--color-primary)]"
-          >
-            {phone}
-          </a>
+          {phone ? (
+            <a
+              href={`tel:${phone.replace(/\s/g, '')}`}
+              className="text-[14px] text-[var(--color-text-primary)] transition-colors duration-150 hover:text-[var(--color-primary)]"
+            >
+              {phone}
+            </a>
+          ) : (
+            <span className="text-[14px] text-[var(--color-text-tertiary)]">не указан</span>
+          )}
         </div>
+
         <div className="flex items-center gap-2.5">
           <EmailIcon />
-          <a
-            href={`mailto:${email}`}
-            className="text-[14px] text-[var(--color-primary)] transition-colors duration-150 hover:text-[var(--color-primary-hover)]"
-          >
-            {email}
-          </a>
+          {email ? (
+            <a
+              href={`mailto:${email}`}
+              className="text-[14px] text-[var(--color-primary)] transition-colors duration-150 hover:text-[var(--color-primary-hover)]"
+            >
+              {email}
+            </a>
+          ) : (
+            <span className="text-[14px] text-[var(--color-text-tertiary)]">не указан</span>
+          )}
         </div>
       </div>
     </Card>

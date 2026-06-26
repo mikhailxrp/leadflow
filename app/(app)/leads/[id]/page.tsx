@@ -1,16 +1,22 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import type { Prisma } from '@prisma/client';
+import { auth } from '@/lib/auth';
+import { getLeadById } from '@/lib/leads/getLeadById';
+import type { CompanySession } from '@/types/session';
+import { PageContent } from '@/components/layout/AppLayout';
+import LeadHeader from '@/components/leads/LeadHeader';
+import LeadContacts from '@/components/leads/LeadContacts';
+import LeadCustomFields from '@/components/leads/LeadCustomFields';
+import LeadMarketing from '@/components/leads/LeadMarketing';
+import LeadEditForm from '@/components/leads/LeadEditForm';
+import DeleteLeadModal from '@/components/leads/DeleteLeadModal';
+import DuplicateBlock from '@/components/leads/DuplicateBlock';
+import RiskBadge from '@/components/leads/RiskBadge';
+import LeadSidebar from '@/components/leads/LeadSidebar';
 import LeadComments from '@/components/leads/LeadComments';
 import LeadHistory from '@/components/leads/LeadHistory';
-import LeadSidebar from '@/components/leads/LeadSidebar';
 import TaskBlock from '@/components/tasks/TaskBlock';
-import { PageContent } from '@/components/layout/AppLayout';
-import { auth } from '@/lib/auth';
-import { COMMENT_SELECT, serializeComment } from '@/lib/leads/commentSelect';
-import { getLeadVisibility, visibilityWhere } from '@/lib/leads/visibilityFilter';
-import { prisma } from '@/lib/prisma';
-import type { CompanySession } from '@/types/session';
+import type { HistoryEventItem } from '@/constants/eventLabels';
 
 export const metadata: Metadata = {
   title: 'Лид',
@@ -34,61 +40,95 @@ export default async function LeadDetailPage({
   const companySession = session as CompanySession;
   const { id } = await params;
   const { taskId } = await searchParams;
-  const { companyId, id: userId, role } = companySession.user;
 
-  const company = await prisma.company.findUniqueOrThrow({
-    where: { id: companyId },
-    select: { settings: true },
-  });
-
-  const leadVisibility = getLeadVisibility(company.settings);
-  const visibility = visibilityWhere(role, userId, leadVisibility);
-
-  const andConditions: Prisma.LeadWhereInput[] = [{ id }, { companyId }];
-  if (Object.keys(visibility).length > 0) {
-    andConditions.push(visibility);
-  }
-
-  const lead = await prisma.lead.findFirst({
-    where: { AND: andConditions },
-    select: { id: true },
-  });
+  const lead = await getLeadById(id, companySession);
 
   if (!lead) {
     notFound();
   }
 
-  const comments = await prisma.comment.findMany({
-    where: {
-      leadId: id,
-      lead: { companyId },
-    },
-    select: COMMENT_SELECT,
-    orderBy: { createdAt: 'asc' },
-  });
+  // Serialize dates for client components
+  const serializedComments = lead.comments.map((c) => ({
+    id: c.id,
+    text: c.text,
+    createdAt: c.createdAt.toISOString(),
+    user: c.user,
+  }));
 
-  const serializedComments = comments.map(serializeComment);
+  const serializedEvents: HistoryEventItem[] = lead.events.map((e) => ({
+    id: e.id,
+    type: e.type,
+    createdAt: e.createdAt.toISOString(),
+    userName: e.userName,
+    lossReasonLabel: e.lossReasonLabel,
+  }));
+
+  const takenAtStr = lead.takenAt ? lead.takenAt.toISOString() : null;
 
   return (
     <PageContent>
-      <div className="mb-6 rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] px-5 py-8 text-center">
-        <p className="text-[14px] text-[var(--color-text-secondary)]">Данные лида появятся в Phase 7</p>
-      </div>
+      <LeadHeader
+        name={lead.name}
+        stage={lead.stage}
+        closeType={lead.closeType}
+      />
 
       <div className="flex flex-col gap-6 lg:flex-row">
-        <div className="flex min-w-0 flex-1 flex-col gap-6" />
+        {/* Main column */}
+        <div className="flex min-w-0 flex-1 flex-col gap-6">
+          <div className="flex items-center gap-3">
+            <RiskBadge level={lead.risk.level} reason={lead.risk.reason} />
+            {lead.risk.reason && (
+              <span className="text-[13px] text-[var(--color-text-secondary)]">
+                {lead.risk.reason}
+              </span>
+            )}
+          </div>
 
+          <LeadContacts
+            name={lead.name}
+            phone={lead.phone}
+            email={lead.email}
+            createdAt={lead.createdAt.toISOString()}
+          />
+
+          <DuplicateBlock duplicates={lead.duplicates} />
+
+          <LeadMarketing
+            source={lead.source}
+            marketing={lead.marketing}
+            utm={lead.utm}
+          />
+
+          <LeadCustomFields fields={lead.customFields} />
+
+          <LeadEditForm
+            leadId={lead.id}
+            initialName={lead.name}
+            initialPhone={lead.phone}
+            initialEmail={lead.email}
+            initialComment={lead.comment}
+          />
+
+          <DeleteLeadModal
+            leadId={lead.id}
+            leadName={lead.name}
+            role={companySession.user.role}
+          />
+        </div>
+
+        {/* Right column */}
         <aside className="flex w-full shrink-0 flex-col gap-6 lg:w-[440px]">
           <LeadSidebar
-            leadId={id}
-            hasTakenInWork={false}
-            takenAt={null}
-            closeType={null}
-            assignedTo={null}
+            leadId={lead.id}
+            hasTakenInWork={lead.hasTakenInWork}
+            takenAt={takenAtStr}
+            closeType={lead.closeType}
+            assignedTo={lead.assignedTo}
           />
-          <LeadComments leadId={id} comments={serializedComments} />
-          <TaskBlock leadId={id} highlightTaskId={taskId} />
-          <LeadHistory />
+          <LeadComments leadId={lead.id} comments={serializedComments} />
+          <TaskBlock leadId={lead.id} highlightTaskId={taskId} />
+          <LeadHistory events={serializedEvents} />
         </aside>
       </div>
     </PageContent>

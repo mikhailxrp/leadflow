@@ -67,7 +67,9 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
                   >
                     {lead.name ?? "—"}
                   </Link>
-                  {lead.hasDuplicate && <DuplicateBadge />}
+                  {lead.firstMatchedLeadId && (
+                    <DuplicateBadge matchedLeadId={lead.firstMatchedLeadId} />
+                  )}
                 </div>
                 {lead.phone && (
                   <p className="mt-0.5 text-[12px] text-[var(--color-text-tertiary)]">
