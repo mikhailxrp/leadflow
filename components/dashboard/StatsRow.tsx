@@ -1,23 +1,20 @@
+import type { JSX } from 'react';
 import StatCard from '@/components/blocks/StatCard';
 
-const STATS = [
-  { label: 'Всего лидов', value: 248 },
-  { label: 'Новых сегодня', value: 12, accent: true },
-  { label: 'В работе', value: 67 },
-  { label: 'Сделок', value: 34 },
-] as const;
+interface StatsRowProps {
+  total: number;
+  newToday: number;
+  inProgress: number;
+  deals: number;
+}
 
-export default function StatsRow() {
+export default function StatsRow({ total, newToday, inProgress, deals }: StatsRowProps): JSX.Element {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {STATS.map((stat) => (
-        <StatCard
-          key={stat.label}
-          label={stat.label}
-          value={stat.value}
-          accent={'accent' in stat ? stat.accent : false}
-        />
-      ))}
+      <StatCard label="Всего лидов" value={total} />
+      <StatCard label="Новых сегодня" value={newToday} accent />
+      <StatCard label="В работе" value={inProgress} />
+      <StatCard label="Сделок" value={deals} />
     </div>
   );
 }

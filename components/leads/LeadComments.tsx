@@ -1,41 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-
-interface Comment {
-  id: string;
-  initials: string;
-  author: string;
-  time: string;
-  text: string;
-}
-
-const MOCK_COMMENTS: Comment[] = [
-  {
-    id: '1',
-    initials: 'АД',
-    author: 'Алексей Д.',
-    time: 'Сегодня, 11:45',
-    text: 'Клиент просил перезвонить завтра после 14:00. Готов обсуждать тариф Про.',
-  },
-  {
-    id: '2',
-    initials: 'СА',
-    author: 'Светлана А.',
-    time: 'Вчера, 16:20',
-    text: 'Отправила коммерческое предложение на почту, ждем обратную связь.',
-  },
-  {
-    id: '3',
-    initials: 'АД',
-    author: 'Алексей Д.',
-    time: '12 мая, 14:35',
-    text: 'Первичный контакт. Выявил потребность в интеграции с 1С.',
-  },
-];
 
 function CommentIcon() {
   return (
@@ -67,30 +34,13 @@ export default function LeadComments() {
             text-[var(--color-text-secondary)]
           "
         >
-          {MOCK_COMMENTS.length}
+          0
         </span>
       </div>
 
-      <ul className="mb-5 flex flex-col gap-4">
-        {MOCK_COMMENTS.map((item) => (
-          <li key={item.id} className="flex gap-3">
-            <Avatar initials={item.initials} size="sm" />
-            <div className="min-w-0 flex-1">
-              <div className="mb-1 flex flex-wrap items-center gap-2">
-                <span className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                  {item.author}
-                </span>
-                <span className="text-[12px] text-[var(--color-text-tertiary)]">
-                  {item.time}
-                </span>
-              </div>
-              <p className="text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-                {item.text}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
+      <p className="mb-5 text-[13px] text-[var(--color-text-secondary)]">
+        Нет комментариев
+      </p>
 
       <div className="flex flex-col gap-3">
         <textarea

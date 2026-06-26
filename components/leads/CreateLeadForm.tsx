@@ -26,8 +26,6 @@ export type LeadSource =
   | 'email'
   | 'other';
 
-export type PipelineStatus = 'new' | 'contact' | 'in-progress' | 'warm' | 'deal';
-
 export interface CreateLeadFormState {
   name: string;
   phone: string;
@@ -61,24 +59,8 @@ const SOURCE_OPTIONS: { value: LeadSource; label: string }[] = [
   { value: 'other', label: 'Другое' },
 ];
 
-const STAGE_OPTIONS: {
-  value: string;
-  label: string;
-  status: PipelineStatus;
-  dotClass: string;
-}[] = [
-  { value: 'new', label: 'Новый лид', status: 'new', dotClass: 'bg-[#3B82F6]' },
-  { value: 'contact', label: 'Первичный контакт', status: 'contact', dotClass: 'bg-[#8B5CF6]' },
-  { value: 'in-progress', label: 'В работе', status: 'in-progress', dotClass: 'bg-[#F59E0B]' },
-  { value: 'warm', label: 'Тёплый клиент', status: 'warm', dotClass: 'bg-[#10B981]' },
-  { value: 'deal', label: 'Сделка', status: 'deal', dotClass: 'bg-[#22C55E]' },
-];
-
 const MANAGER_OPTIONS = [
   { value: 'auto', label: 'Автоматически (Round-robin)' },
-  { value: 'alexey', label: 'Алексей Дмитриев' },
-  { value: 'maria', label: 'Мария Соколова' },
-  { value: 'ivan', label: 'Иван Козлов' },
 ] as const;
 
 const PRIORITY_OPTIONS: { value: LeadPriority; label: string }[] = [
@@ -92,15 +74,15 @@ const INITIAL_STATE: CreateLeadFormState = {
   phone: '',
   email: '',
   company: '',
-  source: 'yandex',
+  source: 'other',
   utmSource: '',
   utmMedium: '',
   utmTerm: '',
   utmContent: '',
   showExtendedUtm: false,
   comment: '',
-  tags: ['Горячий', 'B2B'],
-  stageId: 'new',
+  tags: [],
+  stageId: '',
   managerId: 'auto',
   priority: 'normal',
   reminderEnabled: false,
@@ -193,25 +175,18 @@ interface FormSelectProps {
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
-  dotClass?: string;
 }
 
-function FormSelect({ id, label, value, onChange, options, dotClass }: FormSelectProps) {
+function FormSelect({ id, label, value, onChange, options }: FormSelectProps) {
   return (
     <div className="flex flex-col gap-1.5">
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <div className="relative">
-        {dotClass ? (
-          <span
-            className={`pointer-events-none absolute left-3 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full ${dotClass}`}
-            aria-hidden="true"
-          />
-        ) : null}
         <select
           id={id}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className={`${SELECT_CLASS} ${dotClass ? 'pl-7' : ''}`}
+          className={SELECT_CLASS}
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -252,11 +227,6 @@ export default function CreateLeadForm() {
   ): void => {
     setState((prev) => ({ ...prev, [key]: value }));
   }, []);
-
-  const selectedStage = useMemo(
-    () => STAGE_OPTIONS.find((stage) => stage.value === state.stageId) ?? STAGE_OPTIONS[0],
-    [state.stageId],
-  );
 
   const managerLabel = useMemo(
     () => MANAGER_OPTIONS.find((manager) => manager.value === state.managerId)?.label ?? '—',
@@ -445,14 +415,25 @@ export default function CreateLeadForm() {
           <aside className="flex w-[300px] shrink-0 flex-col gap-5">
             <FormSection icon="tabler:settings" title="Параметры лида">
               <div className="flex flex-col gap-4 px-5 py-4">
-                <FormSelect
-                  id="lead-stage"
-                  label="Этап воронки"
-                  value={state.stageId}
-                  onChange={(value) => update('stageId', value)}
-                  options={STAGE_OPTIONS.map(({ value, label }) => ({ value, label }))}
-                  dotClass={selectedStage.dotClass}
-                />
+                <div className="flex flex-col gap-1.5">
+                  <FieldLabel htmlFor="lead-stage">Этап воронки</FieldLabel>
+                  <div className="relative">
+                    <select
+                      id="lead-stage"
+                      disabled
+                      className="
+                        h-[36px] w-full appearance-none rounded-[6px]
+                        border-[0.5px] border-[var(--color-border)]
+                        bg-[var(--color-bg-surface-2)] px-3 pr-8
+                        text-[13px] text-[var(--color-text-tertiary)]
+                        outline-none
+                      "
+                    >
+                      <option value="">—</option>
+                    </select>
+                    <ChevronIcon />
+                  </div>
+                </div>
 
                 <FormSelect
                   id="lead-manager"
@@ -549,7 +530,7 @@ export default function CreateLeadForm() {
                   name={state.name.trim() || 'Новый лид'}
                   phone={state.phone.trim() || '+7 (999) 000-00-00'}
                   sourceBadge={mapSourceToBadge(state.source)}
-                  status={selectedStage.status}
+                  status="new"
                   managerLabel={managerLabel}
                 />
               </div>

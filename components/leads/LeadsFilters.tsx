@@ -22,9 +22,6 @@ const STATUS_OPTIONS = [
 
 const MANAGER_OPTIONS = [
   { value: '', label: 'Менеджер' },
-  { value: 'elena', label: 'Елена В.' },
-  { value: 'ivan', label: 'Иван К.' },
-  { value: 'alexey', label: 'Алексей М.' },
 ];
 
 const PERIOD_OPTIONS = [

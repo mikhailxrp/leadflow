@@ -1,23 +1,10 @@
 import { type ReactNode } from 'react';
-import { auth } from '@/lib/auth';
-import ImpersonationBanner from '@/components/platform/ImpersonationBanner';
+import AppShell from '@/components/layout/AppShell';
 
 interface AppGroupLayoutProps {
   children: ReactNode;
 }
 
-export default async function AppGroupLayout({
-  children,
-}: AppGroupLayoutProps) {
-  const session = await auth();
-  const isImpersonating =
-    session?.kind === 'company' &&
-    Boolean(session.user?.impersonatedByPlatformAdminId);
-
-  return (
-    <>
-      {isImpersonating ? <ImpersonationBanner /> : null}
-      {children}
-    </>
-  );
+export default function AppGroupLayout({ children }: AppGroupLayoutProps): ReactNode {
+  return <AppShell>{children}</AppShell>;
 }

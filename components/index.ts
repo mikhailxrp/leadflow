@@ -2,9 +2,11 @@
 export { default as Button }              from './ui/Button';
 export { default as IconButton }          from './ui/IconButton';
 export { default as Input }               from './ui/Input';
+export { default as Select }              from './ui/Select';
 export { default as Card }                from './ui/Card';
 export { default as Avatar }              from './ui/Avatar';
 export { default as Toast }               from './ui/Toast';
+export { default as ThemeToggle }         from './ui/ThemeToggle';
 export { StatusBadge, SourceBadge, Badge } from './ui/Badge';
 
 // ─── Layout ──────────────────────────────────────────────────────

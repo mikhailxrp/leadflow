@@ -12,12 +12,10 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { useRouter } from 'next/navigation';
 import { useCallback, useState, type ReactNode } from 'react';
 import { PipelineCardOverlay } from '@/components/pipeline/PipelineCard';
 import PipelineColumn, { type PipelineLead } from '@/components/pipeline/PipelineColumn';
 
-const LEAD_DETAIL_PATH = '/leads/1';
 const DRAG_ACTIVATION_DISTANCE_PX = 8;
 const DND_CONTEXT_ID = 'pipeline-board';
 
@@ -27,149 +25,6 @@ interface PipelineStage {
   accentClass: string;
   leads: PipelineLead[];
 }
-
-const INITIAL_STAGES: PipelineStage[] = [
-  {
-    id: 'new',
-    title: 'Новый лид',
-    accentClass: 'bg-[#3b82f6]',
-    leads: [
-      {
-        id: '1',
-        name: 'ООО «Альфа Строй»',
-        phone: '+7 (999) 123-45-67',
-        tags: ['Сайт', 'Горячий'],
-        manager: 'Александр В.',
-      },
-      {
-        id: '2',
-        name: 'ИП Смирнов А.А.',
-        phone: '+7 (903) 987-65-43',
-        tags: ['Telegram'],
-        manager: 'Мария С.',
-      },
-      {
-        id: '3',
-        name: 'Виктор Николаевич',
-        phone: '+7 (916) 444-55-66',
-        tags: ['Звонок', 'Уточнить'],
-        manager: 'Александр В.',
-      },
-      {
-        id: '4',
-        name: 'ЗАО «ТехПром»',
-        phone: '+7 (495) 111-22-33',
-        tags: ['Email'],
-        manager: 'Иван К.',
-      },
-    ],
-  },
-  {
-    id: 'contact',
-    title: 'Первичный контакт',
-    accentClass: 'bg-[#8b5cf6]',
-    leads: [
-      {
-        id: '5',
-        name: 'Сеть «Магнит»',
-        phone: '+7 (800) 555-35-35',
-        tags: ['Выставка'],
-        manager: 'Мария С.',
-      },
-      {
-        id: '6',
-        name: 'Елена (Дизайн)',
-        phone: '+7 (926) 777-88-99',
-        tags: ['VK', 'Перезвонить'],
-        manager: 'Иван К.',
-      },
-      {
-        id: '7',
-        name: 'ГК «Монолит»',
-        phone: '+7 (499) 333-22-11',
-        tags: ['Сайт'],
-        manager: 'Александр В.',
-      },
-    ],
-  },
-  {
-    id: 'in-progress',
-    title: 'В работе',
-    accentClass: 'bg-[#f59e0b]',
-    leads: [
-      {
-        id: '8',
-        name: 'ОАО «РЖД Логистика»',
-        phone: '+7 (495) 262-99-01',
-        tags: ['Тендер', 'КП отправлено'],
-        manager: 'Александр В.',
-      },
-      {
-        id: '9',
-        name: 'ИП Кузнецова',
-        phone: '+7 (905) 112-23-34',
-        tags: ['Telegram'],
-        manager: 'Мария С.',
-      },
-      {
-        id: '10',
-        name: 'Фитнес «Олимп»',
-        phone: '+7 (812) 555-44-33',
-        tags: ['Звонок', 'Встреча'],
-        manager: 'Иван К.',
-      },
-    ],
-  },
-  {
-    id: 'warm',
-    title: 'Тёплый клиент',
-    accentClass: 'bg-[#10b981]',
-    leads: [
-      {
-        id: '11',
-        name: 'Ресторан «Пушкин»',
-        phone: '+7 (495) 739-00-33',
-        tags: ['Партнёры', 'Договор'],
-        manager: 'Мария С.',
-      },
-      {
-        id: '12',
-        name: 'ООО «Веб Интеграция»',
-        phone: '+7 (911) 222-33-44',
-        tags: ['Сайт'],
-        manager: 'Александр В.',
-      },
-      {
-        id: '13',
-        name: 'Алексей (Инвестор)',
-        phone: '+7 (999) 888-77-66',
-        tags: ['Рекомендация'],
-        manager: 'Иван К.',
-      },
-    ],
-  },
-  {
-    id: 'deal',
-    title: 'Сделка',
-    accentClass: 'bg-[#22c55e]',
-    leads: [
-      {
-        id: '14',
-        name: 'Группа «Самолет»',
-        phone: '+7 (495) 567-89-00',
-        tags: ['Тендер', 'Оплачено'],
-        manager: 'Александр В.',
-      },
-      {
-        id: '15',
-        name: 'ИП Васильев',
-        phone: '+7 (960) 333-44-55',
-        tags: ['Звонок'],
-        manager: 'Мария С.',
-      },
-    ],
-  },
-];
 
 function findLead(stages: PipelineStage[], leadId: string): PipelineLead | undefined {
   return stages.flatMap((stage) => stage.leads).find((lead) => lead.id === leadId);
@@ -255,8 +110,7 @@ function moveLead(
 }
 
 export default function PipelineBoard(): ReactNode {
-  const router = useRouter();
-  const [stages, setStages] = useState<PipelineStage[]>(INITIAL_STAGES);
+  const [stages, setStages] = useState<PipelineStage[]>([]);
   const [activeLead, setActiveLead] = useState<PipelineLead | null>(null);
 
   const sensors = useSensors(
@@ -304,9 +158,17 @@ export default function PipelineBoard(): ReactNode {
     setActiveLead(null);
   }, []);
 
-  const handleCardClick = useCallback((): void => {
-    router.push(LEAD_DETAIL_PATH);
-  }, [router]);
+  const handleCardClick = useCallback((_id: string): void => {
+    // TODO: Phase 9 — navigate to /leads/[id]
+  }, []);
+
+  if (stages.length === 0) {
+    return (
+      <div className="flex items-center justify-center rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] py-16">
+        <p className="text-[14px] text-[var(--color-text-secondary)]">Этапы воронки появятся в Phase 8/9</p>
+      </div>
+    );
+  }
 
   return (
     <DndContext

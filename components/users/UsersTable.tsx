@@ -22,54 +22,6 @@ export interface User {
   createdAt: string;
 }
 
-const MOCK_USERS: User[] = [
-  {
-    id: '1',
-    initials: 'АС',
-    name: 'Алексей Смирнов',
-    email: 'a.smirnov@example.com',
-    role: 'admin',
-    status: 'active',
-    createdAt: '12.10.2023',
-  },
-  {
-    id: '2',
-    initials: 'ЕИ',
-    name: 'Елена Иванова',
-    email: 'e.ivanova@example.com',
-    role: 'manager',
-    status: 'active',
-    createdAt: '15.10.2023',
-  },
-  {
-    id: '3',
-    initials: 'ДС',
-    name: 'Дмитрий Соколов',
-    email: 'd.sokolov@example.com',
-    role: 'manager',
-    status: 'blocked',
-    createdAt: '02.11.2023',
-  },
-  {
-    id: '4',
-    initials: 'ОК',
-    name: 'Ольга Кузнецова',
-    email: 'o.kuznetsova@example.com',
-    role: 'manager',
-    status: 'active',
-    createdAt: '10.11.2023',
-  },
-  {
-    id: '5',
-    initials: 'ИП',
-    name: 'Иван Попов',
-    email: 'i.popov@example.com',
-    role: 'manager',
-    status: 'active',
-    createdAt: '20.11.2023',
-  },
-];
-
 function getRoleLabel(role: UserRole): string {
   return role === 'admin' ? 'Администратор' : 'Менеджер';
 }
@@ -118,7 +70,7 @@ const TABLE_COLUMNS = [
 ] as const;
 
 export default function UsersTable(): ReactNode {
-  const [users, setUsers] = useState<User[]>(MOCK_USERS);
+  const [users, setUsers] = useState<User[]>([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
@@ -206,60 +158,71 @@ export default function UsersTable(): ReactNode {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
-                <tr
-                  key={user.id}
-                  className="border-b-[0.5px] border-[var(--color-border)] last:border-0"
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar initials={user.initials} size="md" />
-                      <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                        {user.name}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
-                    {user.email}
-                  </td>
-                  <td className="px-4 py-3">
-                    <RoleBadge role={user.role} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusCell status={user.status} />
-                  </td>
-                  <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
-                    {user.createdAt}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <IconButton
-                        size="sm"
-                        onClick={() => setEditUser(user)}
-                        aria-label={`Редактировать ${user.name}`}
-                        icon={<Icon icon="tabler:edit" className="h-4 w-4" />}
-                      />
-                      <IconButton
-                        size="sm"
-                        onClick={() => handleToggleBlock(user)}
-                        aria-label={user.status === 'active' ? `Заблокировать ${user.name}` : `Разблокировать ${user.name}`}
-                        icon={
-                          <Icon
-                            icon={user.status === 'active' ? 'tabler:ban' : 'tabler:circle-check'}
-                            className="h-4 w-4"
-                          />
-                        }
-                      />
-                      <IconButton
-                        size="sm"
-                        onClick={() => setDeleteUser(user)}
-                        aria-label={`Удалить ${user.name}`}
-                        icon={<Icon icon="tabler:trash" className="h-4 w-4" />}
-                      />
-                    </div>
+              {users.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={TABLE_COLUMNS.length}
+                    className="px-4 py-8 text-center text-[14px] text-[var(--color-text-secondary)]"
+                  >
+                    Нет пользователей
                   </td>
                 </tr>
-              ))}
+              ) : (
+                users.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="border-b-[0.5px] border-[var(--color-border)] last:border-0"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar initials={user.initials} size="md" />
+                        <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
+                          {user.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
+                      {user.email}
+                    </td>
+                    <td className="px-4 py-3">
+                      <RoleBadge role={user.role} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusCell status={user.status} />
+                    </td>
+                    <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
+                      {user.createdAt}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <IconButton
+                          size="sm"
+                          onClick={() => setEditUser(user)}
+                          aria-label={`Редактировать ${user.name}`}
+                          icon={<Icon icon="tabler:edit" className="h-4 w-4" />}
+                        />
+                        <IconButton
+                          size="sm"
+                          onClick={() => handleToggleBlock(user)}
+                          aria-label={user.status === 'active' ? `Заблокировать ${user.name}` : `Разблокировать ${user.name}`}
+                          icon={
+                            <Icon
+                              icon={user.status === 'active' ? 'tabler:ban' : 'tabler:circle-check'}
+                              className="h-4 w-4"
+                            />
+                          }
+                        />
+                        <IconButton
+                          size="sm"
+                          onClick={() => setDeleteUser(user)}
+                          aria-label={`Удалить ${user.name}`}
+                          icon={<Icon icon="tabler:trash" className="h-4 w-4" />}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

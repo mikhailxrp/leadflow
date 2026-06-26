@@ -24,6 +24,111 @@ npm run delete:company -- <companyId>
 
 ---
 
+## 2026-06-26 — Phase 4, Таск 4: Зачистка шаблонов от хардкода → пустые состояния
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/(app)/leads/page.tsx` — Server Component: удалены `MOCK_LEADS` (8 записей), `LeadRow`, `LEADS_COLUMNS`; счётчик `248` в заголовке убран; `LeadsTable` и `LeadsPagination` заменены пустым состоянием «Пока нет лидов»; `LeadsFilters` оставлен как структурная заглушка
+- `app/(app)/leads/[id]/page.tsx` — Server Component: `metadata.title` → `'Лид'`; `LeadHeader`, `LeadContacts`, `LeadMarketing`, `LeadYandex`, `LeadCustomFields` с хардкод-пропсами убраны; заглушка «Данные лида появятся в Phase 7»; `LeadSidebar`, `LeadComments`, `LeadHistory`, `TaskBlock` — без изменений структуры
+- `app/(admin)/admin/settings/page.tsx` — Server Component: `auth()` → `prisma.company.findUniqueOrThrow({ where: { id: session.user.companyId }, select: { name, nextPaymentAt } })` → пропсы в `<SystemSection>`
+- `components/pipeline/PipelineBoard.tsx` — Client Component: удалены `INITIAL_STAGES` (5 этапов, 15 карточек) и `LEAD_DETAIL_PATH`; `useState<PipelineStage[]>([])`; пустое состояние «Этапы воронки появятся в Phase 8/9»; DnD-механизм (`sensors`, `handleDragStart/End/Cancel`, `moveLead`, `findLead`) сохранён; `handleCardClick` — TODO-заглушка для Phase 9
+- `components/tasks/TasksBoard.tsx` — Client Component: удалены `MOCK_TASKS` (6 задач) и `MOCK_LEAD_DETAIL_PATH`; `useState<TaskItem[]>([])`; `totalCount = tasks.length`; `ASSIGNEE_FILTER_OPTIONS` — только `{ value: 'any', label: 'Любой' }`; убрана проверка `task.assignee !== "Алексей Д."` для вкладки «Мои»; `handleTaskClick` → `router.push(\`/leads/${task.lead.id}?taskId=${task.id}\`)`; пустое состояние «Нет задач»; пустые группы не рендерятся
+- `components/users/UsersTable.tsx` — Client Component: удалён `MOCK_USERS` (5 записей); `useState<User[]>([])`; пустое состояние «Нет пользователей» в `<tbody>`
+- `components/integrations/ApiKeysTable.tsx` — Client Component: удалён `MOCK_API_KEYS` (2 ключа); `useState<ApiKeyRow[]>([])`; пустое состояние «Нет API-ключей» в `<tbody>`
+- `components/leads/LeadComments.tsx` — Client Component: удалён `MOCK_COMMENTS` (3 комментария); счётчик `0`; пустое состояние «Нет комментариев»; форма добавления сохранена
+- `components/leads/LeadHistory.tsx` — Server Component: удалён `MOCK_HISTORY` (3 события); пустое состояние «Нет событий»
+- `components/leads/LeadSidebar.tsx` — Client Component: удалены `INITIAL_STATUS`, `INITIAL_MANAGER`, `STATUS_OPTIONS`, `MANAGER_OPTIONS`; `FilterSelect` → `DisabledSelect` с опцией «—»; кнопка «Сохранить изменения» всегда `disabled`
+- `components/leads/CreateLeadForm.tsx` — Client Component: `tags: []`, `source: 'other'`, `stageId: ''`; удалены `STAGE_OPTIONS`, хардкод-менеджеры из `MANAGER_OPTIONS`, тип `PipelineStatus`, `selectedStage`/`dotClass`; поле «Этап воронки» — `<select disabled>` с «—»; превью-карточка — `status="new"`
+- `components/leads/LeadsFilters.tsx` — Client Component: из `MANAGER_OPTIONS` убраны хардкод-имена; оставлен только `{ value: '', label: 'Менеджер' }`
+- `components/settings/SystemSection.tsx` — Server Component: пропсы `companyName: string`, `nextPaymentAt: Date | null`; `'ООО «Пример»'` → `companyName`; `'31.12.2026'` → `nextPaymentAt ? toLocaleDateString('ru-RU') : '—'`; строка «Лицензия: Активна» убрана
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `app/(admin)/admin/settings/page.tsx` — явная проверка `session.kind !== 'company'` и `redirect('/login')` (defense-in-depth поверх `proxy.ts`)
+- `app/(app)/leads/page.tsx` — убрана `LeadsPagination` вместе с таблицей (в TASK — «оставить как структурную заглушку», но без данных таблица не имеет смысла)
+
+**Out of scope (не делалось):** data-fetching лидов, задач, пользователей, этапов, менеджеров, API-ключей (Phase 5–18); валидация и submit `CreateLeadForm` (Phase 5), `LeadSidebar` (Phase 7); фильтр «Мои задачи» по текущему пользователю сессии (Phase 15); DnD-API смены этапа (Phase 9); загрузка настроек уведомлений/напоминаний/распределения из БД (Phase 17); `NotificationsSection`, `RemindersSection`, `DistributionSection`, `SecuritySection` — не тронуты
+
+**Проверки:** `npm run type-check` — без ошибок; `npm run build` — успешно
+
+---
+
+## 2026-06-26 — Phase 4, Таск 3: Дашборд — реальные агрегаты + пустые состояния + design_system.md
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/(app)/today/page.tsx` — Server Component: `auth()` → `companyId`, редирект без сессии компании; 4 Prisma-счётчика через `Promise.all` с `where: { companyId }` (всего / новых сегодня `createdAt >= todayStart` / в работе `closeType: null` / сделок `closeType: 'WON'`); дата в хедере через `Intl.DateTimeFormat('ru-RU')` вместо хардкода «7 июня 2026»; пропсы в `StatsRow`
+- `components/dashboard/StatsRow.tsx` — Server Component: интерфейс `StatsRowProps` с 4 числами; константа `STATS` удалена
+- `components/dashboard/RecentLeads.tsx` — Server Component: `'use client'` и `MOCK_LEADS` убраны; пустое состояние «Пока нет лидов» в карточке; заголовок и ссылка «Все лиды →» сохранены
+- `components/dashboard/LeadsChart.tsx` — Client Component: `MOCK_CHART_DATA`, recharts (`AreaChart`, `Tooltip`) и импорты удалены; пустое состояние «Пока нет данных» внутри `Card`, высота 220px сохранена
+- `.docs/design_system.md` — 7 расхождений с кодом: LeadCRM → LeadFlow (§1, §5.1 ASCII); Tabler Icons → Lucide через `@iconify/react` (§6); `--color-sidebar-item-active-bg` → `--color-sidebar-item-active`; убран `--color-sidebar-bg-dark`, тёмная тема переопределяет `--color-sidebar-bg`; dark `--color-text-secondary` `#64748B` → `#94A3B8` (§2.5 и §9); адаптив сайдбара — 2 состояния (220px desktop / скрыт + бургер), без icon-rail 60px; JetBrains Mono → `ui-monospace` с пометкой «не подключён»
+- `CLAUDE.md` — ссылка в таблице документации: `design-system.md` → `design_system.md`
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `today/page.tsx` — явная проверка `session.kind !== 'company'` и `redirect('/login')` (defense-in-depth поверх `proxy.ts`)
+- `today/page.tsx` — явные типы возврата `Promise<JSX.Element>` / `JSX.Element` для `BellIcon`
+
+**Out of scope (не делалось):** реальные данные для `RecentLeads` (Phase 6/19) и `LeadsChart` (Phase 21); зачистка мок-данных вне дашборда (Таск 4); полноценный экран «Сегодня» (Phase 19); удаление `recharts` из зависимостей; правило §10 «Иконки — только Tabler outline» в конце `design_system.md` (§6 уже обновлён на Lucide)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
+## 2026-06-26 — Phase 4, Таск 2: Атом Select + переключатель темы (light/dark)
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `components/ui/Select.tsx` — Client Component: кастомный дропдаун под дизайн-систему; скрытый нативный `<select>` (`sr-only`) для accessibility и сериализации форм; визуальный триггер-кнопка (36px, border 0.5px, `--radius-sm`, focus/open border `#10B981`, placeholder `--color-text-tertiary`) + шеврон `lucide:chevron-down`; абсолютный `<ul role="listbox">` с hover `--color-bg-surface-2` и активной опцией `--color-primary`; закрытие по `mousedown` вне компонента с cleanup в `useEffect`
+- `components/providers/ThemeProvider.tsx` — Client Component: React Context `{ theme, toggleTheme }`; SSR-безопасный дефолт `'light'`; чтение `localStorage('theme')` / `prefers-color-scheme` в `useEffect`; запись в `localStorage` + `document.documentElement.dataset.theme` при переключении; хук `useTheme()`
+- `components/ui/ThemeToggle.tsx` — Client Component: `IconButton` size sm; иконка `lucide:sun` в dark / `lucide:moon` в light; `aria-label` на русском
+- `app/layout.tsx` — `suppressHydrationWarning` на `<html>`; инлайн-скрипт в `<head>` (анти-FOUC: `data-theme` до гидрации); обёртка `{children}` в `<ThemeProvider>`
+- `components/layout/Sidebar.tsx` — `<ThemeToggle />` в нижней секции рядом с аватаром; фон сайдбара через `bg-[var(--color-sidebar-bg)]` — тёмный в обеих темах
+- `components/index.ts` — экспорт `Select` и `ThemeToggle`
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- `ThemeProvider` — `startTransition` при синхронизации темы из `localStorage` на монтировании (снижение риска hydration mismatch)
+- `Select` — триггер на `<button type="button">` вместо `<div>` (лучше для клавиатуры и a11y)
+- `ThemeToggle` — кастомный `className` под тёмный сайдбар (`text-[#94A3B8]`, hover на белом фоне)
+
+**Out of scope (не делалось):** обновление `design_system.md` (Таск 3); реальные агрегаты дашборда `/today` (Таск 3); зачистка мок-данных в шаблонах (Таск 4); поиск и виртуализация в Select; промежуточный icon-rail сайдбара (60px)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
+## 2026-06-25 — Phase 4, Таск 1: Роль-зависимая оболочка (серверная сессия → пропсы) + навигация
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `constants/navItems.ts` — поле `minRole: UserRole` в `SidebarNavItem`; пункты «Контроль» (`/control`, `HEAD`) и «Отчёты» (`/reports`, `HEAD`); хелпер `getNavItemsForRole(role)` — фильтр через `hasMinRole`
+- `components/layout/AppShell.tsx` — Server Component: `auth()` → `prisma.user.findUnique({ where: { id, companyId }, select: { name: true } })` → `getNavItemsForRole(role)` → `AppLayout` + `Sidebar` (`items`, `userName`, `userInitials`); `computeInitials()` внутри оболочки (пустое имя → `?`, одно слово → первая буква, несколько → первая + последняя); `ImpersonationBanner` при `impersonatedByPlatformAdminId`; без сессии компании — только `children` (публичные/платформенные маршруты без сайдбара)
+- `app/(app)/layout.tsx` — обёртка `children` в `<AppShell>`; логика баннера impersonation убрана (переехала в `AppShell`)
+- `app/(management)/layout.tsx` — обёртка `children` в `<AppShell>`
+- `app/(admin)/layout.tsx` — обёртка `children` в `<AppShell>`
+- `app/layout.tsx` — убран `ShellGate`; только `html`/`body`, `globals.css`, метаданные
+- `components/layout/ShellGate.tsx` — удалён
+- `components/layout/Sidebar.tsx` — `userName` и `userInitials` обязательные пропсы (дефолты «Администратор» / «АД» убраны)
+
+**Что было реализовано сверх плана `TASK.md`:**
+
+- нет
+
+**Out of scope (не делалось):** атом `Select` и переключатель темы (Таск 2); реальные агрегаты `/today` (Таск 3); зачистка мок-данных в шаблонах (Таск 4); содержимое `/control` и `/reports`; изменения `lib/auth.ts`, JWT и типов сессии
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-25 — Phase 3, Таск 5: Сброс пароля (API + UI) + rate limiting
 
 **Статус:** ✅ Завершён

@@ -15,7 +15,7 @@ export default function Home() {
         </div>
 
         <Link
-          href="/today"
+          href="/login"
           className="flex h-[36px] w-full items-center justify-center rounded-[6px] bg-[#10B981] text-[13px] font-medium text-white transition-all duration-150 hover:bg-[#0E9E6E]"
         >
           Сегодня

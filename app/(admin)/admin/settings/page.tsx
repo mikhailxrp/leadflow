@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { PageContent } from '@/components/layout/AppLayout';
 import IconButton from '@/components/ui/IconButton';
 import SettingsSections, { SettingsDirtyProvider } from '@/components/settings/SettingsClientArea';
 import SystemSection from '@/components/settings/SystemSection';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export const metadata: Metadata = {
   title: 'Настройки',
@@ -27,7 +30,17 @@ function BellIcon() {
   );
 }
 
-export default function AdminSettingsPage() {
+export default async function AdminSettingsPage() {
+  const session = await auth();
+  if (!session || session.kind !== 'company' || !session.user) {
+    redirect('/login');
+  }
+
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: session.user.companyId },
+    select: { name: true, nextPaymentAt: true },
+  });
+
   return (
     <>
       <header
@@ -48,7 +61,7 @@ export default function AdminSettingsPage() {
         <SettingsDirtyProvider>
           <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
             <SettingsSections />
-            <SystemSection />
+            <SystemSection companyName={company.name} nextPaymentAt={company.nextPaymentAt} />
           </div>
         </SettingsDirtyProvider>
       </PageContent>
