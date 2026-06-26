@@ -36,6 +36,33 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-26 — Phase 6, Таск 1: `lib/leads/` + `GET /api/leads` (сервер, без риска)
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/leads/visibilityFilter.ts` — pure function `visibilityWhere(role, userId, leadVisibility)`: HEAD/ADMIN через `hasMinRole(role, 'HEAD')` → `{}`; MANAGER + `leadVisibility=OWN` → `{ assignedToId: userId }`; MANAGER + `ALL` → `{}`
+- `lib/leads/getLeads.ts` — `getLeads(params, session)`: загрузка `company.settings` → извлечение `leadVisibility`; сборка `where` через `AND: [{ companyId }, visibility, …фильтры]`; параллельно `findMany` + `count`; экспорт типов `LeadListItem`, `GetLeadsResult`; `hasDuplicate` из `_count.duplicateFlagsAsLead > 0`; сортировка `createdAt desc`
+- `lib/leads/getManagers.ts` — `getManagers(companyId)`: активные пользователи (`isBlocked: false`), `orderBy: name asc`, тип `ManagerOption`
+- `lib/validations/leads.ts` — `leadsQuerySchema` + `LeadsQueryInput`: `search`, `source`, `assignedToId`, `status` (`''` | `open` | `won` | `lost`), `period` (`''` | `today` | `week` | `month`), `page`, `pageSize` (max из константы)
+- `constants/leads.ts` — `UNASSIGNED_MANAGER_ID = 'unassigned'`, `DEFAULT_LEADS_PAGE_SIZE = 20`, `MAX_LEADS_PAGE_SIZE = 100`
+- `app/api/leads/route.ts` — `GET`: только `session.kind === 'company'` → иначе `401`; query-параметры через `leadsQuerySchema.safeParse` → `400` при ошибке; делегирование в `getLeads`; `POST` не изменён
+
+**Учтённые точки риска:**
+
+- `assignedToId === 'unassigned'` → `{ assignedToId: null }` в `buildAssignedToFilter`, строка в Prisma не передаётся
+- `companyId` — первый элемент `AND`, visibility и остальные фильтры добавляются отдельными условиями (не spread поверх `companyId`)
+- `hasDuplicate` — только `_count.duplicateFlagsAsLead`, не `matchedLead`
+- `visibilityWhere` принимает `(role, userId, leadVisibility)`, не `session`; `leadVisibility` читается из `company.settings` внутри `getLeads`
+- Поиск: `name`/`email` — `contains` + `mode: 'insensitive'`; `phone` — plain `contains`
+
+**Out of scope (не делалось):** `computeRisk` / `computeRiskBatch` (Таск 2); UI (`LeadsTable`, `RiskBadge`, `DuplicateBadge`, обновление `page.tsx`, URL-params в `LeadsFilters`) — Таск 3
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 5, Таск 4: Ручное создание лида — POST /api/leads (синхронный дедуп → 409) + UI
 
 **Статус:** ✅ Завершён

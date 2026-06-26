@@ -3,7 +3,40 @@ import { auth } from '@/lib/auth';
 import { createLead } from '@/lib/intake/createLead';
 import { findPossibleDuplicates } from '@/lib/intake/findPossibleDuplicates';
 import { flagPossibleDuplicates } from '@/lib/intake/flagPossibleDuplicates';
-import { createLeadSchema } from '@/lib/validations/leads';
+import { getLeads } from '@/lib/leads/getLeads';
+import { createLeadSchema, leadsQuerySchema } from '@/lib/validations/leads';
+import type { CompanySession } from '@/types/session';
+
+export async function GET(request: Request): Promise<Response> {
+  const session = await auth();
+
+  if (!session || session.kind !== 'company' || !session.user) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const parsed = leadsQuerySchema.safeParse({
+    search: searchParams.get('search') ?? undefined,
+    source: searchParams.get('source') ?? undefined,
+    assignedToId: searchParams.get('assignedToId') ?? undefined,
+    status: searchParams.get('status') ?? undefined,
+    period: searchParams.get('period') ?? undefined,
+    page: searchParams.get('page') ?? undefined,
+    pageSize: searchParams.get('pageSize') ?? undefined,
+  });
+
+  if (!parsed.success) {
+    return Response.json({ error: 'VALIDATION_ERROR' }, { status: 400 });
+  }
+
+  try {
+    const result = await getLeads(parsed.data, session as CompanySession);
+    return Response.json(result);
+  } catch (error) {
+    console.error('[GET /api/leads] getLeads failed:', error);
+    return Response.json({ error: 'INTERNAL_ERROR' }, { status: 500 });
+  }
+}
 
 function toNullableString(value: string | undefined): string | null {
   if (!value) {

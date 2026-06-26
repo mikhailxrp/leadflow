@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import {
+  DEFAULT_LEADS_PAGE_SIZE,
+  MAX_LEADS_PAGE_SIZE,
+} from '@/constants/leads';
+
+const leadStatusFilterSchema = z.enum(['open', 'won', 'lost']);
+const leadPeriodFilterSchema = z.enum(['today', 'week', 'month']);
 
 /**
  * Manual lead creation — name is required; phone/email are optional without format checks
@@ -13,4 +20,24 @@ export const createLeadSchema = z
   })
   .passthrough();
 
+export const leadsQuerySchema = z.object({
+  search: z.string().default(''),
+  source: z.string().default(''),
+  assignedToId: z.string().default(''),
+  status: z
+    .union([z.literal(''), leadStatusFilterSchema])
+    .default(''),
+  period: z
+    .union([z.literal(''), leadPeriodFilterSchema])
+    .default(''),
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(MAX_LEADS_PAGE_SIZE)
+    .default(DEFAULT_LEADS_PAGE_SIZE),
+});
+
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
+export type LeadsQueryInput = z.infer<typeof leadsQuerySchema>;
