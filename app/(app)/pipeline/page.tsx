@@ -5,7 +5,9 @@ import { PageContent } from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import PipelineBoard from '@/components/pipeline/PipelineBoard';
 import IconButton from '@/components/ui/IconButton';
+import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
+import { getManagers } from '@/lib/leads/getManagers';
 import { getLeadVisibility } from '@/lib/leads/visibilityFilter';
 import { getBoardData } from '@/lib/pipeline/boardQuery';
 import { prisma } from '@/lib/prisma';
@@ -98,15 +100,19 @@ export default async function PipelinePage() {
   }
 
   const leadVisibility = getLeadVisibility(company.settings);
+  const showManagerFilter = hasMinRole(role, 'HEAD') || leadVisibility === 'ALL';
 
-  const { columns } = await getBoardData({
-    companyId,
-    userId,
-    role,
-    leadVisibility,
-    companySettings: company.settings,
-    includeClosed: false,
-  });
+  const [{ columns }, managers] = await Promise.all([
+    getBoardData({
+      companyId,
+      userId,
+      role,
+      leadVisibility,
+      companySettings: company.settings,
+      includeClosed: false,
+    }),
+    showManagerFilter ? getManagers(companyId) : Promise.resolve([]),
+  ]);
 
   return (
     <>
@@ -141,7 +147,11 @@ export default async function PipelinePage() {
       />
 
       <PageContent>
-        <PipelineBoard initialColumns={columns} />
+        <PipelineBoard
+          initialColumns={columns}
+          managers={managers}
+          showManagerFilter={showManagerFilter}
+        />
       </PageContent>
     </>
   );

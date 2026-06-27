@@ -10,6 +10,7 @@ export async function getManagers(companyId: string): Promise<ManagerOption[]> {
     where: {
       companyId,
       isBlocked: false,
+      role: { in: ['MANAGER', 'ADMIN'] },
     },
     select: {
       id: true,

@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { PipelineCardOverlay } from '@/components/pipeline/PipelineCard';
 import PipelineColumn from '@/components/pipeline/PipelineColumn';
 import Toast from '@/components/ui/Toast';
+import type { ManagerOption } from '@/lib/leads/getManagers';
 import type { BoardColumn, BoardLeadCard } from '@/lib/pipeline/boardQuery';
 
 const DRAG_ACTIVATION_DISTANCE_PX = 8;
@@ -24,6 +25,35 @@ const DND_CONTEXT_ID = 'pipeline-board';
 
 interface PipelineBoardProps {
   initialColumns: BoardColumn[];
+  managers: ManagerOption[];
+  showManagerFilter: boolean;
+}
+
+function buildBoardUrl(includeClosed: boolean, assignedToId: string | null): string {
+  const params = new URLSearchParams();
+  if (includeClosed) params.set('includeClosed', 'true');
+  if (assignedToId) params.set('assignedToId', assignedToId);
+  const qs = params.toString();
+  return qs ? `/api/pipeline/board?${qs}` : '/api/pipeline/board';
+}
+
+function FilterIcon(): ReactNode {
+  return (
+    <svg
+      className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-text-tertiary)]"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+      />
+    </svg>
+  );
 }
 
 function findLead(columns: BoardColumn[], leadId: string): BoardLeadCard | undefined {
@@ -81,12 +111,22 @@ function moveLead(
   });
 }
 
-export default function PipelineBoard({ initialColumns }: PipelineBoardProps): ReactNode {
+export default function PipelineBoard({
+  initialColumns,
+  managers,
+  showManagerFilter,
+}: PipelineBoardProps): ReactNode {
   const router = useRouter();
   const [columns, setColumns] = useState<BoardColumn[]>(initialColumns);
   const [activeLead, setActiveLead] = useState<BoardLeadCard | null>(null);
   const [includeClosed, setIncludeClosed] = useState(false);
+  const [selectedManagerId, setSelectedManagerId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ title: string; message?: string } | null>(null);
+
+  const managerOptions = [
+    { value: '', label: 'Ответственный' },
+    ...managers.map((m) => ({ value: m.id, label: m.name })),
+  ];
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -148,25 +188,71 @@ export default function PipelineBoard({ initialColumns }: PipelineBoardProps): R
     router.push(`/leads/${id}`);
   }, [router]);
 
+  const refetchBoard = useCallback(async (
+    nextIncludeClosed: boolean,
+    nextManagerId: string | null,
+  ): Promise<void> => {
+    const res = await fetch(buildBoardUrl(nextIncludeClosed, nextManagerId));
+    if (!res.ok) throw new Error('fetch-failed');
+    const data = (await res.json()) as { columns: BoardColumn[] };
+    setColumns(data.columns);
+  }, []);
+
   const handleToggleClosed = useCallback(async (): Promise<void> => {
     const next = !includeClosed;
     setIncludeClosed(next);
     try {
-      const url = next ? '/api/pipeline/board?includeClosed=true' : '/api/pipeline/board';
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('fetch-failed');
-      const data = (await res.json()) as { columns: BoardColumn[] };
-      setColumns(data.columns);
+      await refetchBoard(next, selectedManagerId);
     } catch {
       setIncludeClosed(!next);
       setToast({ title: 'Не удалось загрузить данные', message: 'Попробуйте ещё раз' });
     }
-  }, [includeClosed]);
+  }, [includeClosed, selectedManagerId, refetchBoard]);
+
+  const handleManagerChange = useCallback(async (managerId: string): Promise<void> => {
+    const nextManagerId = managerId || null;
+    const prevManagerId = selectedManagerId;
+    setSelectedManagerId(nextManagerId);
+    try {
+      await refetchBoard(includeClosed, nextManagerId);
+    } catch {
+      setSelectedManagerId(prevManagerId);
+      setToast({ title: 'Не удалось загрузить данные', message: 'Попробуйте ещё раз' });
+    }
+  }, [includeClosed, selectedManagerId, refetchBoard]);
 
   return (
     <>
-      <div className="mb-3 flex items-center justify-end">
-        <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[var(--color-text-secondary)]">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {showManagerFilter && (
+          <div className="relative min-w-[180px] sm:max-w-[240px]">
+            <label htmlFor="pipeline-manager-filter" className="sr-only">
+              Ответственный
+            </label>
+            <select
+              id="pipeline-manager-filter"
+              value={selectedManagerId ?? ''}
+              onChange={(e) => { void handleManagerChange(e.target.value); }}
+              className="
+                h-[36px] w-full appearance-none
+                rounded-[6px] border border-[var(--color-border)] border-[0.5px]
+                bg-[var(--color-bg-surface)] px-3 pr-8
+                text-[13px] text-[var(--color-text-primary)]
+                outline-none transition-all duration-150
+                focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]
+              "
+            >
+              {managerOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <FilterIcon />
+          </div>
+        )}
+
+        <label className="flex cursor-pointer items-center gap-2 self-end text-[13px] text-[var(--color-text-secondary)] sm:self-auto">
           <input
             type="checkbox"
             checked={includeClosed}
@@ -190,7 +276,7 @@ export default function PipelineBoard({ initialColumns }: PipelineBoardProps): R
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div className="custom-scrollbar flex flex-row gap-4 overflow-x-auto pb-2">
+          <div className="custom-scrollbar flex flex-col gap-4 pb-2 md:flex-row md:overflow-x-auto">
             {columns.map((col) => (
               <PipelineColumn
                 key={col.id}

@@ -36,6 +36,29 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-27 — Phase 9, Таск 3: Фильтр по ответственному + видимость по роли + адаптивность
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/(app)/pipeline/page.tsx` — Server Component: параллельный fetch `getBoardData` + `getManagers(companyId)` (менеджеры только при `showManagerFilter`); `showManagerFilter = hasMinRole(role, 'HEAD') || leadVisibility === 'ALL'`; проброс `managers` и `showManagerFilter` в `<PipelineBoard>`
+- `components/pipeline/PipelineBoard.tsx` — Client: пропсы `managers: ManagerOption[]`, `showManagerFilter: boolean`; state `selectedManagerId: string | null`; хелпер `buildBoardUrl(includeClosed, assignedToId)` для единого построения URL re-fetch; `refetchBoard` — общая загрузка доски; селект «Ответственный» в toolbar (только при `showManagerFilter`); `handleManagerChange` → re-fetch с `assignedToId`, сохраняет `includeClosed`; `handleToggleClosed` через `buildBoardUrl` — сохраняет `selectedManagerId`; контейнер колонок `flex-col gap-4 md:flex-row md:overflow-x-auto`
+- `components/pipeline/PipelineColumn.tsx` — ширина `w-full md:w-[272px] md:flex-shrink-0` вместо фиксированного `w-[272px] flex-shrink-0`
+
+**Учтённые точки риска:**
+
+- Комбинирование фильтров — единый `buildBoardUrl` + `refetchBoard`; toggle «Показать закрытые» и смена менеджера передают оба параметра (`includeClosed`, `assignedToId`)
+- Видимость селекта — `showManagerFilter` вычисляется на сервере в `page.tsx`, не дублируется на клиенте; MANAGER с `leadVisibility=OWN` селект не видит
+- Ширина колонок на мобильном — `w-full` в вертикальном стеке, `md:w-[272px]` на десктопе
+- Фильтр `assignedToId` не расширяет видимость — ограничение на сервере через `visibilityWhere` в `boardQuery` (без изменений API)
+
+**Out of scope (не делалось):** назначение/переназначение менеджера на лид; CRUD этапов (`/api/stages/*`, `/admin/pipeline-settings`); промпт создания задачи при смене этапа; изменения `boardQuery.ts` и `GET /api/pipeline/board`
+
+**Проверки:** `npx tsc --noEmit` — без ошибок, без `any`
+
+---
+
 ## 2026-06-27 — Phase 9, Таск 2: Kanban UI — реальные данные + drag-and-drop + зависшие карточки
 
 **Статус:** ✅ Завершён

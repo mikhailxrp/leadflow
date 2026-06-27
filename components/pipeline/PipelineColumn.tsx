@@ -44,8 +44,9 @@ export default function PipelineColumn({
   return (
     <section
       className="
-        flex w-[272px] flex-shrink-0 flex-col overflow-hidden rounded-lg
+        flex w-full flex-col overflow-hidden rounded-lg
         bg-[var(--color-bg-surface-2)]
+        md:w-[272px] md:flex-shrink-0
       "
     >
       <div className="h-[3px]" style={{ backgroundColor: color }} aria-hidden="true" />
