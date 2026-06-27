@@ -15,74 +15,15 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import AddStageModal from '@/components/pipeline/AddStageModal';
 import DeleteStageModal from '@/components/pipeline/DeleteStageModal';
 import StageRow, { type StageData } from '@/components/pipeline/StageRow';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import Toast from '@/components/ui/Toast';
 
 const DND_CONTEXT_ID = 'pipeline-settings-stages';
-
-const INITIAL_STAGES: StageData[] = [
-  { id: 'new', name: 'Новый лид', leadCountLabel: '42 лида', leadsCount: 42 },
-  {
-    id: 'contact',
-    name: 'Первичный контакт',
-    leadCountLabel: '28 лидов',
-    leadsCount: 28,
-    dotColorClass: 'bg-[#8b5cf6]',
-  },
-  {
-    id: 'in-progress',
-    name: 'В работе',
-    leadCountLabel: '31 лид',
-    leadsCount: 31,
-  },
-  {
-    id: 'warm',
-    name: 'Тёплый клиент',
-    leadCountLabel: '18 лидов',
-    leadsCount: 18,
-    dotColorClass: 'bg-[#10b981]',
-  },
-  { id: 'deal', name: 'Сделка', leadCountLabel: '34 лида', leadsCount: 34 },
-];
-
-interface PipelineSettingsContextValue {
-  stages: StageData[];
-  setStages: Dispatch<SetStateAction<StageData[]>>;
-  hasChanges: boolean;
-  setHasChanges: Dispatch<SetStateAction<boolean>>;
-  handleSave: () => void;
-}
-
-const PipelineSettingsContext = createContext<PipelineSettingsContextValue | null>(
-  null,
-);
-
-function usePipelineSettings(): PipelineSettingsContextValue {
-  const context = useContext(PipelineSettingsContext);
-
-  if (!context) {
-    throw new Error('PipelineSettings components must be used within PipelineSettings');
-  }
-
-  return context;
-}
-
-function isSameOrder(current: StageData[], initial: StageData[]): boolean {
-  return current.every((stage, index) => stage.id === initial[index]?.id);
-}
 
 function PlusIcon(): ReactNode {
   return (
@@ -98,30 +39,21 @@ function PlusIcon(): ReactNode {
   );
 }
 
-export function SaveOrderButton(): ReactNode {
-  const { hasChanges, handleSave } = usePipelineSettings();
-
-  return (
-    <Button
-      type="button"
-      variant="primary"
-      size="md"
-      disabled={!hasChanges}
-      onClick={handleSave}
-    >
-      Сохранить порядок
-    </Button>
-  );
+interface PipelineSettingsProps {
+  initialStages: StageData[];
 }
 
-export function PipelineSettingsStages(): ReactNode {
-  const { stages, setStages, setHasChanges } = usePipelineSettings();
+export default function PipelineSettings({
+  initialStages,
+}: PipelineSettingsProps): ReactNode {
+  const [stages, setStages] = useState<StageData[]>(initialStages);
   const [deleteStageId, setDeleteStageId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
-  const deleteStage = deleteStageId
-    ? stages.find((stage) => stage.id === deleteStageId) ?? null
-    : null;
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -133,60 +65,140 @@ export function PipelineSettingsStages(): ReactNode {
   const handleDragEnd = useCallback(
     (event: DragEndEvent): void => {
       const { active, over } = event;
-
       if (!over || active.id === over.id) {
         return;
       }
 
-      setStages((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-        const nextOrder = arrayMove(items, oldIndex, newIndex);
-        setHasChanges(!isSameOrder(nextOrder, INITIAL_STAGES));
-        return nextOrder;
-      });
+      const oldIndex = stages.findIndex((stage) => stage.id === active.id);
+      const newIndex = stages.findIndex((stage) => stage.id === over.id);
+      const reordered = arrayMove(stages, oldIndex, newIndex);
+      const snapshot = stages;
+
+      setStages(reordered);
+
+      fetch('/api/stages/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds: reordered.map((stage) => stage.id) }),
+      })
+        .then((res) => {
+          if (!res.ok) {
+            setStages(snapshot);
+            showToast('Не удалось сохранить порядок');
+          }
+        })
+        .catch(() => {
+          setStages(snapshot);
+          showToast('Не удалось сохранить порядок');
+        });
     },
-    [setStages, setHasChanges],
+    [stages, showToast],
   );
 
-  const handleAddStage = useCallback((): void => {
-    setIsAddModalOpen(true);
-  }, []);
+  const patchStage = useCallback(
+    (
+      id: string,
+      patch: Partial<Pick<StageData, 'name' | 'color' | 'stageTimeLimitDays'>>,
+      errorMessage: string,
+    ): void => {
+      const snapshot = stages;
+      setStages((prev) =>
+        prev.map((stage) => (stage.id === id ? { ...stage, ...patch } : stage)),
+      );
 
-  const handleDeleteConfirm = useCallback((targetStageId: string): void => {
-    void targetStageId;
-    setDeleteStageId(null);
-  }, []);
+      fetch(`/api/stages/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+        .then((res) => {
+          if (!res.ok) {
+            setStages(snapshot);
+            showToast(errorMessage);
+          }
+        })
+        .catch(() => {
+          setStages(snapshot);
+          showToast(errorMessage);
+        });
+    },
+    [stages, showToast],
+  );
 
-  const handleAddConfirm = useCallback((name: string, color: string | null): void => {
-    void name;
-    void color;
+  const handleRename = useCallback(
+    (id: string, name: string): void => {
+      patchStage(id, { name }, 'Не удалось сохранить название');
+    },
+    [patchStage],
+  );
+
+  const handleChangeColor = useCallback(
+    (id: string, color: string): void => {
+      patchStage(id, { color }, 'Не удалось сохранить цвет');
+    },
+    [patchStage],
+  );
+
+  const handleChangeLimit = useCallback(
+    (id: string, limit: number | null): void => {
+      patchStage(
+        id,
+        { stageTimeLimitDays: limit },
+        'Не удалось сохранить допустимое время',
+      );
+    },
+    [patchStage],
+  );
+
+  const handleCreated = useCallback((stage: StageData): void => {
+    setStages((prev) => [...prev, stage]);
     setIsAddModalOpen(false);
   }, []);
 
+  const handleDeleted = useCallback((id: string): void => {
+    setStages((prev) => prev.filter((stage) => stage.id !== id));
+    setDeleteStageId(null);
+  }, []);
+
+  const deleteStage = deleteStageId
+    ? stages.find((stage) => stage.id === deleteStageId) ?? null
+    : null;
+
   return (
     <>
-      <DndContext
-        id={DND_CONTEXT_ID}
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <Card padding="none" className="overflow-hidden">
-          <SortableContext
-            items={stages.map((stage) => stage.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {stages.map((stage) => (
-              <StageRow
-                key={stage.id}
-                stage={stage}
-                onDelete={setDeleteStageId}
-              />
-            ))}
-          </SortableContext>
+      {stages.length === 0 ? (
+        <Card padding="lg">
+          <p className="text-[13px] text-[var(--color-text-secondary)]">
+            Этапы воронки ещё не созданы. Добавьте первый этап.
+          </p>
         </Card>
-      </DndContext>
+      ) : (
+        <DndContext
+          id={DND_CONTEXT_ID}
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <Card padding="none" className="overflow-hidden">
+            <SortableContext
+              items={stages.map((stage) => stage.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {stages.map((stage) => (
+                <StageRow
+                  key={stage.id}
+                  stage={stage}
+                  canDelete={stages.length > 1}
+                  onRename={handleRename}
+                  onChangeColor={handleChangeColor}
+                  onChangeLimit={handleChangeLimit}
+                  onDelete={setDeleteStageId}
+                />
+              ))}
+            </SortableContext>
+          </Card>
+        </DndContext>
+      )}
 
       <Button
         type="button"
@@ -194,61 +206,33 @@ export function PipelineSettingsStages(): ReactNode {
         size="md"
         icon={<PlusIcon />}
         className="mt-4 text-[var(--color-text-secondary)]"
-        onClick={handleAddStage}
+        onClick={() => setIsAddModalOpen(true)}
       >
         Добавить этап
       </Button>
 
       {deleteStage ? (
         <DeleteStageModal
+          stageId={deleteStage.id}
           stageName={deleteStage.name}
           leadsCount={deleteStage.leadsCount}
           stages={stages
             .filter((stage) => stage.id !== deleteStage.id)
             .map((stage) => ({ id: stage.id, name: stage.name }))}
-          onConfirm={handleDeleteConfirm}
+          onDeleted={handleDeleted}
           onClose={() => setDeleteStageId(null)}
         />
       ) : null}
 
       {isAddModalOpen ? (
         <AddStageModal
-          onConfirm={handleAddConfirm}
+          onCreated={handleCreated}
+          onError={showToast}
           onClose={() => setIsAddModalOpen(false)}
         />
       ) : null}
+
+      {toast ? <Toast title={toast} onClose={() => setToast(null)} /> : null}
     </>
-  );
-}
-
-interface PipelineSettingsProps {
-  children: ReactNode;
-}
-
-export default function PipelineSettings({ children }: PipelineSettingsProps): ReactNode {
-  const [stages, setStages] = useState<StageData[]>(INITIAL_STAGES);
-  const [hasChanges, setHasChanges] = useState(false);
-
-  const handleSave = useCallback((): void => {
-    // TODO: сохранение порядка через API
-    console.log(stages.map((stage) => stage.id));
-    setHasChanges(false);
-  }, [stages]);
-
-  const contextValue = useMemo(
-    () => ({
-      stages,
-      setStages,
-      hasChanges,
-      setHasChanges,
-      handleSave,
-    }),
-    [stages, hasChanges, handleSave],
-  );
-
-  return (
-    <PipelineSettingsContext.Provider value={contextValue}>
-      {children}
-    </PipelineSettingsContext.Provider>
   );
 }

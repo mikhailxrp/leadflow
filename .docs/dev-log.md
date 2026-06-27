@@ -36,6 +36,33 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-27 — Phase 8, Таск 2: UI `/admin/pipeline-settings` поверх существующего каркаса
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/(admin)/admin/pipeline-settings/page.tsx` — Server Component: `auth()` + `hasMinRole(..., 'ADMIN')`; Prisma-выборка `pipelineStage.findMany({ where: { companyId }, orderBy: order })` с `_count.leads`; маппинг в `StageData[]`; проброс `initialStages` в `PipelineSettings`; убраны `SaveOrderButton` и `actions` у `PageHeader`
+- `components/pipeline/PipelineSettings.tsx` — Client: локальный стейт из `initialStages`; sortable-список (`@dnd-kit/core` + `@dnd-kit/sortable`) по образцу `LossReasonsList`; reorder на `dragEnd` → `PATCH /api/stages/reorder` (оптимистично + snapshot-откат + Toast); `patchStage` для rename/color/limit → `PATCH /api/stages/:id`; модалки добавления/удаления; пустое состояние; удалены `INITIAL_STAGES`, контекст-провайдер, `handleSave`, экспорт `SaveOrderButton`
+- `components/pipeline/StageRow.tsx` — `StageData` → `{ id, name, color, order, stageTimeLimitDays, leadsCount }`; точка цвета по hex `color` + палитра в popover; инлайн-переименование (blur/Enter → PATCH, Escape — отмена); инлайн-поле лимита (пусто → `{ stageTimeLimitDays: null }`, число > 0 → переопределение; PATCH только при изменении); счётчик лидов с плюрализацией; кнопка удаления `disabled` при единственном этапе
+- `components/pipeline/AddStageModal.tsx` — `POST /api/stages` (имя + обязательный цвет + опц. лимит); опция «Без цвета» убрана, дефолт — первый из палитры; добавление в список из ответа API; Toast при ошибке
+- `components/pipeline/DeleteStageModal.tsx` — `DELETE /api/stages/:id`; пустой этап (`leadsCount === 0`) — без `moveToStageId`; непустой — селект цели обязателен; обработка `LAST_STAGE` / `MOVE_TARGET_REQUIRED` понятными сообщениями
+- `components/pipeline/stageHelpers.ts` — **new**: `STAGE_COLOR_PALETTE`, `DEFAULT_STAGE_COLOR`, `formatLeadsCount`
+
+**Учтённые точки риска:**
+
+- Цвет обязателен — «Без цвета» удалён из `AddStageModal`; точка рендерится по hex, не Tailwind-классу
+- `stageTimeLimitDays` — три состояния: пустое поле шлёт `null` (сброс к дефолту компании); PATCH не отправляется, если значение не изменилось
+- Reorder без `SaveOrderButton` — немедленное сохранение на `dragEnd` со snapshot-откатом
+- Удаление: `confirmDisabled` только при `hasLeads && !targetStageId`; единственный этап — `canDelete={stages.length > 1}` в UI
+- `leadsCount` — SSR-snapshot через `_count.leads` (включая закрытые лиды), как в API
+
+**Out of scope (не делалось):** Kanban-доска `/pipeline`, `GET /api/pipeline/board`; смена этапа лида + `STAGE_CHANGED`; изменения бэкенда и миграций; новые компоненты в `components/admin/pipeline-settings/`
+
+**Проверки:** TypeScript компилируется без ошибок, без `any`
+
+---
+
 ## 2026-06-27 — Phase 8, Таск 1: API этапов воронки (CRUD + reorder + delete с переносом) + Zod
 
 **Статус:** ✅ Завершён
