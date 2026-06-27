@@ -36,6 +36,31 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-27 — Phase 8, Таск 1: API этапов воронки (CRUD + reorder + delete с переносом) + Zod
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/validations/stages.ts` — Zod-схемы: `STAGE_NAME_MAX_LENGTH` (100), `stageNameSchema`, `stageColorSchema` (hex `#rrggbb`); `createStageSchema`, `updateStageSchema` (`stageTimeLimitDays`: `.positive().nullable().optional()`), `reorderStagesSchema`, `deleteStageSchema`; типы через `z.infer<>`
+- `app/api/stages/route.ts` — заменён стаб: `GET` (MANAGER+): `{ id, name, color, order, stageTimeLimitDays, leadsCount }`, `orderBy: order`, `_count.leads`; `POST` (ADMIN): `order = (max(order) ?? -1) + 1`, ответ `{ ...stage, leadsCount: 0 }` со статусом 201
+- `app/api/stages/[id]/route.ts` — `PATCH` (ADMIN): `findFirst({ id, companyId })` → 404; `data` по присутствию ключей (`'name' in parsed.data` и т.д.); `DELETE` (ADMIN): гарды `LAST_STAGE` → `MOVE_TARGET_REQUIRED` → валидация `moveToStageId` (та же компания, `!== id`); `$transaction`: `updateMany(Lead.stageId)` + `delete(stage)`; без `Event`
+- `app/api/stages/reorder/route.ts` — `PATCH` (ADMIN): полное совпадение множества `orderedIds` с этапами компании; пересчёт `order` в `prisma.$transaction`; ответ — отсортированный список с `leadsCount`
+
+**Учтённые точки риска:**
+
+- `stageTimeLimitDays` — три состояния в Zod и PATCH через `'stageTimeLimitDays' in parsed.data`, не truthiness
+- DELETE без записи `Event` и без per-lead `STAGE_CHANGED` при bulk-переносе
+- Порядок гардов DELETE: `404` → `LAST_STAGE` → `MOVE_TARGET_REQUIRED` → валидация цели переноса
+- `moveToStageId` — та же компания и `!== id`; перенос + удаление в одной `$transaction`
+- Все мутации — `hasMinRole(..., 'ADMIN')`, чтение — `'MANAGER'`; `session.kind === 'company'` + `where: { companyId }`; чужой ресурс → 404
+
+**Out of scope (не делалось):** UI `/admin/pipeline-settings` и `components/pipeline/*` (Таск 2); `GET /api/pipeline/board`; смена этапа лида + `STAGE_CHANGED`; Prisma-миграции; `lib/pipeline/reorderStages.ts`
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-27 — Phase 7.5, Таск 2: UI управления причинами отказа в `/admin/settings`
 
 **Статус:** ✅ Завершён
