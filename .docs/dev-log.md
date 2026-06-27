@@ -36,6 +36,30 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-27 — Phase 10, Таск 3: UI — блокировка/разблокировка + смена роли + удаление
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `components/users/EditUserModal.tsx` — Client: полный рефактор; `role: PrismaUserRole` (не строка-лейбл); `RoleRadioGroup` (3 опции) вместо disabled Input; `StatusRadioGroup` для статуса; `PATCH /api/users/:id` только с изменившимися полями (`role` и/или `isBlocked`); `LAST_ADMIN` → сообщение в модалке; loading «Сохранение…»; `onSuccess()` вместо `onConfirm(status)`
+- `components/users/DeleteUserModal.tsx` — Client: реальный `DELETE /api/users/:id`; `409 USER_HAS_DATA` → «У пользователя есть данные. Заблокируйте вместо удаления»; `409 LAST_ADMIN` → «Нельзя удалить последнего администратора компании»; убран некорректный текст про лиды без менеджера; loading «Удаление…»; `onSuccess()` вместо `onConfirm()`
+- `components/users/UsersTable.tsx` — Client: `handleToggleBlock` → `PATCH /api/users/:id` с `{ isBlocked: !current }`; при `LAST_ADMIN` — toast; при успехе — `refetch()`; `handleEditSuccess` / `handleDeleteSuccess` → refetch + toast «Пользователь обновлён» / «Пользователь удалён»; кнопки edit / block / delete задизейблены для `user.id === currentUserId`; `EditUserModal` получает `role: editUser.role`; модалки — `onSuccess`
+
+**Учтённые точки риска:**
+
+- `role` передаётся как `PrismaUserRole`, не `getRoleLabel(...)` — `RoleRadioGroup` корректно инициализирует выбранную опцию
+- `handleToggleBlock` при `LAST_ADMIN` показывает toast (модалки нет — ошибка не теряется)
+- Кнопки для собственной строки (`isSelf`) задизейблены в UI — пользователь не видит «последний администратор» вместо «нельзя действовать на себя»
+- `onSuccess()` + `refetch()` вместо оптимистичного `onConfirm(status)` — таблица всегда синхронизирована с сервером после edit/delete
+- Текст в `DeleteUserModal` исправлен: «Пользователь будет удалён без возможности восстановления» (без ложного обещания про лиды)
+
+**Out of scope (не делалось):** смена email/имени; сброс пароля администратором; изменения схемы БД / FK; правила назначения и round-robin (Phase 11); привязка Telegram (Phase 13)
+
+**Проверки:** `npm run type-check` — без ошибок, без `any`
+
+---
+
 ## 2026-06-27 — Phase 10, Таск 2: UI `/admin/users` — список + создание (3 роли)
 
 **Статус:** ✅ Завершён

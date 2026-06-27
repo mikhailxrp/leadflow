@@ -35,12 +35,6 @@ export interface User {
   createdAt: string;
 }
 
-function getRoleLabel(role: PrismaUserRole): string {
-  if (role === 'ADMIN') return 'Администратор';
-  if (role === 'HEAD') return 'Руководитель';
-  return 'Менеджер';
-}
-
 function RoleBadge({ role }: { role: PrismaUserRole }): ReactNode {
   if (role === 'ADMIN') {
     return (
@@ -122,12 +116,24 @@ export default function UsersTable(props: UsersTableProps): ReactNode {
     setUsers(data.map(mapApiUserToUser));
   }
 
-  function handleToggleBlock(user: User): void {
-    setUsers((prev) =>
-      prev.map((item) =>
-        item.id === user.id ? { ...item, isBlocked: !item.isBlocked } : item,
-      ),
-    );
+  async function handleToggleBlock(user: User): Promise<void> {
+    const res = await fetch(`/api/users/${user.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isBlocked: !user.isBlocked }),
+    });
+
+    if (res.ok) {
+      await refetch();
+      return;
+    }
+
+    const data = (await res.json()) as { error?: string };
+    if (data.error === 'LAST_ADMIN') {
+      setToast('Нельзя заблокировать последнего администратора компании');
+    } else {
+      setToast('Произошла ошибка. Попробуйте ещё раз');
+    }
   }
 
   async function handleAddSuccess(): Promise<void> {
@@ -136,20 +142,16 @@ export default function UsersTable(props: UsersTableProps): ReactNode {
     setToast('Пользователь создан');
   }
 
-  function handleEditConfirm(status: UserStatus): void {
-    if (!editUser) return;
-    setUsers((prev) =>
-      prev.map((item) =>
-        item.id === editUser.id ? { ...item, isBlocked: status === 'blocked' } : item,
-      ),
-    );
+  async function handleEditSuccess(): Promise<void> {
+    await refetch();
     setEditUser(null);
+    setToast('Пользователь обновлён');
   }
 
-  function handleDeleteConfirm(): void {
-    if (!deleteUser) return;
-    setUsers((prev) => prev.filter((item) => item.id !== deleteUser.id));
+  async function handleDeleteSuccess(): Promise<void> {
+    await refetch();
     setDeleteUser(null);
+    setToast('Пользователь удалён');
   }
 
   return (
@@ -189,64 +191,70 @@ export default function UsersTable(props: UsersTableProps): ReactNode {
                   </td>
                 </tr>
               ) : (
-                users.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="border-b-[0.5px] border-[var(--color-border)] last:border-0"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar initials={getInitials(user.name)} size="md" />
-                        <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                          {user.name}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
-                      {user.email}
-                    </td>
-                    <td className="px-4 py-3">
-                      <RoleBadge role={user.role} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusCell isBlocked={user.isBlocked} />
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
-                      {user.createdAt}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <IconButton
-                          size="sm"
-                          onClick={() => setEditUser(user)}
-                          aria-label={`Редактировать ${user.name}`}
-                          icon={<Icon icon="tabler:edit" className="h-4 w-4" />}
-                        />
-                        <IconButton
-                          size="sm"
-                          onClick={() => handleToggleBlock(user)}
-                          aria-label={
-                            !user.isBlocked
-                              ? `Заблокировать ${user.name}`
-                              : `Разблокировать ${user.name}`
-                          }
-                          icon={
-                            <Icon
-                              icon={!user.isBlocked ? 'tabler:ban' : 'tabler:circle-check'}
-                              className="h-4 w-4"
-                            />
-                          }
-                        />
-                        <IconButton
-                          size="sm"
-                          onClick={() => setDeleteUser(user)}
-                          aria-label={`Удалить ${user.name}`}
-                          icon={<Icon icon="tabler:trash" className="h-4 w-4" />}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                users.map((user) => {
+                  const isSelf = user.id === props.currentUserId;
+                  return (
+                    <tr
+                      key={user.id}
+                      className="border-b-[0.5px] border-[var(--color-border)] last:border-0"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar initials={getInitials(user.name)} size="md" />
+                          <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
+                            {user.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
+                        {user.email}
+                      </td>
+                      <td className="px-4 py-3">
+                        <RoleBadge role={user.role} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusCell isBlocked={user.isBlocked} />
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
+                        {user.createdAt}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <IconButton
+                            size="sm"
+                            disabled={isSelf}
+                            onClick={() => setEditUser(user)}
+                            aria-label={`Редактировать ${user.name}`}
+                            icon={<Icon icon="tabler:edit" className="h-4 w-4" />}
+                          />
+                          <IconButton
+                            size="sm"
+                            disabled={isSelf}
+                            onClick={() => handleToggleBlock(user)}
+                            aria-label={
+                              !user.isBlocked
+                                ? `Заблокировать ${user.name}`
+                                : `Разблокировать ${user.name}`
+                            }
+                            icon={
+                              <Icon
+                                icon={!user.isBlocked ? 'tabler:ban' : 'tabler:circle-check'}
+                                className="h-4 w-4"
+                              />
+                            }
+                          />
+                          <IconButton
+                            size="sm"
+                            disabled={isSelf}
+                            onClick={() => setDeleteUser(user)}
+                            aria-label={`Удалить ${user.name}`}
+                            icon={<Icon icon="tabler:trash" className="h-4 w-4" />}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -263,11 +271,11 @@ export default function UsersTable(props: UsersTableProps): ReactNode {
             id: editUser.id,
             name: editUser.name,
             email: editUser.email,
-            role: getRoleLabel(editUser.role),
-            status: editUser.isBlocked ? 'blocked' : 'active',
+            role: editUser.role,
+            status: editUser.isBlocked ? 'blocked' : ('active' as UserStatus),
           }}
           onClose={() => setEditUser(null)}
-          onConfirm={handleEditConfirm}
+          onSuccess={handleEditSuccess}
         />
       )}
 
@@ -280,7 +288,7 @@ export default function UsersTable(props: UsersTableProps): ReactNode {
             initials: getInitials(deleteUser.name),
           }}
           onClose={() => setDeleteUser(null)}
-          onConfirm={handleDeleteConfirm}
+          onSuccess={handleDeleteSuccess}
         />
       )}
 
