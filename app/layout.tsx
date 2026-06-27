@@ -1,11 +1,6 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import '@fontsource-variable/inter';
 import './globals.css';
-
-const inter = Inter({
-  variable: '--font-sans',
-  subsets: ['latin', 'cyrillic'],
-});
 
 export const metadata: Metadata = {
   title: {
@@ -25,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="ru" className="h-full antialiased" suppressHydrationWarning>
       <head>
         {/* Анти-FOUC: применяем data-theme до гидрации React.
             Для платформенного раздела (/platform) — ключ theme_platform,

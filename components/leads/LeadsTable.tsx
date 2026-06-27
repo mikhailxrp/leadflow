@@ -97,6 +97,11 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
                 >
                   {lead.stage.name}
                 </span>
+                {lead.closeType === 'LOST' && lead.lossReason && (
+                  <p className="mt-1 text-[11px] text-[var(--color-text-secondary)] truncate max-w-[160px]">
+                    {lead.lossReason.label}
+                  </p>
+                )}
               </td>
 
               <td className="px-4 py-3">

@@ -189,6 +189,7 @@ export async function getLeadById(
           source: lead.source,
           createdAt: lead.createdAt.toISOString(),
           closeType: lead.closeType,
+          lossReason: lead.lossReason,
           hasDuplicate,
           firstMatchedLeadId: null,
           assignedTo: lead.assignedTo,

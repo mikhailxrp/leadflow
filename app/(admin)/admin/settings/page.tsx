@@ -4,6 +4,7 @@ import { PageContent } from '@/components/layout/AppLayout';
 import IconButton from '@/components/ui/IconButton';
 import SettingsSections, { SettingsDirtyProvider } from '@/components/settings/SettingsClientArea';
 import SystemSection from '@/components/settings/SystemSection';
+import LossReasonsSection from '@/components/settings/LossReasonsSection';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
@@ -36,10 +37,29 @@ export default async function AdminSettingsPage() {
     redirect('/login');
   }
 
-  const company = await prisma.company.findUniqueOrThrow({
-    where: { id: session.user.companyId },
-    select: { name: true, nextPaymentAt: true },
-  });
+  const { companyId } = session.user;
+
+  const [company, lossReasonsRaw] = await Promise.all([
+    prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      select: { name: true, nextPaymentAt: true },
+    }),
+    prisma.lossReason.findMany({
+      where: { companyId },
+      orderBy: { order: 'asc' },
+      select: {
+        id: true,
+        label: true,
+        order: true,
+        _count: { select: { leads: true } },
+      },
+    }),
+  ]);
+
+  const lossReasons = lossReasonsRaw.map(({ _count, ...rest }) => ({
+    ...rest,
+    inUse: _count.leads > 0,
+  }));
 
   return (
     <>
@@ -58,12 +78,13 @@ export default async function AdminSettingsPage() {
       </header>
 
       <PageContent>
-        <SettingsDirtyProvider>
-          <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
+          <LossReasonsSection initialReasons={lossReasons} />
+          <SettingsDirtyProvider>
             <SettingsSections />
             <SystemSection companyName={company.name} nextPaymentAt={company.nextPaymentAt} />
-          </div>
-        </SettingsDirtyProvider>
+          </SettingsDirtyProvider>
+        </div>
       </PageContent>
     </>
   );

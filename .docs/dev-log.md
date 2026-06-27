@@ -36,6 +36,56 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-27 — Phase 7.5, Таск 2: UI управления причинами отказа в `/admin/settings`
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/api/loss-reasons/route.ts` — `GET` расширен: `{ id, label, order, inUse }` (`inUse` через `_count.leads > 0`); контракт `{ id, label }` для модалки закрытия не сломан
+- `components/settings/LossReasonsSection.tsx` — Server Component: `SettingsCard` + `LossReasonsList`, проп `initialReasons`
+- `components/settings/LossReasonsList.tsx` — Client, первый sortable-список проекта (`@dnd-kit/core` + `@dnd-kit/sortable`): drag handle отдельно от строки; инлайн-переименование (click → input → blur/Enter → `PATCH`); добавление (`POST`); удаление с подтверждением (`DELETE`); reorder — полный `orderedIds` → `PATCH /api/loss-reasons/reorder`; оптимистичное обновление + откат + `Toast`
+- `app/(admin)/admin/settings/page.tsx` — SSR-выборка `lossReason.findMany` с `order` и `_count.leads`; `LossReasonsSection` **вне** `SettingsDirtyProvider`; `SettingsSections` + `SystemSection` — внутри
+- `lib/leads/closeLead.ts` — tenant-check: `lossReason.findFirst({ where: { id, companyId } })` → `ValidationError('LOSS_REASON_INVALID')`
+
+**Учтённые точки риска:**
+
+- `LossReasonsSection` не внутри `SettingsDirtyProvider` — немедленное сохранение, без batch «Сохранить изменения»
+- Reorder отправляет полный массив id в новом порядке (требование API)
+- `inUse` — SSR-snapshot; параллельное закрытие лида ловится через `400 LOSS_REASON_IN_USE` + Toast, без отката списка
+- `listeners` sortable — только на drag handle; клик по label — `onPointerDown stopPropagation` + редактирование
+
+**Out of scope (не делалось):** настройки распределения/уведомлений/нормативов; `/control`; Prisma-миграции; `lib/validations/lossReasons.ts` (из таска 1)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
+## 2026-06-27 — Phase 7.5, Таск 1: CRUD API причин отказа + инвариант удаления
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/validations/lossReasons.ts` — Zod-схемы `createLossReasonSchema`, `updateLossReasonSchema`, `reorderLossReasonsSchema`; `label`: `trim`, `min(1)`, `max(200)`; типы через `z.infer<>`
+- `app/api/loss-reasons/route.ts` — `GET` без изменений (MANAGER+, `{ id, label }`, `orderBy: order`); `POST` (ADMIN): `order = (max(order) ?? -1) + 1`, ответ `{ id, label, order }` со статусом 201
+- `app/api/loss-reasons/[id]/route.ts` — `PATCH` (ADMIN): переименование по `updateLossReasonSchema`, `where: { id, companyId }` → 404; `DELETE` (ADMIN): `count(Lead where { lossReasonId, companyId })` до удаления → `400 LOSS_REASON_IN_USE` при использовании
+- `app/api/loss-reasons/reorder/route.ts` — `PATCH` (ADMIN): валидация полного совпадения множества `orderedIds` с причинами компании; пересчёт `order` в `prisma.$transaction`; ответ — обновлённый список
+
+**Учтённые точки риска:**
+
+- Разный порог доступа: `GET` — `hasMinRole(..., 'MANAGER')`, мутации — `'ADMIN'` (модалка «Закрыть отказом» у менеджера не сломана)
+- `DELETE` — явный `count` до удаления, не FK-constraint
+- `reorder` — отдельный статический маршрут `reorder/`, не внутри `[id]`; сравнение множеств id без частичного апдейта
+- Все запросы — `session.kind === 'company'` + `where: { companyId }`; чужой ресурс → 404
+- CRUD не пишет события (`LOSS_REASON_*` нет в `EventType`)
+
+**Out of scope (не делалось):** UI `LossReasonsList.tsx` (таск 2 фазы 7.5); tenant-fix `closeLead` (`LOSS_REASON_INVALID`); Prisma-миграции; уникальность `label`; события в `events`
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-27 — Phase 7, Таск 4: getLeadById + UI карточки + история + дубли + финальная сборка
 
 **Статус:** ✅ Завершён
