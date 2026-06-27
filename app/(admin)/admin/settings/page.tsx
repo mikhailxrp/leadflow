@@ -5,6 +5,7 @@ import IconButton from '@/components/ui/IconButton';
 import SettingsSections, { SettingsDirtyProvider } from '@/components/settings/SettingsClientArea';
 import SystemSection from '@/components/settings/SystemSection';
 import LossReasonsSection from '@/components/settings/LossReasonsSection';
+import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
@@ -35,6 +36,10 @@ export default async function AdminSettingsPage() {
   const session = await auth();
   if (!session || session.kind !== 'company' || !session.user) {
     redirect('/login');
+  }
+
+  if (!hasMinRole(session.user.role, 'ADMIN')) {
+    redirect('/today');
   }
 
   const { companyId } = session.user;
