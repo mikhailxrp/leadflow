@@ -2,39 +2,60 @@
 
 import { useState, type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
+import type { UserRole as PrismaUserRole } from '@prisma/client';
 import Button from '@/components/ui/Button';
 import IconButton from '@/components/ui/IconButton';
 import Avatar from '@/components/ui/Avatar';
+import Toast from '@/components/ui/Toast';
 import AddUserModal from '@/components/users/AddUserModal';
 import DeleteUserModal from '@/components/users/DeleteUserModal';
 import EditUserModal from '@/components/users/EditUserModal';
 import type { UserStatus } from '@/components/users/userModalShared';
 
-export type UserRole = 'admin' | 'manager';
+export type ApiUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: PrismaUserRole;
+  isBlocked: boolean;
+  createdAt: string;
+};
+
+interface UsersTableProps {
+  initialUsers: ApiUser[];
+  currentUserId: string;
+}
 
 export interface User {
   id: string;
-  initials: string;
   name: string;
   email: string;
-  role: UserRole;
-  status: UserStatus;
+  role: PrismaUserRole;
+  isBlocked: boolean;
   createdAt: string;
 }
 
-function getRoleLabel(role: UserRole): string {
-  return role === 'admin' ? 'Администратор' : 'Менеджер';
+function getRoleLabel(role: PrismaUserRole): string {
+  if (role === 'ADMIN') return 'Администратор';
+  if (role === 'HEAD') return 'Руководитель';
+  return 'Менеджер';
 }
 
-function RoleBadge({ role }: { role: UserRole }): ReactNode {
-  if (role === 'admin') {
+function RoleBadge({ role }: { role: PrismaUserRole }): ReactNode {
+  if (role === 'ADMIN') {
     return (
       <span className="inline-flex rounded-[20px] bg-[#D1FAE5] px-2.5 py-1 text-[12px] font-medium text-[#065F46]">
         Администратор
       </span>
     );
   }
-
+  if (role === 'HEAD') {
+    return (
+      <span className="inline-flex rounded-[20px] bg-[#DBEAFE] px-2.5 py-1 text-[12px] font-medium text-[#1E40AF]">
+        Руководитель
+      </span>
+    );
+  }
   return (
     <span className="inline-flex rounded-[20px] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-text-secondary)]">
       Менеджер
@@ -42,22 +63,40 @@ function RoleBadge({ role }: { role: UserRole }): ReactNode {
   );
 }
 
-function StatusCell({ status }: { status: UserStatus }): ReactNode {
-  const isActive = status === 'active';
-
+function StatusCell({ isBlocked }: { isBlocked: boolean }): ReactNode {
   return (
     <div className="flex items-center gap-2">
       <span
-        className={`h-1.5 w-1.5 shrink-0 rounded-full ${isActive ? 'bg-[#10B981]' : 'bg-[#94A3B8]'}`}
+        className={`h-1.5 w-1.5 shrink-0 rounded-full ${!isBlocked ? 'bg-[#10B981]' : 'bg-[#94A3B8]'}`}
         aria-hidden="true"
       />
       <span
-        className={`text-[13px] ${isActive ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'}`}
+        className={`text-[13px] ${!isBlocked ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'}`}
       >
-        {isActive ? 'Активен' : 'Заблокирован'}
+        {!isBlocked ? 'Активен' : 'Заблокирован'}
       </span>
     </div>
   );
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function mapApiUserToUser(user: ApiUser): User {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    isBlocked: user.isBlocked,
+    createdAt: new Date(user.createdAt).toLocaleDateString('ru-RU'),
+  };
 }
 
 const TABLE_COLUMNS = [
@@ -69,64 +108,46 @@ const TABLE_COLUMNS = [
   'ДЕЙСТВИЯ',
 ] as const;
 
-export default function UsersTable(): ReactNode {
-  const [users, setUsers] = useState<User[]>([]);
+export default function UsersTable(props: UsersTableProps): ReactNode {
+  const [users, setUsers] = useState<User[]>(() => props.initialUsers.map(mapApiUserToUser));
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  async function refetch(): Promise<void> {
+    const res = await fetch('/api/users');
+    if (!res.ok) return;
+    const data = (await res.json()) as ApiUser[];
+    setUsers(data.map(mapApiUserToUser));
+  }
 
   function handleToggleBlock(user: User): void {
-    // TODO: блокировка через API
-    console.log('Toggle block', { id: user.id, status: user.status === 'active' ? 'blocked' : 'active' });
     setUsers((prev) =>
       prev.map((item) =>
-        item.id === user.id
-          ? { ...item, status: item.status === 'active' ? 'blocked' : 'active' }
-          : item,
+        item.id === user.id ? { ...item, isBlocked: !item.isBlocked } : item,
       ),
     );
   }
 
-  function handleAddConfirm(data: {
-    name: string;
-    email: string;
-    password: string;
-    status: UserStatus;
-  }): void {
-    const initials = data.name
-      .split(' ')
-      .map((part) => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
-
-    setUsers((prev) => [
-      ...prev,
-      {
-        id: String(Date.now()),
-        initials,
-        name: data.name,
-        email: data.email,
-        role: 'manager',
-        status: data.status,
-        createdAt: new Date().toLocaleDateString('ru-RU'),
-      },
-    ]);
+  async function handleAddSuccess(): Promise<void> {
+    await refetch();
     setIsAddOpen(false);
+    setToast('Пользователь создан');
   }
 
   function handleEditConfirm(status: UserStatus): void {
     if (!editUser) return;
-
     setUsers((prev) =>
-      prev.map((item) => (item.id === editUser.id ? { ...item, status } : item)),
+      prev.map((item) =>
+        item.id === editUser.id ? { ...item, isBlocked: status === 'blocked' } : item,
+      ),
     );
     setEditUser(null);
   }
 
   function handleDeleteConfirm(): void {
     if (!deleteUser) return;
-
     setUsers((prev) => prev.filter((item) => item.id !== deleteUser.id));
     setDeleteUser(null);
   }
@@ -138,7 +159,7 @@ export default function UsersTable(): ReactNode {
           Пользователи
         </h1>
         <Button size="md" type="button" onClick={() => setIsAddOpen(true)}>
-          ＋ Добавить менеджера
+          ＋ Добавить пользователя
         </Button>
       </div>
 
@@ -175,7 +196,7 @@ export default function UsersTable(): ReactNode {
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <Avatar initials={user.initials} size="md" />
+                        <Avatar initials={getInitials(user.name)} size="md" />
                         <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                           {user.name}
                         </span>
@@ -188,7 +209,7 @@ export default function UsersTable(): ReactNode {
                       <RoleBadge role={user.role} />
                     </td>
                     <td className="px-4 py-3">
-                      <StatusCell status={user.status} />
+                      <StatusCell isBlocked={user.isBlocked} />
                     </td>
                     <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
                       {user.createdAt}
@@ -204,10 +225,14 @@ export default function UsersTable(): ReactNode {
                         <IconButton
                           size="sm"
                           onClick={() => handleToggleBlock(user)}
-                          aria-label={user.status === 'active' ? `Заблокировать ${user.name}` : `Разблокировать ${user.name}`}
+                          aria-label={
+                            !user.isBlocked
+                              ? `Заблокировать ${user.name}`
+                              : `Разблокировать ${user.name}`
+                          }
                           icon={
                             <Icon
-                              icon={user.status === 'active' ? 'tabler:ban' : 'tabler:circle-check'}
+                              icon={!user.isBlocked ? 'tabler:ban' : 'tabler:circle-check'}
                               className="h-4 w-4"
                             />
                           }
@@ -229,7 +254,7 @@ export default function UsersTable(): ReactNode {
       </div>
 
       {isAddOpen && (
-        <AddUserModal onClose={() => setIsAddOpen(false)} onConfirm={handleAddConfirm} />
+        <AddUserModal onClose={() => setIsAddOpen(false)} onSuccess={handleAddSuccess} />
       )}
 
       {editUser && (
@@ -239,7 +264,7 @@ export default function UsersTable(): ReactNode {
             name: editUser.name,
             email: editUser.email,
             role: getRoleLabel(editUser.role),
-            status: editUser.status,
+            status: editUser.isBlocked ? 'blocked' : 'active',
           }}
           onClose={() => setEditUser(null)}
           onConfirm={handleEditConfirm}
@@ -252,12 +277,14 @@ export default function UsersTable(): ReactNode {
             id: deleteUser.id,
             name: deleteUser.name,
             email: deleteUser.email,
-            initials: deleteUser.initials,
+            initials: getInitials(deleteUser.name),
           }}
           onClose={() => setDeleteUser(null)}
           onConfirm={handleDeleteConfirm}
         />
       )}
+
+      {toast && <Toast title={toast} onClose={() => setToast(null)} />}
     </>
   );
 }
