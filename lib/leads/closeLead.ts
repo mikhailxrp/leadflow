@@ -32,6 +32,11 @@ export async function closeLead({
       throw new ValidationError('LOSS_REASON_REQUIRED');
     }
 
+    if (closeType === 'LOST' && lossReasonId) {
+      const reason = await tx.lossReason.findFirst({ where: { id: lossReasonId, companyId } });
+      if (!reason) throw new ValidationError('LOSS_REASON_INVALID');
+    }
+
     await tx.lead.updateMany({
       where: { id: leadId, companyId },
       data: {

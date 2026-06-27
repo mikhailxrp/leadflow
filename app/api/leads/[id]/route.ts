@@ -121,6 +121,7 @@ function toLeadListItem(lead: LeadCardRecord): LeadListItem {
     source: lead.source,
     createdAt: lead.createdAt.toISOString(),
     closeType: lead.closeType,
+    lossReason: lead.lossReason,
     hasDuplicate: lead._count.duplicateFlagsAsLead > 0,
     firstMatchedLeadId: null,
     assignedTo: lead.assignedTo,

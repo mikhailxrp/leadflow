@@ -23,6 +23,7 @@ export type LeadListItem = {
   source: string;
   createdAt: string;
   closeType: CloseType | null;
+  lossReason: { id: string; label: string } | null;
   hasDuplicate: boolean;
   firstMatchedLeadId: string | null;
   assignedTo: { id: string; name: string } | null;
@@ -196,6 +197,9 @@ export async function getLeads(
         source: true,
         createdAt: true,
         closeType: true,
+        lossReason: {
+          select: { id: true, label: true },
+        },
         assignedTo: {
           select: {
             id: true,
@@ -232,6 +236,7 @@ export async function getLeads(
     source: lead.source,
     createdAt: lead.createdAt.toISOString(),
     closeType: lead.closeType,
+    lossReason: lead.lossReason,
     hasDuplicate: lead._count.duplicateFlagsAsLead > 0,
     firstMatchedLeadId: lead.duplicateFlagsAsLead[0]?.matchedLeadId ?? null,
     assignedTo: lead.assignedTo,

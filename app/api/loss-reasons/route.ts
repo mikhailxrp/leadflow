@@ -26,10 +26,20 @@ export async function GET(): Promise<Response> {
     const lossReasons = await prisma.lossReason.findMany({
       where: { companyId },
       orderBy: { order: 'asc' },
-      select: { id: true, label: true },
+      select: {
+        id: true,
+        label: true,
+        order: true,
+        _count: { select: { leads: true } },
+      },
     });
 
-    return Response.json(lossReasons);
+    return Response.json(
+      lossReasons.map(({ _count, ...rest }) => ({
+        ...rest,
+        inUse: _count.leads > 0,
+      })),
+    );
   } catch (error) {
     console.error('[GET /api/loss-reasons] failed:', error);
     return Response.json({ error: 'INTERNAL_ERROR' }, { status: 500 });
