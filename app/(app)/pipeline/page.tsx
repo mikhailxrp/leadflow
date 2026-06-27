@@ -1,9 +1,16 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { PageContent } from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import PipelineBoard from '@/components/pipeline/PipelineBoard';
 import IconButton from '@/components/ui/IconButton';
+import { hasMinRole } from '@/constants/roles';
+import { auth } from '@/lib/auth';
+import { getManagers } from '@/lib/leads/getManagers';
+import { getLeadVisibility } from '@/lib/leads/visibilityFilter';
+import { getBoardData } from '@/lib/pipeline/boardQuery';
+import { prisma } from '@/lib/prisma';
 
 const PIPELINE_SETTINGS_PATH = '/admin/pipeline-settings';
 
@@ -74,7 +81,39 @@ function SettingsIcon() {
   );
 }
 
-export default function PipelinePage() {
+export default async function PipelinePage() {
+  const session = await auth();
+
+  if (!session || session.kind !== 'company' || !session.user) {
+    redirect('/login');
+  }
+
+  const { companyId, id: userId, role } = session.user;
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { settings: true },
+  });
+
+  if (!company) {
+    redirect('/login');
+  }
+
+  const leadVisibility = getLeadVisibility(company.settings);
+  const showManagerFilter = hasMinRole(role, 'HEAD') || leadVisibility === 'ALL';
+
+  const [{ columns }, managers] = await Promise.all([
+    getBoardData({
+      companyId,
+      userId,
+      role,
+      leadVisibility,
+      companySettings: company.settings,
+      includeClosed: false,
+    }),
+    showManagerFilter ? getManagers(companyId) : Promise.resolve([]),
+  ]);
+
   return (
     <>
       <PageHeader
@@ -108,7 +147,11 @@ export default function PipelinePage() {
       />
 
       <PageContent>
-        <PipelineBoard />
+        <PipelineBoard
+          initialColumns={columns}
+          managers={managers}
+          showManagerFilter={showManagerFilter}
+        />
       </PageContent>
     </>
   );

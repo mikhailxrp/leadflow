@@ -59,8 +59,13 @@ export const commentSchema = z.object({
   text: z.string().trim().min(1).max(5000),
 });
 
+export const changeStageSchema = z.object({
+  stageId: z.string().min(1),
+});
+
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export type LeadsQueryInput = z.infer<typeof leadsQuerySchema>;
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 export type CloseLeadInput = z.infer<typeof closeLeadSchema>;
 export type CommentInput = z.infer<typeof commentSchema>;
+export type ChangeStageInput = z.infer<typeof changeStageSchema>;

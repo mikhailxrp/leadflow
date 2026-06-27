@@ -36,6 +36,80 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-27 — Phase 9, Таск 3: Фильтр по ответственному + видимость по роли + адаптивность
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/(app)/pipeline/page.tsx` — Server Component: параллельный fetch `getBoardData` + `getManagers(companyId)` (менеджеры только при `showManagerFilter`); `showManagerFilter = hasMinRole(role, 'HEAD') || leadVisibility === 'ALL'`; проброс `managers` и `showManagerFilter` в `<PipelineBoard>`
+- `components/pipeline/PipelineBoard.tsx` — Client: пропсы `managers: ManagerOption[]`, `showManagerFilter: boolean`; state `selectedManagerId: string | null`; хелпер `buildBoardUrl(includeClosed, assignedToId)` для единого построения URL re-fetch; `refetchBoard` — общая загрузка доски; селект «Ответственный» в toolbar (только при `showManagerFilter`); `handleManagerChange` → re-fetch с `assignedToId`, сохраняет `includeClosed`; `handleToggleClosed` через `buildBoardUrl` — сохраняет `selectedManagerId`; контейнер колонок `flex-col gap-4 md:flex-row md:overflow-x-auto`
+- `components/pipeline/PipelineColumn.tsx` — ширина `w-full md:w-[272px] md:flex-shrink-0` вместо фиксированного `w-[272px] flex-shrink-0`
+
+**Учтённые точки риска:**
+
+- Комбинирование фильтров — единый `buildBoardUrl` + `refetchBoard`; toggle «Показать закрытые» и смена менеджера передают оба параметра (`includeClosed`, `assignedToId`)
+- Видимость селекта — `showManagerFilter` вычисляется на сервере в `page.tsx`, не дублируется на клиенте; MANAGER с `leadVisibility=OWN` селект не видит
+- Ширина колонок на мобильном — `w-full` в вертикальном стеке, `md:w-[272px]` на десктопе
+- Фильтр `assignedToId` не расширяет видимость — ограничение на сервере через `visibilityWhere` в `boardQuery` (без изменений API)
+
+**Out of scope (не делалось):** назначение/переназначение менеджера на лид; CRUD этапов (`/api/stages/*`, `/admin/pipeline-settings`); промпт создания задачи при смене этапа; изменения `boardQuery.ts` и `GET /api/pipeline/board`
+
+**Проверки:** `npx tsc --noEmit` — без ошибок, без `any`
+
+---
+
+## 2026-06-27 — Phase 9, Таск 2: Kanban UI — реальные данные + drag-and-drop + зависшие карточки
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/(app)/pipeline/page.tsx` — Server Component: `auth()` + `getLeadVisibility`; Prisma-выборка `company.settings`; SSR через `getBoardData({ includeClosed: false })`; передача `initialColumns` в `<PipelineBoard>`
+- `components/pipeline/PipelineBoard.tsx` — Client: `initialColumns: BoardColumn[]` → `useState`; типы `BoardColumn[]` / `BoardLeadCard`; `handleDragEnd` — async с захватом `prevColumns` до `setColumns`, optimistic update, `PATCH /api/leads/:id/stage`, откат + Toast при ошибке; reorder внутри колонки без API; `handleCardClick` → `router.push('/leads/${id}')`; чекбокс «Показать закрытые» — client fetch `/api/pipeline/board?includeClosed=true`, полная замена `columns`; empty state «Нет этапов воронки»; убраны заглушки Phase 8/9, `console.log`, `TODO`
+- `components/pipeline/PipelineColumn.tsx` — `BoardLeadCard` из `boardQuery`; `color: string` (hex) → полоска `style={{ backgroundColor: color }}`; `avgDaysOnStage` в формате «X дн.» / «—»; счётчик `leads.length`; экспорт `PipelineLead` удалён
+- `components/pipeline/PipelineCard.tsx` — реальные поля: `risk`, `closeType`, `assignedTo`, `source`; `<RiskBadge level reason />`; закрытая карточка: `useSortable({ id, disabled: closeType !== null })`, серое оформление (`opacity-60`, `cursor-default`); `PipelineCardOverlay` синхронизирован; удалены `tags`, `manager`, `TAG_STYLES`, `PipelineTag`
+
+**Учтённые точки риска:**
+
+- Откат при ошибке API — через `const prevColumns = columns` до optimistic `setColumns`, не через замыкание после update
+- `PipelineLead` и импорт из `PipelineColumn` удалены — единый тип `BoardLeadCard`
+- Закрытые карточки остаются в `SortableContext items`, drag отключён через `disabled: true`
+- «Показать закрытые» — полная замена state с сервера, без мёржа с optimistic-состоянием
+- `PipelineCardOverlay` обновлён в том же проходе, что и `PipelineCard`
+
+**Out of scope (не делалось):** фильтр по ответственному; видимость MANAGER OWN vs HEAD/ADMIN ALL в UI; адаптивность / вертикальный стек на мобильном; промпт создания задачи при смене этапа; CRUD этапов (`/admin/pipeline-settings`, `/api/stages/*`)
+
+**Проверки:** `npm run type-check` — без ошибок, без `any`
+
+---
+
+## 2026-06-27 — Phase 9, Таск 1: API смены этапа + данные доски
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/validations/leads.ts` — `changeStageSchema` (`{ stageId }`) + тип `ChangeStageInput`; `updateLeadSchema` и остальные схемы не тронуты
+- `lib/validations/pipeline.ts` — **new**: `boardQuerySchema` (`includeClosed: z.coerce.boolean().default(false)`, `assignedToId` опц.) + `BoardQueryInput`
+- `app/api/leads/[id]/stage/route.ts` — **new**: `PATCH` (MANAGER+): `params` через `Promise` (Next.js 16); `visibilityWhere` из `company.settings.leadVisibility`; гарды `404` / `LEAD_CLOSED` / `INVALID_STAGE`; no-op при том же этапе; `$transaction`: `tx.lead.update` + `tx.event.create(STAGE_CHANGED, { fromStageId, toStageId })`; `impersonatedByPlatformAdminId` из сессии до транзакции
+- `lib/pipeline/boardQuery.ts` — **new**: `getBoardData({ companyId, session, leadVisibility, companySettings, includeClosed?, assignedToId? })`; этапы по `order`; лиды с полным `LeadListItem`-select; риск через `computeRiskBatch`; `STAGE_CHANGED` — один `findMany` по всем `leadIds`; `avgDaysOnStage` = `avg(now − (lastStageChangedAt ?? createdAt))`, пустая колонка → `null`; ответ `{ columns: BoardColumn[] }` с `BoardLeadCard` (`risk`, `closeType`, контакты, `assignedTo`)
+- `app/api/pipeline/board/route.ts` — **new**: `GET` (company-сессия, MANAGER+); query через `boardQuerySchema`; делегирует в `getBoardData`
+
+**Учтённые точки риска:**
+
+- Смена этапа — `tx.event.create`, не `writeEvent` (событие внутри атомарной транзакции)
+- `computeRiskBatch` получает полный `LeadListItem[]` (дубли, `lossReason`, `stage.stageTimeLimitDays` и т.д.)
+- `includeClosed` снимает только `{ closeType: null }`; `visibilityWhere` применяется всегда
+- Целевой этап проверяется `pipelineStage.findFirst({ id, companyId })` — нельзя переместить в чужой этап
+- Пустая колонка → `avgDaysOnStage: null`, не `0` и не `NaN`
+
+**Out of scope (не делалось):** UI Kanban (`PipelineBoard`, `PipelineColumn`, `PipelineCard`, `page.tsx`); drag-and-drop; переключатель «Показать закрытые» в UI; фильтр по ответственному в UI; адаптивность; CRUD этапов (`/api/stages/*`); рефакторинг `writeEvent`
+
+**Проверки:** `npm run type-check` — без ошибок, без `any`
+
+---
+
 ## 2026-06-27 — Phase 8, Таск 2: UI `/admin/pipeline-settings` поверх существующего каркаса
 
 **Статус:** ✅ Завершён

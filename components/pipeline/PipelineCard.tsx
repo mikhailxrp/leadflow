@@ -3,36 +3,17 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { type CSSProperties, type ReactNode } from 'react';
-
-const TAG_STYLES: Record<string, { bgClass: string; textClass: string }> = {
-  Сайт: { bgClass: 'bg-[#EFF6FF]', textClass: 'text-[#1D4ED8]' },
-  Telegram: { bgClass: 'bg-[#E0F2FE]', textClass: 'text-[#0284C7]' },
-  Горячий: { bgClass: 'bg-[#FEF2F2]', textClass: 'text-[#DC2626]' },
-  Звонок: { bgClass: 'bg-[#ECFDF5]', textClass: 'text-[#065F46]' },
-  Уточнить: { bgClass: 'bg-[#FEFCE8]', textClass: 'text-[#A16207]' },
-  Email: { bgClass: 'bg-[var(--color-bg-surface)]', textClass: 'text-[var(--color-text-secondary)]' },
-  Выставка: { bgClass: 'bg-[#F5F3FF]', textClass: 'text-[#6D28D9]' },
-  VK: { bgClass: 'bg-[#EFF6FF]', textClass: 'text-[#1D4ED8]' },
-  Перезвонить: { bgClass: 'bg-[#FFFBEB]', textClass: 'text-[#B45309]' },
-  Тендер: { bgClass: 'bg-[#EFF6FF]', textClass: 'text-[#1D4ED8]' },
-  'КП отправлено': { bgClass: 'bg-[#ECFDF5]', textClass: 'text-[#065F46]' },
-  Встреча: { bgClass: 'bg-[#EFF6FF]', textClass: 'text-[#1D4ED8]' },
-  Партнёры: { bgClass: 'bg-[#ECFDF5]', textClass: 'text-[#065F46]' },
-  Договор: { bgClass: 'bg-[#ECFDF5]', textClass: 'text-[#065F46]' },
-  Рекомендация: { bgClass: 'bg-[#FEF2F2]', textClass: 'text-[#DC2626]' },
-  Оплачено: { bgClass: 'bg-[#F0FDF4]', textClass: 'text-[#166534]' },
-};
-
-const DEFAULT_TAG_STYLE = {
-  bgClass: 'bg-[var(--color-bg-surface)]',
-  textClass: 'text-[var(--color-text-secondary)]',
-};
+import type { CloseType } from '@prisma/client';
+import RiskBadge from '@/components/leads/RiskBadge';
+import type { RiskLevel } from '@/lib/risk/computeRisk';
 
 interface PipelineCardContentProps {
-  name: string;
-  phone: string;
-  tags: string[];
-  manager: string;
+  name: string | null;
+  phone: string | null;
+  source: string;
+  assignedTo: { id: string; name: string } | null;
+  risk: { level: RiskLevel; reason: string | null };
+  closeType: CloseType | null;
 }
 
 function PersonIcon(): ReactNode {
@@ -54,44 +35,40 @@ function PersonIcon(): ReactNode {
   );
 }
 
-function PipelineTag({ label }: { label: string }): ReactNode {
-  const style = TAG_STYLES[label] ?? DEFAULT_TAG_STYLE;
-
-  return (
-    <span
-      className={`
-        inline-flex items-center rounded-[4px] px-1.5 py-0.5
-        text-[11px] font-medium
-        ${style.bgClass} ${style.textClass}
-      `}
-    >
-      {label}
-    </span>
-  );
-}
-
-export function PipelineCardContent({
+function PipelineCardContent({
   name,
   phone,
-  tags,
-  manager,
+  source,
+  assignedTo,
+  risk,
 }: PipelineCardContentProps): ReactNode {
   return (
     <>
-      <p className="text-[13px] font-medium text-[var(--color-text-primary)]">{name}</p>
-      <p className="mt-1 text-[12px] text-[var(--color-text-secondary)]">{phone}</p>
+      <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
+        {name ?? '—'}
+      </p>
+      <p className="mt-1 text-[12px] text-[var(--color-text-secondary)]">
+        {phone ?? '—'}
+      </p>
 
-      {tags.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {tags.map((tag) => (
-            <PipelineTag key={tag} label={tag} />
-          ))}
+      <div className="mt-2">
+        <span
+          className="
+            inline-flex items-center rounded-[4px] px-1.5 py-0.5
+            text-[11px] font-medium
+            bg-[var(--color-bg-surface-2)] text-[var(--color-text-secondary)]
+          "
+        >
+          {source}
+        </span>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-1">
+        <div className="flex min-w-0 items-center gap-1 text-[11px] text-[var(--color-text-tertiary)]">
+          <PersonIcon />
+          <span className="truncate">{assignedTo?.name ?? '—'}</span>
         </div>
-      )}
-
-      <div className="mt-2 flex items-center gap-1 text-[11px] text-[var(--color-text-tertiary)]">
-        <PersonIcon />
-        <span>{manager}</span>
+        <RiskBadge level={risk.level} reason={risk.reason} />
       </div>
     </>
   );
@@ -107,8 +84,10 @@ interface PipelineCardShellProps extends PipelineCardContentProps {
 function PipelineCardShell({
   name,
   phone,
-  tags,
-  manager,
+  source,
+  assignedTo,
+  risk,
+  closeType,
   className = '',
   style,
   dragHandleProps,
@@ -141,8 +120,10 @@ function PipelineCardShell({
       <PipelineCardContent
         name={name}
         phone={phone}
-        tags={tags}
-        manager={manager}
+        source={source}
+        assignedTo={assignedTo}
+        risk={risk}
+        closeType={closeType}
       />
     </article>
   );
@@ -150,10 +131,12 @@ function PipelineCardShell({
 
 interface PipelineCardProps {
   id: string;
-  name: string;
-  phone: string;
-  tags: string[];
-  manager: string;
+  name: string | null;
+  phone: string | null;
+  source: string;
+  assignedTo: { id: string; name: string } | null;
+  risk: { level: RiskLevel; reason: string | null };
+  closeType: CloseType | null;
   onClick?: (id: string) => void;
 }
 
@@ -161,10 +144,14 @@ export default function PipelineCard({
   id,
   name,
   phone,
-  tags,
-  manager,
+  source,
+  assignedTo,
+  risk,
+  closeType,
   onClick,
 }: PipelineCardProps): ReactNode {
+  const isClosed = closeType !== null;
+
   const {
     attributes,
     listeners,
@@ -172,7 +159,7 @@ export default function PipelineCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, disabled: isClosed });
 
   const dragStyle: CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -184,12 +171,17 @@ export default function PipelineCard({
       <PipelineCardShell
         name={name}
         phone={phone}
-        tags={tags}
-        manager={manager}
-        dragHandleProps={{ ...attributes, ...listeners }}
+        source={source}
+        assignedTo={assignedTo}
+        risk={risk}
+        closeType={closeType}
+        dragHandleProps={isClosed ? undefined : { ...attributes, ...listeners }}
         onClick={() => onClick?.(id)}
         className={`
-          cursor-grab hover:border-[var(--color-primary)]
+          ${isClosed
+            ? 'cursor-default opacity-60'
+            : 'cursor-grab hover:border-[var(--color-primary)]'
+          }
           ${isDragging ? 'opacity-50' : ''}
         `}
       />
@@ -197,18 +189,24 @@ export default function PipelineCard({
   );
 }
 
+export type PipelineCardOverlayProps = PipelineCardContentProps;
+
 export function PipelineCardOverlay({
   name,
   phone,
-  tags,
-  manager,
-}: PipelineCardContentProps): ReactNode {
+  source,
+  assignedTo,
+  risk,
+  closeType,
+}: PipelineCardOverlayProps): ReactNode {
   return (
     <PipelineCardShell
       name={name}
       phone={phone}
-      tags={tags}
-      manager={manager}
+      source={source}
+      assignedTo={assignedTo}
+      risk={risk}
+      closeType={closeType}
       className="cursor-grabbing shadow-sm hover:border-[var(--color-border)]"
     />
   );
