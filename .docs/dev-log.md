@@ -36,6 +36,32 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-27 — Phase 10, Таск 1: API пользователей — CRUD + block/unblock + инварианты + Zod
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/validations/users.ts` — `createUserSchema` (email → trim + lowercase, name, password min 8, role enum), `updateUserSchema` (опц. role / isBlocked, refine «хотя бы одно поле»), типы через `z.infer<>`
+- `lib/users/userGuards.ts` — `countActiveAdmins`, `isLastActiveAdmin` (role ADMIN + `isBlocked: false`), `hasDependentRecords` (8 FK: Lead.assignedToId, Comment, Task created/assigned, Reminder, ImportBatch, AssignmentRule assign/fallback)
+- `app/api/users/route.ts` — `GET` (ADMIN, список по `companyId`, `USER_PUBLIC_SELECT`, сортировка по name); `POST` (ADMIN, Zod → глобальный `EMAIL_EXISTS` → `hashPassword` → create → `USER_CREATED`, ответ без `passwordHash`)
+- `app/api/users/[id]/route.ts` — `PATCH` (роль и/или isBlocked, инварианты self/last admin, события block/unblock только при смене флага); `DELETE` (`USER_HAS_DATA` / `LAST_ADMIN` → delete + `USER_DELETED`)
+
+**Учтённые точки риска:**
+
+- `EMAIL_EXISTS` — глобальный `findUnique({ where: { email } })` без `companyId`, с комментарием в коде (не P2002)
+- Последний активный ADMIN — инвариант на `DELETE`, `PATCH` block и `PATCH` demote (`ROLE_RANK`); счёт с учётом `isBlocked`
+- `USER_BLOCKED` / `USER_UNBLOCKED` — только если `parsed.data.isBlocked !== target.isBlocked`
+- `hasDependentRecords` — все RESTRICT-FK на User, включая `Task.assignedToId` и `AssignmentRule.fallbackToId`
+- Self-guard — сравнение с `session.user.id` (корректно при impersonation)
+- `passwordHash` — явный `USER_PUBLIC_SELECT` во всех ответах
+
+**Out of scope (не делалось):** UI (`/admin/users`, `UsersTable`, модалки — таски 2–3); миграции БД / FK; блокировка в AssignmentRule/round-robin (Phase 11); смена пароля, Telegram
+
+**Проверки:** `npm run type-check` — без ошибок, без `any`
+
+---
+
 ## 2026-06-27 — Phase 9, Таск 3: Фильтр по ответственному + видимость по роли + адаптивность
 
 **Статус:** ✅ Завершён

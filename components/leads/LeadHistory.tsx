@@ -34,6 +34,9 @@ interface LeadHistoryProps {
   events: HistoryEventItem[];
 }
 
+/** ~6–7 строк событий; длинная история прокручивается внутри блока */
+const HISTORY_LIST_MAX_HEIGHT_CLASS = 'max-h-[360px]';
+
 export default function LeadHistory({ events }: LeadHistoryProps) {
   return (
     <Card padding="lg">
@@ -45,24 +48,29 @@ export default function LeadHistory({ events }: LeadHistoryProps) {
       {events.length === 0 ? (
         <p className="text-[13px] text-[var(--color-text-secondary)]">Нет событий</p>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {events.map((event) => (
-            <li
-              key={event.id}
-              className="flex items-start justify-between gap-3 border-b-[0.5px] border-[var(--color-border)] pb-3 last:border-b-0 last:pb-0"
-            >
-              <span className="text-[13px] text-[var(--color-text-secondary)]">
-                {getEventLabel(event)}
-              </span>
-              <time
-                dateTime={event.createdAt}
-                className="shrink-0 text-[11px] text-[var(--color-text-tertiary)]"
+        <div
+          className={`custom-scrollbar -mr-1 overflow-y-auto pr-1 ${HISTORY_LIST_MAX_HEIGHT_CLASS}`}
+          aria-label="Список событий"
+        >
+          <ul className="flex flex-col gap-3">
+            {events.map((event) => (
+              <li
+                key={event.id}
+                className="flex items-start justify-between gap-3 border-b-[0.5px] border-[var(--color-border)] pb-3 last:border-b-0 last:pb-0"
               >
-                {formatTime(event.createdAt)}
-              </time>
-            </li>
-          ))}
-        </ul>
+                <span className="text-[13px] text-[var(--color-text-secondary)]">
+                  {getEventLabel(event)}
+                </span>
+                <time
+                  dateTime={event.createdAt}
+                  className="shrink-0 text-[11px] text-[var(--color-text-tertiary)]"
+                >
+                  {formatTime(event.createdAt)}
+                </time>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </Card>
   );
