@@ -36,6 +36,81 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-27 — Phase 10, Таск 3: UI — блокировка/разблокировка + смена роли + удаление
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `components/users/EditUserModal.tsx` — Client: полный рефактор; `role: PrismaUserRole` (не строка-лейбл); `RoleRadioGroup` (3 опции) вместо disabled Input; `StatusRadioGroup` для статуса; `PATCH /api/users/:id` только с изменившимися полями (`role` и/или `isBlocked`); `LAST_ADMIN` → сообщение в модалке; loading «Сохранение…»; `onSuccess()` вместо `onConfirm(status)`
+- `components/users/DeleteUserModal.tsx` — Client: реальный `DELETE /api/users/:id`; `409 USER_HAS_DATA` → «У пользователя есть данные. Заблокируйте вместо удаления»; `409 LAST_ADMIN` → «Нельзя удалить последнего администратора компании»; убран некорректный текст про лиды без менеджера; loading «Удаление…»; `onSuccess()` вместо `onConfirm()`
+- `components/users/UsersTable.tsx` — Client: `handleToggleBlock` → `PATCH /api/users/:id` с `{ isBlocked: !current }`; при `LAST_ADMIN` — toast; при успехе — `refetch()`; `handleEditSuccess` / `handleDeleteSuccess` → refetch + toast «Пользователь обновлён» / «Пользователь удалён»; кнопки edit / block / delete задизейблены для `user.id === currentUserId`; `EditUserModal` получает `role: editUser.role`; модалки — `onSuccess`
+
+**Учтённые точки риска:**
+
+- `role` передаётся как `PrismaUserRole`, не `getRoleLabel(...)` — `RoleRadioGroup` корректно инициализирует выбранную опцию
+- `handleToggleBlock` при `LAST_ADMIN` показывает toast (модалки нет — ошибка не теряется)
+- Кнопки для собственной строки (`isSelf`) задизейблены в UI — пользователь не видит «последний администратор» вместо «нельзя действовать на себя»
+- `onSuccess()` + `refetch()` вместо оптимистичного `onConfirm(status)` — таблица всегда синхронизирована с сервером после edit/delete
+- Текст в `DeleteUserModal` исправлен: «Пользователь будет удалён без возможности восстановления» (без ложного обещания про лиды)
+
+**Out of scope (не делалось):** смена email/имени; сброс пароля администратором; изменения схемы БД / FK; правила назначения и round-robin (Phase 11); привязка Telegram (Phase 13)
+
+**Проверки:** `npm run type-check` — без ошибок, без `any`
+
+---
+
+## 2026-06-27 — Phase 10, Таск 2: UI `/admin/users` — список + создание (3 роли)
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/(admin)/admin/users/page.tsx` — async Server Component: `auth()` → `kind === 'company'` → редирект `/login`; `hasMinRole(role, 'ADMIN')` → редирект `/today`; `prisma.user.findMany` по `companyId` с `USER_PUBLIC_SELECT` (без `passwordHash`), сортировка по `name`; передача `initialUsers` и `currentUserId` в `<UsersTable />`
+- `components/users/UsersTable.tsx` — Client: пропсы `initialUsers: ApiUser[]`, `currentUserId` (для таска 3); тип `ApiUser` и `User` на Prisma `UserRole` + `isBlocked`; `RoleBadge` на 3 роли (Менеджер / Руководитель / Администратор); `StatusCell` через `isBlocked: boolean`; `getInitials(name)` в render; `refetch()` через `GET /api/users`; после `onSuccess` из `AddUserModal` — refetch + toast «Пользователь создан»; кнопка «Добавить пользователя»; пустое состояние «Нет пользователей»
+- `components/users/AddUserModal.tsx` — убрано поле `status`; `RoleRadioGroup` (дефолт `MANAGER`); `onSuccess()` вместо `onConfirm`; `POST /api/users` с `{ name, email, password, role }`; клиентская Zod через `createUserSchema`; `EMAIL_EXISTS` → ошибка у email; `VALIDATION_ERROR` → общая ошибка формы; loading «Создание...»; заголовок «Новый пользователь»
+- `components/users/userModalShared.tsx` — экспорт `RoleRadioGroup` для выбора из 3 ролей (Менеджер / Руководитель / Администратор)
+
+**Учтённые точки риска:**
+
+- `passwordHash` не уходит клиенту — явный `USER_PUBLIC_SELECT` на сервере в `page.tsx` (совпадает с API)
+- `initials` не хранятся в state — вычисляются из `name` в render (`getInitials`)
+- Toast в родителе (`UsersTable`), `AddUserModal` вызывает только `onSuccess()`
+- Незалогиненный / не-ADMIN → редирект на уровне `page.tsx`, не 403 при SSR
+- Локальный mock-тип `UserRole = 'admin' | 'manager'` заменён на Prisma `UserRole`
+
+**Out of scope (не делалось):** `EditUserModal` / `DeleteUserModal` — подключение к API; эшены строк (блокировка, редактирование, удаление) → API; скрытие опасных действий над собой (`currentUserId` передаётся, логика — таск 3)
+
+**Проверки:** `npm run type-check` — без ошибок, без `any`
+
+---
+
+## 2026-06-27 — Phase 10, Таск 1: API пользователей — CRUD + block/unblock + инварианты + Zod
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/validations/users.ts` — `createUserSchema` (email → trim + lowercase, name, password min 8, role enum), `updateUserSchema` (опц. role / isBlocked, refine «хотя бы одно поле»), типы через `z.infer<>`
+- `lib/users/userGuards.ts` — `countActiveAdmins`, `isLastActiveAdmin` (role ADMIN + `isBlocked: false`), `hasDependentRecords` (8 FK: Lead.assignedToId, Comment, Task created/assigned, Reminder, ImportBatch, AssignmentRule assign/fallback)
+- `app/api/users/route.ts` — `GET` (ADMIN, список по `companyId`, `USER_PUBLIC_SELECT`, сортировка по name); `POST` (ADMIN, Zod → глобальный `EMAIL_EXISTS` → `hashPassword` → create → `USER_CREATED`, ответ без `passwordHash`)
+- `app/api/users/[id]/route.ts` — `PATCH` (роль и/или isBlocked, инварианты self/last admin, события block/unblock только при смене флага); `DELETE` (`USER_HAS_DATA` / `LAST_ADMIN` → delete + `USER_DELETED`)
+
+**Учтённые точки риска:**
+
+- `EMAIL_EXISTS` — глобальный `findUnique({ where: { email } })` без `companyId`, с комментарием в коде (не P2002)
+- Последний активный ADMIN — инвариант на `DELETE`, `PATCH` block и `PATCH` demote (`ROLE_RANK`); счёт с учётом `isBlocked`
+- `USER_BLOCKED` / `USER_UNBLOCKED` — только если `parsed.data.isBlocked !== target.isBlocked`
+- `hasDependentRecords` — все RESTRICT-FK на User, включая `Task.assignedToId` и `AssignmentRule.fallbackToId`
+- Self-guard — сравнение с `session.user.id` (корректно при impersonation)
+- `passwordHash` — явный `USER_PUBLIC_SELECT` во всех ответах
+
+**Out of scope (не делалось):** UI (`/admin/users`, `UsersTable`, модалки — таски 2–3); миграции БД / FK; блокировка в AssignmentRule/round-robin (Phase 11); смена пароля, Telegram
+
+**Проверки:** `npm run type-check` — без ошибок, без `any`
+
+---
+
 ## 2026-06-27 — Phase 9, Таск 3: Фильтр по ответственному + видимость по роли + адаптивность
 
 **Статус:** ✅ Завершён

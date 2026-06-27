@@ -1,15 +1,10 @@
 'use client';
 
 import { type ReactNode } from 'react';
+import type { UserRole as PrismaUserRole } from '@prisma/client';
 import IconButton from '@/components/ui/IconButton';
 
 export type UserStatus = 'active' | 'blocked';
-
-interface StatusRadioGroupProps {
-  value: UserStatus;
-  onChange: (status: UserStatus) => void;
-  name: string;
-}
 
 interface RadioOptionProps {
   checked: boolean;
@@ -39,6 +34,12 @@ function RadioOption({ checked, label, onSelect }: RadioOptionProps) {
   );
 }
 
+interface StatusRadioGroupProps {
+  value: UserStatus;
+  onChange: (status: UserStatus) => void;
+  name: string;
+}
+
 export default function StatusRadioGroup({ value, onChange, name }: StatusRadioGroupProps) {
   return (
     <div className="flex gap-4" role="radiogroup" aria-label={name}>
@@ -51,6 +52,34 @@ export default function StatusRadioGroup({ value, onChange, name }: StatusRadioG
         checked={value === 'blocked'}
         label="Заблокирован"
         onSelect={() => onChange('blocked')}
+      />
+    </div>
+  );
+}
+
+interface RoleRadioGroupProps {
+  value: PrismaUserRole;
+  onChange: (role: PrismaUserRole) => void;
+  name: string;
+}
+
+export function RoleRadioGroup({ value, onChange, name }: RoleRadioGroupProps): ReactNode {
+  return (
+    <div className="flex gap-4" role="radiogroup" aria-label={name}>
+      <RadioOption
+        checked={value === 'MANAGER'}
+        label="Менеджер"
+        onSelect={() => onChange('MANAGER')}
+      />
+      <RadioOption
+        checked={value === 'HEAD'}
+        label="Руководитель"
+        onSelect={() => onChange('HEAD')}
+      />
+      <RadioOption
+        checked={value === 'ADMIN'}
+        label="Администратор"
+        onSelect={() => onChange('ADMIN')}
       />
     </div>
   );

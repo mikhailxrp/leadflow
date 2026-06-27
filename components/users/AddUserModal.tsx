@@ -2,18 +2,15 @@
 
 import { useState, type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
+import type { UserRole as PrismaUserRole } from '@prisma/client';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import StatusRadioGroup, { ModalHeader, type UserStatus } from '@/components/users/userModalShared';
+import { RoleRadioGroup, ModalHeader } from '@/components/users/userModalShared';
+import { createUserSchema } from '@/lib/validations/users';
 
 export interface AddUserModalProps {
-  onConfirm: (data: {
-    name: string;
-    email: string;
-    password: string;
-    status: UserStatus;
-  }) => void;
+  onSuccess: () => void;
   onClose: () => void;
 }
 
@@ -27,33 +24,71 @@ const inputBaseClass = `
   focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]
 `;
 
-export default function AddUserModal({ onConfirm, onClose }: AddUserModalProps): ReactNode {
+const fieldErrorMessages: Record<string, string> = {
+  name: 'Обязательное поле',
+  email: 'Некорректный email',
+  password: 'Минимум 8 символов',
+  role: 'Выберите роль',
+};
+
+export default function AddUserModal({ onSuccess, onClose }: AddUserModalProps): ReactNode {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [status, setStatus] = useState<UserStatus>('active');
+  const [role, setRole] = useState<PrismaUserRole>('MANAGER');
   const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const isValid = name.trim().length > 0 && email.trim().length > 0;
+  async function handleSubmit(): Promise<void> {
+    setFieldErrors({});
+    setFormError(null);
 
-  function handleConfirm(): void {
-    if (!isValid) return;
+    const parsed = createUserSchema.safeParse({ name, email, password, role });
+    if (!parsed.success) {
+      const errs: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const field = String(issue.path[0]);
+        if (!errs[field]) {
+          errs[field] = fieldErrorMessages[field] ?? 'Некорректное значение';
+        }
+      }
+      setFieldErrors(errs);
+      return;
+    }
 
-    const data = {
-      name: name.trim(),
-      email: email.trim(),
-      password,
-      status,
-    };
+    setLoading(true);
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed.data),
+      });
 
-    // TODO: создание пользователя через API
-    console.log('Add user', data);
-    onConfirm(data);
+      if (res.ok) {
+        onSuccess();
+        return;
+      }
+
+      const json = (await res.json()) as { error?: string };
+      if (json.error === 'EMAIL_EXISTS') {
+        setFieldErrors({ email: 'Пользователь с таким email уже существует' });
+      } else if (json.error === 'VALIDATION_ERROR') {
+        setFormError('Некорректные данные. Проверьте форму.');
+      } else {
+        setFormError('Произошла ошибка. Попробуйте ещё раз.');
+      }
+    } catch {
+      setFormError('Произошла ошибка. Попробуйте ещё раз.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <Modal onClose={onClose} dialogClassName="max-w-[420px]">
-      <ModalHeader title="Новый менеджер" onClose={onClose} />
+      <ModalHeader title="Новый пользователь" onClose={onClose} />
 
       <div className="mt-5 flex flex-col gap-4">
         <Input
@@ -61,6 +96,7 @@ export default function AddUserModal({ onConfirm, onClose }: AddUserModalProps):
           placeholder="Введите имя"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          error={fieldErrors.name}
           autoFocus
         />
 
@@ -70,6 +106,7 @@ export default function AddUserModal({ onConfirm, onClose }: AddUserModalProps):
           placeholder="name@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          error={fieldErrors.email}
         />
 
         <div className="flex flex-col gap-1.5">
@@ -86,7 +123,7 @@ export default function AddUserModal({ onConfirm, onClose }: AddUserModalProps):
               placeholder="Введите пароль"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={`${inputBaseClass} pr-9`}
+              className={`${inputBaseClass} pr-9 ${fieldErrors.password ? 'border-[#EF4444] focus:border-[#EF4444] focus:ring-[#EF4444]' : ''}`}
             />
             <button
               type="button"
@@ -97,21 +134,34 @@ export default function AddUserModal({ onConfirm, onClose }: AddUserModalProps):
               <Icon icon="tabler:eye" className="h-4 w-4" />
             </button>
           </div>
+          {fieldErrors.password && (
+            <span className="text-[12px] text-[#EF4444]">{fieldErrors.password}</span>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">
           <span className="text-[12px] font-normal leading-5 text-[var(--color-text-secondary)]">
-            Статус
+            Роль
           </span>
-          <StatusRadioGroup value={status} onChange={setStatus} name="add-user-status" />
+          <RoleRadioGroup value={role} onChange={setRole} name="add-user-role" />
         </div>
 
+        {formError && (
+          <p className="text-[13px] text-[#EF4444]">{formError}</p>
+        )}
+
         <div className="mt-2 flex justify-end gap-3">
-          <Button variant="secondary" size="md" type="button" onClick={onClose}>
+          <Button variant="secondary" size="md" type="button" onClick={onClose} disabled={loading}>
             Отмена
           </Button>
-          <Button variant="primary" size="md" type="button" disabled={!isValid} onClick={handleConfirm}>
-            Создать
+          <Button
+            variant="primary"
+            size="md"
+            type="button"
+            disabled={loading}
+            onClick={handleSubmit}
+          >
+            {loading ? 'Создание...' : 'Создать'}
           </Button>
         </div>
       </div>
