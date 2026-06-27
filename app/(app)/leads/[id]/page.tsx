@@ -1,9 +1,22 @@
 import type { Metadata } from 'next';
+import { notFound, redirect } from 'next/navigation';
+import { auth } from '@/lib/auth';
+import { getLeadById } from '@/lib/leads/getLeadById';
+import type { CompanySession } from '@/types/session';
+import { PageContent } from '@/components/layout/AppLayout';
+import LeadHeader from '@/components/leads/LeadHeader';
+import LeadContacts from '@/components/leads/LeadContacts';
+import LeadCustomFields from '@/components/leads/LeadCustomFields';
+import LeadMarketing from '@/components/leads/LeadMarketing';
+import LeadEditForm from '@/components/leads/LeadEditForm';
+import DeleteLeadModal from '@/components/leads/DeleteLeadModal';
+import DuplicateBlock from '@/components/leads/DuplicateBlock';
+import RiskBadge from '@/components/leads/RiskBadge';
+import LeadSidebar from '@/components/leads/LeadSidebar';
 import LeadComments from '@/components/leads/LeadComments';
 import LeadHistory from '@/components/leads/LeadHistory';
-import LeadSidebar from '@/components/leads/LeadSidebar';
 import TaskBlock from '@/components/tasks/TaskBlock';
-import { PageContent } from '@/components/layout/AppLayout';
+import type { HistoryEventItem } from '@/constants/eventLabels';
 
 export const metadata: Metadata = {
   title: 'Лид',
@@ -18,23 +31,104 @@ export default async function LeadDetailPage({
   params,
   searchParams,
 }: LeadDetailPageProps) {
+  const session = await auth();
+
+  if (!session || session.kind !== 'company') {
+    redirect('/login');
+  }
+
+  const companySession = session as CompanySession;
   const { id } = await params;
   const { taskId } = await searchParams;
 
+  const lead = await getLeadById(id, companySession);
+
+  if (!lead) {
+    notFound();
+  }
+
+  // Serialize dates for client components
+  const serializedComments = lead.comments.map((c) => ({
+    id: c.id,
+    text: c.text,
+    createdAt: c.createdAt.toISOString(),
+    user: c.user,
+  }));
+
+  const serializedEvents: HistoryEventItem[] = lead.events.map((e) => ({
+    id: e.id,
+    type: e.type,
+    createdAt: e.createdAt.toISOString(),
+    userName: e.userName,
+    lossReasonLabel: e.lossReasonLabel,
+  }));
+
+  const takenAtStr = lead.takenAt ? lead.takenAt.toISOString() : null;
+
   return (
     <PageContent>
-      <div className="mb-6 rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] px-5 py-8 text-center">
-        <p className="text-[14px] text-[var(--color-text-secondary)]">Данные лида появятся в Phase 7</p>
-      </div>
+      <LeadHeader
+        name={lead.name}
+        stage={lead.stage}
+        closeType={lead.closeType}
+      />
 
       <div className="flex flex-col gap-6 lg:flex-row">
-        <div className="flex min-w-0 flex-1 flex-col gap-6" />
+        {/* Main column */}
+        <div className="flex min-w-0 flex-1 flex-col gap-6">
+          <div className="flex items-center gap-3">
+            <RiskBadge level={lead.risk.level} reason={lead.risk.reason} />
+            {lead.risk.reason && (
+              <span className="text-[13px] text-[var(--color-text-secondary)]">
+                {lead.risk.reason}
+              </span>
+            )}
+          </div>
 
+          <LeadContacts
+            name={lead.name}
+            phone={lead.phone}
+            email={lead.email}
+            createdAt={lead.createdAt.toISOString()}
+          />
+
+          <DuplicateBlock duplicates={lead.duplicates} />
+
+          <LeadMarketing
+            source={lead.source}
+            marketing={lead.marketing}
+            utm={lead.utm}
+          />
+
+          <LeadCustomFields fields={lead.customFields} />
+
+          <LeadEditForm
+            leadId={lead.id}
+            initialName={lead.name}
+            initialPhone={lead.phone}
+            initialEmail={lead.email}
+            initialComment={lead.comment}
+          />
+
+          <DeleteLeadModal
+            leadId={lead.id}
+            leadName={lead.name}
+            role={companySession.user.role}
+          />
+        </div>
+
+        {/* Right column */}
         <aside className="flex w-full shrink-0 flex-col gap-6 lg:w-[440px]">
-          <LeadSidebar />
-          <LeadComments />
-          <TaskBlock leadId={id} highlightTaskId={taskId} />
-          <LeadHistory />
+          <LeadSidebar
+            leadId={lead.id}
+            hasTakenInWork={lead.hasTakenInWork}
+            takenAt={takenAtStr}
+            closeType={lead.closeType}
+            assignedTo={lead.assignedTo}
+          />
+          <LeadComments leadId={lead.id} comments={serializedComments} />
+          <TaskBlock leadId={lead.id} highlightTaskId={taskId} />
+          <LeadHistory events={serializedEvents} />
         </aside>
       </div>
     </PageContent>

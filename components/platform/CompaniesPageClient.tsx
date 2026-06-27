@@ -46,12 +46,12 @@ export default function CompaniesPageClient({
       {renewalCompanies.length > 0 ? (
         <section
           className="
-            mb-6 rounded-[14px] border border-[#FECACA]
-            bg-[#FEF2F2] px-4 py-3
+            mb-6 rounded-[14px] border border-[var(--color-badge-danger-border)]
+            bg-[var(--color-badge-danger-bg)] px-4 py-3
           "
           aria-live="polite"
         >
-          <p className="text-[14px] font-medium text-[#DC2626]">
+          <p className="text-[14px] font-medium text-[var(--color-badge-danger-text)]">
             {renewalCompanies.length}{' '}
             {renewalCompanies.length === 1
               ? 'компания требует'
@@ -66,9 +66,9 @@ export default function CompaniesPageClient({
                 <Link
                   href={`/platform/companies/${company.id}`}
                   className="
-                    text-[13px] text-[#DC2626] underline
+                    text-[13px] text-[var(--color-badge-danger-text)] underline
                     underline-offset-2 transition-colors duration-150
-                    hover:text-[#991B1B]
+                    opacity-90 hover:opacity-100
                   "
                 >
                   {company.name}

@@ -42,14 +42,14 @@ function formatLastLogin(value: string | null): string {
 function StatusBadge({ isBlocked }: { isBlocked: boolean }): ReactNode {
   if (isBlocked) {
     return (
-      <span className="inline-flex rounded-[20px] bg-[#FEF2F2] px-2.5 py-1 text-[12px] font-medium text-[#DC2626]">
+      <span className="inline-flex rounded-[20px] bg-[var(--color-badge-danger-bg)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-badge-danger-text)]">
         Заблокирована
       </span>
     );
   }
 
   return (
-    <span className="inline-flex rounded-[20px] bg-[#D1FAE5] px-2.5 py-1 text-[12px] font-medium text-[#065F46]">
+    <span className="inline-flex rounded-[20px] bg-[var(--color-badge-success-bg)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-badge-success-text)]">
       Активна
     </span>
   );
@@ -64,7 +64,7 @@ function SubscriptionBadge({
 
   if (isAlert) {
     return (
-      <span className="inline-flex rounded-[20px] bg-[#FEF2F2] px-2.5 py-1 text-[12px] font-medium text-[#DC2626]">
+      <span className="inline-flex rounded-[20px] bg-[var(--color-badge-danger-bg)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-badge-danger-text)]">
         {SUBSCRIPTION_LABELS[status]}
       </span>
     );
@@ -79,7 +79,7 @@ function SubscriptionBadge({
   }
 
   return (
-    <span className="inline-flex rounded-[20px] bg-[#D1FAE5] px-2.5 py-1 text-[12px] font-medium text-[#065F46]">
+    <span className="inline-flex rounded-[20px] bg-[var(--color-badge-success-bg)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-badge-success-text)]">
       {SUBSCRIPTION_LABELS[status]}
     </span>
   );
@@ -181,7 +181,7 @@ export default function CompaniesTable({
             const rowTextClass = company.isBlocked
               ? 'text-[var(--color-text-secondary)]'
               : subscriptionAlert
-                ? 'text-[#DC2626]'
+                ? 'text-[var(--color-badge-danger-text)]'
                 : 'text-[var(--color-text-primary)]';
 
             return (
@@ -191,7 +191,7 @@ export default function CompaniesTable({
                   border-b border-[0.5px] border-[var(--color-border)]
                   last:border-b-0 transition-colors duration-150
                   hover:bg-[var(--color-bg-surface-2)]
-                  ${subscriptionAlert ? 'bg-[#FEF2F2]/40' : ''}
+                  ${subscriptionAlert ? 'bg-[var(--color-badge-danger-row)]' : ''}
                 `}
               >
                 <td className={`px-4 py-3 text-[14px] ${rowTextClass}`}>

@@ -1,35 +1,35 @@
 'use client';
 
-import Button from '@/components/ui/Button';
+import type { CloseType } from '@prisma/client';
 import Card from '@/components/ui/Card';
+import TakeInWorkButton from '@/components/leads/TakeInWorkButton';
+import CloseLeadMenu from '@/components/leads/CloseLeadMenu';
 
-function DisabledSelect({ label, id }: { label: string; id: string }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label
-        htmlFor={id}
-        className="text-[12px] font-normal text-[var(--color-text-secondary)]"
-      >
-        {label}
-      </label>
-      <select
-        id={id}
-        disabled
-        className="
-          h-[36px] w-full appearance-none rounded-[6px]
-          border border-[var(--color-border)] border-[0.5px]
-          bg-[var(--color-bg-surface-2)] px-3
-          text-[13px] text-[var(--color-text-tertiary)]
-          outline-none
-        "
-      >
-        <option value="">—</option>
-      </select>
-    </div>
-  );
+const CLOSE_TYPE_LABELS: Record<CloseType, string> = {
+  WON: 'Сделка',
+  LOST: 'Отказ',
+};
+
+const CLOSE_TYPE_COLORS: Record<CloseType, string> = {
+  WON: 'bg-[#D1FAE5] text-[#065F46]',
+  LOST: 'bg-[#FEE2E2] text-[#991B1B]',
+};
+
+interface LeadSidebarProps {
+  leadId: string;
+  hasTakenInWork: boolean;
+  takenAt: string | null;
+  closeType: CloseType | null;
+  assignedTo: { name: string } | null;
 }
 
-export default function LeadSidebar() {
+export default function LeadSidebar({
+  leadId,
+  hasTakenInWork,
+  takenAt,
+  closeType,
+  assignedTo,
+}: LeadSidebarProps) {
   return (
     <Card padding="lg">
       <h2 className="mb-4 text-[14px] font-medium text-[var(--color-text-primary)]">
@@ -37,18 +37,39 @@ export default function LeadSidebar() {
       </h2>
 
       <div className="mb-5 flex flex-col gap-4">
-        <DisabledSelect id="lead-status" label="Статус" />
-        <DisabledSelect id="lead-manager" label="Ответственный" />
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[12px] font-normal text-[var(--color-text-secondary)]">
+            Ответственный
+          </span>
+          <span className="text-[13px] text-[var(--color-text-primary)]">
+            {assignedTo?.name ?? (
+              <span className="text-[var(--color-text-tertiary)]">Не назначен</span>
+            )}
+          </span>
+        </div>
+
+        {closeType !== null && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-normal text-[var(--color-text-secondary)]">
+              Статус
+            </span>
+            <span
+              className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium ${CLOSE_TYPE_COLORS[closeType]}`}
+            >
+              {CLOSE_TYPE_LABELS[closeType]}
+            </span>
+          </div>
+        )}
       </div>
 
-      <Button
-        variant="primary"
-        size="md"
-        className="w-full"
-        disabled
-      >
-        Сохранить изменения
-      </Button>
+      <div className="flex flex-col gap-2">
+        <TakeInWorkButton
+          leadId={leadId}
+          hasTakenInWork={hasTakenInWork}
+          takenAt={takenAt}
+        />
+        <CloseLeadMenu leadId={leadId} isClosed={closeType !== null} />
+      </div>
     </Card>
   );
 }

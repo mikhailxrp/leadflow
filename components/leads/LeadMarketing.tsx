@@ -1,20 +1,4 @@
-import { type ReactNode } from "react";
-import Link from "next/link";
-import { SourceBadge } from "@/components/ui/Badge";
-import Card from "@/components/ui/Card";
-
-interface UtmData {
-  source: string;
-  medium: string;
-  campaign: string;
-  term: string;
-}
-
-interface LeadMarketingProps {
-  referrer: string;
-  landingPage: string;
-  utm: UtmData;
-}
+import Card from '@/components/ui/Card';
 
 function MarketingIcon() {
   return (
@@ -35,55 +19,35 @@ function MarketingIcon() {
   );
 }
 
-function GlobeIcon() {
-  return (
-    <svg
-      className="h-3 w-3"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-      />
-    </svg>
-  );
+const SOURCE_LABELS: Record<string, string> = {
+  tilda: 'Tilda',
+  yandex: 'Яндекс Директ',
+  wordpress: 'WordPress',
+  api: 'API',
+  manual: 'Вручную',
+  csv: 'Импорт',
+  import: 'Импорт',
+  other: 'Другое',
+};
+
+function renderValue(v: unknown): string {
+  if (v === null || v === undefined) return '—';
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
 }
 
-function DetailRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-3">
-      <span className="shrink-0 text-[13px] text-[var(--color-text-secondary)]">
-        {label}
-      </span>
-      <div className="text-right text-[13px] text-[var(--color-text-primary)]">
-        {children}
-      </div>
-    </div>
-  );
+interface LeadMarketingProps {
+  source: string;
+  marketing: Record<string, unknown>;
+  utm: Record<string, unknown>;
 }
 
-export default function LeadMarketing({
-  referrer,
-  landingPage,
-  utm,
-}: LeadMarketingProps) {
-  const utmRows = [
-    { key: "utm_source", value: utm.source },
-    { key: "utm_medium", value: utm.medium },
-    { key: "utm_campaign", value: utm.campaign },
-    { key: "utm_term", value: utm.term },
-  ];
+export default function LeadMarketing({ source, marketing, utm }: LeadMarketingProps) {
+  const marketingEntries = Object.entries(marketing);
+  const utmEntries = Object.entries(utm);
+
+  const hasMarketing = marketingEntries.length > 0;
+  const hasUtm = utmEntries.length > 0;
 
   return (
     <Card padding="lg">
@@ -92,44 +56,52 @@ export default function LeadMarketing({
         Маркетинговые данные
       </h2>
 
-      <DetailRow label="Источник">
-        <SourceBadge source="organic" icon={<GlobeIcon />} />
-      </DetailRow>
+      <div className="flex items-center justify-between gap-4 py-3">
+        <span className="shrink-0 text-[13px] text-[var(--color-text-secondary)]">Источник</span>
+        <span className="text-right text-[13px] text-[var(--color-text-primary)]">
+          {SOURCE_LABELS[source] ?? source}
+        </span>
+      </div>
 
-      <div className="border-t border-[var(--color-border)] border-[0.5px] py-3 px-3">
-        <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
-          UTM метки
-        </p>
-        <div className="flex flex-col gap-2">
-          {utmRows.map((row) => (
-            <div
-              key={row.key}
-              className="flex items-center justify-between gap-4"
-            >
-              <span className="font-mono text-[12px] text-[var(--color-text-secondary)]">
-                {row.key}
-              </span>
-              <span className="font-mono text-[12px] text-[var(--color-text-primary)]">
-                {row.value}
-              </span>
-            </div>
-          ))}
+      {hasMarketing && (
+        <div className="border-t border-[0.5px] border-[var(--color-border)] px-3 py-3">
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
+            Маркетинг
+          </p>
+          <div className="flex flex-col gap-2">
+            {marketingEntries.map(([key, value]) => (
+              <div key={key} className="flex items-center justify-between gap-4">
+                <span className="font-mono text-[12px] text-[var(--color-text-secondary)]">
+                  {key}
+                </span>
+                <span className="break-all font-mono text-[12px] text-[var(--color-text-primary)]">
+                  {renderValue(value)}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="border-t border-[var(--color-border)] border-[0.5px] px-3">
-        <DetailRow label="Реферер">
-          <span className="break-all">{referrer}</span>
-        </DetailRow>
-        <DetailRow label="Landing page">
-          <Link
-            href={landingPage}
-            className="text-[var(--color-primary)] transition-colors duration-150 hover:text-[var(--color-primary-hover)]"
-          >
-            {landingPage}
-          </Link>
-        </DetailRow>
-      </div>
+      {hasUtm && (
+        <div className="border-t border-[0.5px] border-[var(--color-border)] px-3 py-3">
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">
+            UTM метки
+          </p>
+          <div className="flex flex-col gap-2">
+            {utmEntries.map(([key, value]) => (
+              <div key={key} className="flex items-center justify-between gap-4">
+                <span className="font-mono text-[12px] text-[var(--color-text-secondary)]">
+                  {key}
+                </span>
+                <span className="break-all font-mono text-[12px] text-[var(--color-text-primary)]">
+                  {renderValue(value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

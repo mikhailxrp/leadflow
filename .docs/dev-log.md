@@ -36,6 +36,129 @@ npm run seed:api-key
 
 ---
 
+## 2026-06-27 — Phase 7, Таск 4: getLeadById + UI карточки + история + дубли + финальная сборка
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/leads/getLeadById.ts` — Server function (только чтение): лид + этап + ответственный + риск (`computeRiskBatch`) + `hasTakenInWork` / `takenAt` (из событий `LEAD_TAKEN_IN_WORK`) + `hasDuplicate` (оба направления `_count`) + комментарии + события с резолвом `userId → User.name` и `lossReasonId → LossReason.label` (type guard на `payload`); дубли через `OR: [{ leadId }, { matchedLeadId }]` с вычислением «другой стороны»; `visibilityWhere`; `null` для чужого/невидимого лида; **без** `writeEvent` / `LEAD_OPENED`
+- `constants/eventLabels.ts` — `getEventLabel()` + тип `HistoryEventItem`; маппинг Phase 7 типов (`LEAD_CREATED`, `LEAD_OPENED`, `LEAD_UPDATED`, `LEAD_TAKEN_IN_WORK`, `LEAD_WON`, `LEAD_LOST`, `DUPLICATE_FLAGGED`, `LEAD_DELETED`, `COMMENTED`); нейтральный фолбэк «Событие в журнале»
+- `app/api/leads/[id]/events/route.ts` — `GET`: сессия `company` + видимость лида → 401/404; `where: { leadId, companyId }`, `orderBy: { createdAt: 'desc' }`; batch-резолв имён и причин отказа; ответ `{ id, type, createdAt, userName, lossReasonLabel }[]`
+- `app/api/leads/[id]/duplicates/route.ts` — `GET`: сессия + видимость; `DuplicateFlag` по обоим направлениям; ответ `{ id, matchType, matchedLead: { id, name, phone } }[]`
+- `components/leads/LeadEditForm.tsx` — Client: форма `name/phone/email/comment`; клиентская валидация `updateLeadSchema`; `PATCH /api/leads/:id` → `router.refresh()` + toast
+- `components/leads/DeleteLeadModal.tsx` — Client: модалка подтверждения; кнопка только при `hasMinRole(role, 'ADMIN')`; `DELETE /api/leads/:id` → редирект `/leads`
+- `components/leads/DuplicateBlock.tsx` — Server: блок «Похожие лиды»; ссылки `/leads/:matchedId` + тип совпадения; пустое состояние «Дублей не обнаружено»
+- `components/leads/LeadHistory.tsx` — SSR-проп `events[]`; строки через `getEventLabel`; пустое состояние «Нет событий»
+- `components/leads/DuplicateBadge.tsx` — проп `matchedLeadId`; иконка обёрнута в `<Link href="/leads/{matchedLeadId}">`
+- `components/leads/LeadHeader.tsx` — убраны фейковый `PipelineStatus` и `StatusBadge`; реальный этап — инлайн-бейдж с `style={{ backgroundColor: stage.color }}`; бейдж WON/LOST при `closeType`
+- `components/leads/LeadContacts.tsx` — пропсы `name/phone/email/createdAt`; `null` → «не указан»
+- `components/leads/LeadCustomFields.tsx` — проп `fields: Record<string, unknown>`; `renderValue(v: unknown)`; пустой объект → компонент не рендерится
+- `components/leads/LeadMarketing.tsx` — пропсы `source`, `marketing`, `utm`; динамический key-value; пустые блоки marketing/utm не рендерятся
+- `app/(app)/leads/[id]/page.tsx` — финальная сборка: `getLeadById` → `notFound()` при `null`; левая колонка (Header, RiskBadge, Contacts, DuplicateBlock, Marketing, CustomFields, EditForm, DeleteModal); правая (`LeadSidebar` с реальными `hasTakenInWork/takenAt/closeType/assignedTo`, Comments, TaskBlock-плейсхолдер, History); адаптив `flex-col lg:flex-row`
+- `lib/leads/getLeads.ts` — `firstMatchedLeadId` для `DuplicateBadge` в списке лидов
+
+**Учтённые точки риска:**
+
+- `getLeadById` не пишет `LEAD_OPENED` — побочный эффект только в `GET /api/leads/:id` (таск 1)
+- `DuplicateFlag` — запрос с `OR` по обоим направлениям; «другой» лид вычисляется по `flag.leadId === id`
+- `Event.payload` — `extractLossReasonId` через type guard, без `any`
+- `LeadHeader` — инлайн-бейдж этапа с `stage.color`, не `StatusBadge`
+- `customFields` / `marketing` / `utm` — `renderValue()` для нестроковых значений
+- `LeadSidebar` получает реальные данные из `getLeadById`, не захардкоженные заглушки
+
+**Out of scope (не делалось):** `LeadYandex.tsx` (Phase 22); полноценный `TaskBlock` (Phase 15); смена этапа (Phase 9); назначение ответственного (Phase 11); новые Prisma-миграции
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
+## 2026-06-26 — Phase 7, Таск 3: Комментарии — API + лента в карточке
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `lib/validations/leads.ts` — `commentSchema`: `text` с `trim`, `min(1)`, `max(5000)`; экспорт `CommentInput`
+- `app/api/leads/[id]/comments/route.ts` — API Route (server):
+  - `GET` — сессия `kind === 'company'`, `MANAGER+`; `findAccessibleLead` с `visibilityWhere`; `prisma.comment.findMany` с `where: { leadId, lead: { companyId } }`, `orderBy: { createdAt: 'asc' }`, select `id, text, createdAt, user.name`; чужой/невидимый лид → 404
+  - `POST` — `commentSchema`; проверка доступа к лиду; `prisma.comment.create({ leadId, userId, text })` → затем `writeEvent('COMMENTED', { leadId, userId })` **вне транзакции**; ответ 201 с созданным комментарием; невалидное тело → 400
+- `components/leads/LeadComments.tsx` — Client Component: пропсы `leadId`, `comments[]` (SSR); лента с автором и временем (`whitespace-pre-wrap`, React-экранирование); счётчик из `comments.length`; пустое состояние «Нет комментариев»; textarea с `maxLength={5000}` → `POST .../comments` → `router.refresh()`; состояния loading/error
+- `app/(app)/leads/[id]/page.tsx` — Server Component: `auth()` → redirect при отсутствии company-сессии; проверка видимости лида (`visibilityWhere`) → `notFound()`; самостоятельная `prisma.comment.findMany` с `where: { leadId, lead: { companyId } }` (без `getLeadById`); сериализация `createdAt` в ISO; передача `leadId` + `comments` в `LeadComments`; заглушка основного контента карточки сохранена
+
+**Учтённые точки риска:**
+
+- Тенант-фильтр комментариев через `lead: { companyId }`, не только по `leadId`
+- Доступ к лиду проверяется до чтения/создания комментариев (`findAccessibleLead` / `visibilityWhere` в page и API)
+- `writeEvent` вызывается после `comment.create`, не внутри `$transaction`
+- `LeadComments` получает `leadId` пропсом — `handleSubmit` постит на корректный эндпоинт
+- Серверная выборка в `page.tsx` без `getLeadById` — отдельный `findMany`, как оговорено для таска 3
+
+**Out of scope (не делалось):** `getLeadById` и полный UI карточки (таск 4); история событий / `eventLabels.ts` (таск 4); блок дублей (таск 4); `TaskBlock`; редактирование и удаление комментариев
+
+**Проверки:** `npx tsc --noEmit` — без ошибок
+
+---
+
+## 2026-06-26 — Phase 7, Таск 2: «Взял в работу» + закрытие + quick-close
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/api/leads/[id]/take/route.ts` — API Route (server): `POST`; сессия `kind === 'company'`, `MANAGER+`; `visibilityWhere`; идемпотентность через `findFirst` по `LEAD_TAKEN_IN_WORK` → 400 `ALREADY_TAKEN` с `takenAt`; иначе `writeEvent('LEAD_TAKEN_IN_WORK', ...)`
+- `app/api/leads/[id]/close/route.ts` — API Route (server): `POST`; `closeLeadSchema`; видимость; `impersonatedByPlatformAdminId` из сессии → `closeLead(...)`; LOST без причины → 400 `LOSS_REASON_REQUIRED`
+- `app/api/loss-reasons/route.ts` — API Route (server): `GET` read-only; `where: { companyId }`, `orderBy: { order: 'asc' }`; `{ id, label }[]`; доступен любой company-сессии (`MANAGER+`)
+- `lib/leads/closeLead.ts` — `$transaction`: `findFirstOrThrow`, проверка `lossReasonId` для LOST, `Lead.updateMany(closeType/closedAt/lossReasonId)`, `tx.event.create` (`LEAD_WON` / `LEAD_LOST` с `payload: { lossReasonId }` для LOST) с явным `impersonatedByPlatformAdminId`; `ValidationError` для бизнес-ошибок
+- `lib/validations/leads.ts` — `closeLeadSchema` через `z.discriminatedUnion('closeType', ...)`: `WON` без `lossReasonId`, `LOST` с `lossReasonId: z.string().min(1)`; экспорт `CloseLeadInput`
+- `components/leads/TakeInWorkButton.tsx` — Client Component: пропсы `leadId`, `hasTakenInWork`, `takenAt`; `POST .../take` → `router.refresh()`; после взятия — read-only метка «Взято в работу» + время
+- `components/leads/CloseLeadMenu.tsx` — Client Component: dropdown «Закрыть сделкой» (прямой POST WON) / «Закрыть отказом» (открывает модалку); скрыт при `isClosed`
+- `components/leads/CloseAsLostModal.tsx` — Client Component: `GET /api/loss-reasons`; обязательный select; submit disabled без выбора; `POST .../close { LOST, lossReasonId }` → `router.refresh()`
+- `components/leads/LeadSidebar.tsx` — обновлён: `TakeInWorkButton` + `CloseLeadMenu` вместо disabled-заглушек; ответственный — read-only текст; бейдж WON/LOST при `closeType != null`
+- `components/leads/LeadRowQuickActions.tsx` — Client Component: обёртка `CloseLeadMenu` для строки списка; guard `closeType !== null` → не рендерится
+- `components/leads/LeadsTable.tsx` — обновлён: `LeadRowQuickActions` в колонке действий рядом с «Открыть»
+
+**Учтённые точки риска:**
+
+- `closeLead` пишет событие через `tx.event.create`, не `writeEvent` — совместимо с `$transaction` и impersonation
+- `closeLeadSchema` — `z.discriminatedUnion`, не optional `lossReasonId`; дублирующая проверка LOST без причины в handler и в транзакции
+- `GET /api/loss-reasons` — порог `MANAGER+` (любая company-сессия), не только ADMIN
+- `TakeInWorkButton` — «глупый» компонент с пропсами, без self-fetch (данные карточки — таск 4)
+- `LeadRowQuickActions` — кнопка «Закрыть» скрыта при `closeType != null`
+- Все три эндпоинта проверяют `session.kind === 'company'`; платформенная сессия → 401
+
+**Out of scope (не делалось):** `getLeadById` и полный серверный рендер `/leads/[id]` (таск 4); комментарии (таск 3); история событий (таск 4); CRUD причин отказа (Phase 7.5); назначение ответственного (Phase 11); задачи и промпт при смене этапа (Phase 14/15)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
+## 2026-06-26 — Phase 7, Таск 1: API карточки лида — `GET` / `PATCH` / `DELETE`
+
+**Статус:** ✅ Завершён
+
+**Что было реализовано в рамках `TASK.md`:**
+
+- `app/api/leads/[id]/route.ts` — API Route (server):
+  - `GET` — `findFirst` с `{ id, companyId }` + `visibilityWhere`; select контактов, `source` / `utm` / `marketing` / `customFields` / `closeType` / `closedAt` / `stage` / `assignedTo` / `lossReason` / `_count.duplicateFlagsAsLead`; риск через `computeRiskBatch` (массив из одного элемента); идемпотентный `LEAD_OPENED` (`recordLeadOpenedOnce` — `findFirst` по `{ leadId, userId, type }` перед `writeEvent`)
+  - `PATCH` — только `name` / `phone` / `email` / `comment` через `updateLeadSchema` + `buildUpdateData`; `updateMany` с `where: { id, companyId }` + `visibilityWhere`; событие `LEAD_UPDATED`; пустое тело или без изменяемых полей → 400
+  - `DELETE` — только `hasMinRole(role, 'ADMIN')`; `LEAD_DELETED` с `leadId: null` и `payload: { deletedLeadId, name, phone }` **до** `deleteMany`; `where: { id, companyId }`
+- `lib/validations/leads.ts` — `updateLeadSchema`: опциональные `name` (trim + min 1), `phone`, `email`, `comment`; без `.passthrough()` и без полей приёма; экспорт `UpdateLeadInput`
+
+**Учтённые точки риска:**
+
+- Чужой/невидимый лид (режим `OWN`) → 404 на GET и PATCH, не 403
+- `LEAD_DELETED` пишется с `leadId: null`, чтобы событие пережило каскадное удаление
+- `PATCH` не использует `.passthrough()` — лишние поля не попадают в Prisma `data`
+- `updateMany` / `deleteMany` включают `companyId` в `where` напрямую, не только через предварительный GET
+- Все handlers проверяют `session.kind === 'company'`; GET/PATCH требуют `MANAGER+`, DELETE — `ADMIN`
+
+**Out of scope (не делалось):** UI карточки `/leads/[id]`; `POST /take`, `POST /close`; комментарии; история событий; список дублей; смена этапа (Phase 9)
+
+**Проверки:** `npm run type-check` — без ошибок
+
+---
+
 ## 2026-06-26 — Phase 6, Таск 3: UI `/leads` — LeadsTable + фильтры (URL-params) + пагинация
 
 **Статус:** ✅ Завершён

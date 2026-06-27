@@ -24,6 +24,7 @@ export type LeadListItem = {
   createdAt: string;
   closeType: CloseType | null;
   hasDuplicate: boolean;
+  firstMatchedLeadId: string | null;
   assignedTo: { id: string; name: string } | null;
   stage: {
     id: string;
@@ -214,6 +215,10 @@ export async function getLeads(
             duplicateFlagsAsLead: true,
           },
         },
+        duplicateFlagsAsLead: {
+          select: { matchedLeadId: true },
+          take: 1,
+        },
       },
     }),
     prisma.lead.count({ where }),
@@ -228,6 +233,7 @@ export async function getLeads(
     createdAt: lead.createdAt.toISOString(),
     closeType: lead.closeType,
     hasDuplicate: lead._count.duplicateFlagsAsLead > 0,
+    firstMatchedLeadId: lead.duplicateFlagsAsLead[0]?.matchedLeadId ?? null,
     assignedTo: lead.assignedTo,
     stage: lead.stage,
   }));
