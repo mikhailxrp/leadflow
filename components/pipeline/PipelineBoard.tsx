@@ -13,111 +13,84 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useCallback, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { PipelineCardOverlay } from '@/components/pipeline/PipelineCard';
-import PipelineColumn, { type PipelineLead } from '@/components/pipeline/PipelineColumn';
+import PipelineColumn from '@/components/pipeline/PipelineColumn';
+import Toast from '@/components/ui/Toast';
+import type { BoardColumn, BoardLeadCard } from '@/lib/pipeline/boardQuery';
 
 const DRAG_ACTIVATION_DISTANCE_PX = 8;
 const DND_CONTEXT_ID = 'pipeline-board';
 
-interface PipelineStage {
-  id: string;
-  title: string;
-  accentClass: string;
-  leads: PipelineLead[];
+interface PipelineBoardProps {
+  initialColumns: BoardColumn[];
 }
 
-function findLead(stages: PipelineStage[], leadId: string): PipelineLead | undefined {
-  return stages.flatMap((stage) => stage.leads).find((lead) => lead.id === leadId);
+function findLead(columns: BoardColumn[], leadId: string): BoardLeadCard | undefined {
+  return columns.flatMap((col) => col.leads).find((lead) => lead.id === leadId);
 }
 
-function findStageIdByLeadId(stages: PipelineStage[], leadId: string): string | undefined {
-  return stages.find((stage) => stage.leads.some((lead) => lead.id === leadId))?.id;
+function findColumnIdByLeadId(columns: BoardColumn[], leadId: string): string | undefined {
+  return columns.find((col) => col.leads.some((lead) => lead.id === leadId))?.id;
 }
 
-function resolveOverStageId(stages: PipelineStage[], overId: string): string | undefined {
-  const stageByLead = findStageIdByLeadId(stages, overId);
-  if (stageByLead) {
-    return stageByLead;
-  }
-
-  if (stages.some((stage) => stage.id === overId)) {
-    return overId;
-  }
-
+function resolveOverColumnId(columns: BoardColumn[], overId: string): string | undefined {
+  const colByLead = findColumnIdByLeadId(columns, overId);
+  if (colByLead) return colByLead;
+  if (columns.some((col) => col.id === overId)) return overId;
   return undefined;
 }
 
 function moveLead(
-  stages: PipelineStage[],
+  columns: BoardColumn[],
   activeId: string,
   overId: string,
-): PipelineStage[] {
-  const activeLead = findLead(stages, activeId);
-  const activeStageId = findStageIdByLeadId(stages, activeId);
-  const overStageId = resolveOverStageId(stages, overId);
+): BoardColumn[] {
+  const activeLead = findLead(columns, activeId);
+  const activeColId = findColumnIdByLeadId(columns, activeId);
+  const overColId = resolveOverColumnId(columns, overId);
 
-  if (!activeLead || !activeStageId || !overStageId) {
-    return stages;
-  }
+  if (!activeLead || !activeColId || !overColId) return columns;
 
-  if (activeStageId === overStageId) {
-    return stages.map((stage) => {
-      if (stage.id !== activeStageId) {
-        return stage;
-      }
-
-      const oldIndex = stage.leads.findIndex((lead) => lead.id === activeId);
-      const newIndex = stage.leads.findIndex((lead) => lead.id === overId);
-
-      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
-        return stage;
-      }
-
-      return {
-        ...stage,
-        leads: arrayMove(stage.leads, oldIndex, newIndex),
-      };
+  if (activeColId === overColId) {
+    return columns.map((col) => {
+      if (col.id !== activeColId) return col;
+      const oldIndex = col.leads.findIndex((l) => l.id === activeId);
+      const newIndex = col.leads.findIndex((l) => l.id === overId);
+      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return col;
+      return { ...col, leads: arrayMove(col.leads, oldIndex, newIndex) };
     });
   }
 
-  return stages.map((stage) => {
-    if (stage.id === activeStageId) {
-      return {
-        ...stage,
-        leads: stage.leads.filter((lead) => lead.id !== activeId),
-      };
+  return columns.map((col) => {
+    if (col.id === activeColId) {
+      return { ...col, leads: col.leads.filter((l) => l.id !== activeId) };
     }
-
-    if (stage.id === overStageId) {
-      const leadsWithoutActive = stage.leads.filter((lead) => lead.id !== activeId);
-      const overIndex = leadsWithoutActive.findIndex((lead) => lead.id === overId);
+    if (col.id === overColId) {
+      const leadsWithoutActive = col.leads.filter((l) => l.id !== activeId);
+      const overIndex = leadsWithoutActive.findIndex((l) => l.id === overId);
       const nextLeads = [...leadsWithoutActive];
-
-      if (overId === overStageId || overIndex < 0) {
+      if (overId === overColId || overIndex < 0) {
         nextLeads.push(activeLead);
       } else {
         nextLeads.splice(overIndex, 0, activeLead);
       }
-
-      return {
-        ...stage,
-        leads: nextLeads,
-      };
+      return { ...col, leads: nextLeads };
     }
-
-    return stage;
+    return col;
   });
 }
 
-export default function PipelineBoard(): ReactNode {
-  const [stages, setStages] = useState<PipelineStage[]>([]);
-  const [activeLead, setActiveLead] = useState<PipelineLead | null>(null);
+export default function PipelineBoard({ initialColumns }: PipelineBoardProps): ReactNode {
+  const router = useRouter();
+  const [columns, setColumns] = useState<BoardColumn[]>(initialColumns);
+  const [activeLead, setActiveLead] = useState<BoardLeadCard | null>(null);
+  const [includeClosed, setIncludeClosed] = useState(false);
+  const [toast, setToast] = useState<{ title: string; message?: string } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: DRAG_ACTIVATION_DISTANCE_PX,
-      },
+      activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -125,83 +98,134 @@ export default function PipelineBoard(): ReactNode {
   );
 
   const handleDragStart = useCallback((event: DragStartEvent): void => {
-    const lead = findLead(stages, String(event.active.id));
+    const lead = findLead(columns, String(event.active.id));
     setActiveLead(lead ?? null);
-  }, [stages]);
+  }, [columns]);
 
-  const handleDragEnd = useCallback((event: DragEndEvent): void => {
+  const handleDragEnd = useCallback(async (event: DragEndEvent): Promise<void> => {
     const { active, over } = event;
     setActiveLead(null);
 
-    if (!over || active.id === over.id) {
-      return;
-    }
+    if (!over || active.id === over.id) return;
 
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    setStages((currentStages) => {
-      const nextStages = moveLead(currentStages, activeId, overId);
-      const prevStageId = findStageIdByLeadId(currentStages, activeId);
-      const nextStageId = findStageIdByLeadId(nextStages, activeId);
+    const prevColId = findColumnIdByLeadId(columns, activeId);
+    const nextColumns = moveLead(columns, activeId, overId);
+    const nextColId = findColumnIdByLeadId(nextColumns, activeId);
 
-      if (prevStageId && nextStageId && prevStageId !== nextStageId) {
-        // TODO: сохранить новый этап лида через API
-        console.log(`Lead ${activeId}: ${prevStageId} → ${nextStageId}`);
-      }
+    if (!prevColId || !nextColId) return;
 
-      return nextStages;
-    });
-  }, []);
+    if (prevColId === nextColId) {
+      setColumns(nextColumns);
+      return;
+    }
+
+    // Cross-column move: optimistic update then persist
+    const prevColumns = columns;
+    setColumns(nextColumns);
+
+    try {
+      const res = await fetch(`/api/leads/${activeId}/stage`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stageId: nextColId }),
+      });
+
+      if (!res.ok) throw new Error('stage-update-failed');
+    } catch {
+      setColumns(prevColumns);
+      setToast({ title: 'Не удалось переместить лид', message: 'Попробуйте ещё раз' });
+    }
+  }, [columns]);
 
   const handleDragCancel = useCallback((): void => {
     setActiveLead(null);
   }, []);
 
-  const handleCardClick = useCallback((): void => {
-    // TODO: Phase 9 — navigate to /leads/[id]
-  }, []);
+  const handleCardClick = useCallback((id: string): void => {
+    router.push(`/leads/${id}`);
+  }, [router]);
 
-  if (stages.length === 0) {
-    return (
-      <div className="flex items-center justify-center rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] py-16">
-        <p className="text-[14px] text-[var(--color-text-secondary)]">Этапы воронки появятся в Phase 8/9</p>
-      </div>
-    );
-  }
+  const handleToggleClosed = useCallback(async (): Promise<void> => {
+    const next = !includeClosed;
+    setIncludeClosed(next);
+    try {
+      const url = next ? '/api/pipeline/board?includeClosed=true' : '/api/pipeline/board';
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('fetch-failed');
+      const data = (await res.json()) as { columns: BoardColumn[] };
+      setColumns(data.columns);
+    } catch {
+      setIncludeClosed(!next);
+      setToast({ title: 'Не удалось загрузить данные', message: 'Попробуйте ещё раз' });
+    }
+  }, [includeClosed]);
 
   return (
-    <DndContext
-      id={DND_CONTEXT_ID}
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-    >
-      <div className="custom-scrollbar flex flex-row gap-4 overflow-x-auto pb-2">
-        {stages.map((stage) => (
-          <PipelineColumn
-            key={stage.id}
-            stageId={stage.id}
-            title={stage.title}
-            accentClass={stage.accentClass}
-            leads={stage.leads}
-            onCardClick={handleCardClick}
+    <>
+      <div className="mb-3 flex items-center justify-end">
+        <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[var(--color-text-secondary)]">
+          <input
+            type="checkbox"
+            checked={includeClosed}
+            onChange={() => { void handleToggleClosed(); }}
+            className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
           />
-        ))}
+          Показать закрытые
+        </label>
       </div>
 
-      <DragOverlay dropAnimation={null}>
-        {activeLead ? (
-          <PipelineCardOverlay
-            name={activeLead.name}
-            phone={activeLead.phone}
-            tags={activeLead.tags}
-            manager={activeLead.manager}
-          />
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+      {columns.length === 0 ? (
+        <div className="flex items-center justify-center rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] py-16">
+          <p className="text-[14px] text-[var(--color-text-secondary)]">Нет этапов воронки</p>
+        </div>
+      ) : (
+        <DndContext
+          id={DND_CONTEXT_ID}
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <div className="custom-scrollbar flex flex-row gap-4 overflow-x-auto pb-2">
+            {columns.map((col) => (
+              <PipelineColumn
+                key={col.id}
+                stageId={col.id}
+                title={col.name}
+                color={col.color}
+                leads={col.leads}
+                avgDaysOnStage={col.avgDaysOnStage}
+                onCardClick={handleCardClick}
+              />
+            ))}
+          </div>
+
+          <DragOverlay dropAnimation={null}>
+            {activeLead ? (
+              <PipelineCardOverlay
+                name={activeLead.name}
+                phone={activeLead.phone}
+                source={activeLead.source}
+                assignedTo={activeLead.assignedTo}
+                risk={activeLead.risk}
+                closeType={activeLead.closeType}
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
+
+      {toast && (
+        <Toast
+          title={toast.title}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
+      )}
+    </>
   );
 }
