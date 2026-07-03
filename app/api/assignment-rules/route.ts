@@ -1,18 +1,9 @@
 import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
-import { writeEvent } from '@/lib/events';
-import { hashPassword } from '@/lib/password';
 import { prisma } from '@/lib/prisma';
-import { createUserSchema } from '@/lib/validations/users';
+import { createAssignmentRuleSchema } from '@/lib/validations/assign';
 
-const USER_PUBLIC_SELECT = {
-  id: true,
-  name: true,
-  email: true,
-  role: true,
-  isBlocked: true,
-  createdAt: true,
-} as const;
+const ASSIGNEE_SELECT = { id: true, name: true } as const;
 
 export async function GET(): Promise<Response> {
   const session = await auth();
@@ -21,22 +12,25 @@ export async function GET(): Promise<Response> {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!hasMinRole(session.user.role, 'HEAD')) {
+  if (!hasMinRole(session.user.role, 'ADMIN')) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { companyId } = session.user;
 
   try {
-    const users = await prisma.user.findMany({
+    const rules = await prisma.assignmentRule.findMany({
       where: { companyId },
-      select: USER_PUBLIC_SELECT,
-      orderBy: { name: 'asc' },
+      orderBy: { priority: 'asc' },
+      include: {
+        assignTo: { select: ASSIGNEE_SELECT },
+        fallbackTo: { select: ASSIGNEE_SELECT },
+      },
     });
 
-    return Response.json(users);
+    return Response.json(rules);
   } catch (error) {
-    console.error('[GET /api/users] failed:', error);
+    console.error('[GET /api/assignment-rules] failed:', error);
     return Response.json({ error: 'INTERNAL_ERROR' }, { status: 500 });
   }
 }
@@ -61,41 +55,45 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const parsed = createUserSchema.safeParse(body);
+  const parsed = createAssignmentRuleSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json({ error: 'VALIDATION_ERROR' }, { status: 400 });
   }
 
+  const { assignToId, fallbackToId } = parsed.data;
+
   try {
-    // Глобальная проверка: User.email @unique без companyId.
-    // Не добавлять companyId — иначе пропустим дубликат в другой компании и получим P2002.
-    const existingUser = await prisma.user.findUnique({
-      where: { email: parsed.data.email },
+    const assignTo = await prisma.user.findFirst({
+      where: { id: assignToId, companyId },
       select: { id: true },
     });
 
-    if (existingUser) {
-      return Response.json({ error: 'EMAIL_EXISTS' }, { status: 400 });
+    if (!assignTo) {
+      return Response.json({ error: 'WRONG_COMPANY' }, { status: 400 });
     }
 
-    const passwordHash = await hashPassword(parsed.data.password);
+    if (fallbackToId !== null) {
+      const fallbackTo = await prisma.user.findFirst({
+        where: { id: fallbackToId, companyId },
+        select: { id: true },
+      });
 
-    const created = await prisma.user.create({
-      data: {
-        companyId,
-        email: parsed.data.email,
-        name: parsed.data.name,
-        passwordHash,
-        role: parsed.data.role,
+      if (!fallbackTo) {
+        return Response.json({ error: 'WRONG_COMPANY' }, { status: 400 });
+      }
+    }
+
+    const created = await prisma.assignmentRule.create({
+      data: { ...parsed.data, companyId },
+      include: {
+        assignTo: { select: ASSIGNEE_SELECT },
+        fallbackTo: { select: ASSIGNEE_SELECT },
       },
-      select: USER_PUBLIC_SELECT,
     });
-
-    await writeEvent(companyId, 'USER_CREATED', { userId: created.id });
 
     return Response.json(created, { status: 201 });
   } catch (error) {
-    console.error('[POST /api/users] failed:', error);
+    console.error('[POST /api/assignment-rules] failed:', error);
     return Response.json({ error: 'INTERNAL_ERROR' }, { status: 500 });
   }
 }

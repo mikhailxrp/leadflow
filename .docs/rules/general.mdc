@@ -5,6 +5,8 @@ alwaysApply: true
 
 Урок по PowerShell: никогда не использовать Get-Content + Set-Content без -Encoding UTF8 для файлов с кириллицей или emoji — PS5 на русской Windows использует CP-1251 по умолчанию, что ломает UTF-8. Всегда использовать [System.IO.File]::ReadAllText/WriteAllText с явным [System.Text.Encoding]::UTF8.
 
+Всегда отвечай на русском языке.
+
 ## Universal
 
 - One file = one responsibility

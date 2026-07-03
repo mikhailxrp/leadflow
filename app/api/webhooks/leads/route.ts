@@ -4,6 +4,7 @@ import { parseBody } from '@/lib/intake/parseBody';
 import { createLead } from '@/lib/intake/createLead';
 import { flagPossibleDuplicates } from '@/lib/intake/flagPossibleDuplicates';
 import { touchIntegrationSource } from '@/lib/intake/touchIntegrationSource';
+import { assignLead } from '@/lib/assignLead';
 import { webhookBodySchema } from '@/lib/validations/webhooks';
 
 function getIp(request: Request): string | undefined {
@@ -50,9 +51,10 @@ export async function POST(request: Request): Promise<Response> {
   const body = webhookBodySchema.parse(await parseBody(request));
 
   try {
-    const lead = await createLead(body, sourceLabel, companyId);
+    const lead = await createLead(body, 'api', companyId, sourceLabel);
     await touchIntegrationSource(companyId, 'api', sourceLabel, false);
     void flagPossibleDuplicates(lead.id, companyId).catch(console.error);
+    void assignLead(lead.id, companyId).catch(console.error);
     return Response.json({ ok: true });
   } catch (error) {
     console.error('[universal webhook] createLead failed:', error);

@@ -36,6 +36,99 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-03 — Phase 11, Таск 3: UI — селект ответственного + правила назначения + переключатель режима
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `components/leads/AssignManagerSelect.tsx` — НОВОЕ: клиентский селект (`GET /api/users`, `PATCH /api/leads/:id/assign`), опция «Не назначен» → `managerId: null`; заблокированные исключены из выбора, кроме уже назначенного (виден с пометкой «заблокирован»); оптимистичный откат при ошибке, `router.refresh()` при успехе (обновляет историю `ASSIGNED`); синхронизация с обновлённым пропом `assignedTo` — без эффекта (паттерн «adjusting state when a prop changes», иначе падает `react-hooks/set-state-in-effect`)
+- `components/leads/LeadSidebar.tsx` — новые пропсы `assignedTo: { id, name } | null` + `canAssign: boolean`; при `canAssign` рендерится `AssignManagerSelect`, иначе прежний read-only текст
+- `app/(app)/leads/[id]/page.tsx` — `canAssign = hasMinRole(companySession.user.role, 'HEAD')` прокинут в `LeadSidebar`
+- `components/settings/AssignModeSection.tsx` — НОВОЕ: радио MANUAL/ROUND_ROBIN, немедленный `PATCH /api/settings` при выборе, откат при ошибке, toast; без `activeManagersOnly` (такой настройки не существует)
+- `components/settings/AssignmentRulesSection.tsx` + `components/settings/AssignmentRulesList.tsx` — НОВОЕ: таблица правил (источник/метка/исполнитель/запасной/приоритет/активность), создание и редактирование в модалке (клиентская валидация теми же Zod-схемами `lib/validations/assign.ts`, пустая строка → `null` до валидации), деактивация тумблером (мгновенный `PATCH`), удаление с inline-подтверждением (паттерн `LossReasonsList`); `PATCH` с пустым diff не отправляется (edit-модалка закрывается без запроса, если ничего не изменилось); ошибки `WRONG_COMPANY`/`VALIDATION_ERROR` показываются текстом, не «тихо»
+- `components/settings/SettingsClientArea.tsx` — `DistributionSection` и ключ `'distribution'` убраны из `SettingsSections`/`DirtyKey`
+- `components/settings/DistributionSection.tsx` — удалён (заглушка Phase 4 с несуществующей настройкой `activeManagersOnly`)
+- `app/(admin)/admin/settings/page.tsx` — секции «Распределение» (режим + правила) вынесены **вне** `SettingsDirtyProvider` (немедленное сохранение, паттерн «Причины отказа»); `assignMode` читается локальным `readAssignMode` (дефолт `MANUAL` на битый/отсутствующий JSONB — `lib/assignLead.ts` не трогался, т.к. вне скоупа таска); список правил и пользователей компании — серверными пропсами
+- `.docs/phases/phase-11.md` — пути компонентов поправлены на фактические (`components/settings/*`, не `components/admin/settings/*`); статусы Таска 3 и фазы в целом → ✅ Готово
+
+**Out of scope (не делалось):** доставка алерта `ASSIGNMENT_FAILED` (Telegram/SSE, Phase 12/13); уведомление назначенному менеджеру (Phase 13); остальные настройки компании и секции-заглушки (`NotificationsSection`/`RemindersSection`/`SecuritySection`) — без изменений; назначение из списка лидов/Kanban — не реализовывалось (только карточка лида); изменения API-роутов и схемы БД — не потребовались.
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; нет `any`. **Живая проверка в браузере не проводилась** — в dev-БД не нашлось известных тестовых учётных данных (пароли захэшированы), а временный сброс пароля пользователю согласовать не стали (пользователь предпочёл пропустить живую проверку и положиться на статическую верификацию).
+
+**Definition of Done:** выполнено по коду; пункт «нет ошибок в консоли браузера» не проверен вживую (см. выше)
+
+---
+
+## 2026-07-03 — Phase 11, Таск 2: API — ручное назначение + CRUD AssignmentRule + минимальный `/api/settings`
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/assign.ts` — НОВОЕ: `assignSchema` (`managerId` nullable — снятие ответственного), `createAssignmentRuleSchema`, `updateAssignmentRuleSchema` (partial + `.refine` «минимум одно поле»)
+- `lib/validations/settings.ts` — НОВОЕ: `updateSettingsSchema` — пока только `assignMode: MANUAL | ROUND_ROBIN`
+- `app/api/leads/[id]/assign/route.ts` — НОВОЕ: `PATCH`, HEAD+; лид `findFirst({ id, companyId })` → 404; `managerId !== null` — пользователь своей компании и не заблокирован → иначе `400 WRONG_COMPANY`; `null` — снятие без лишней проверки; вызов `assignLeadTo` (событие `ASSIGNED`, курсор не трогает)
+- `app/api/assignment-rules/route.ts` — НОВОЕ: `GET` (список по `priority asc`, include имён исполнителей) / `POST` — ADMIN; `assignToId`/`fallbackToId` только пользователи компании → `400 WRONG_COMPANY`; блокировка исполнителей **не** проверяется (на рантайме правило уходит на запасного)
+- `app/api/assignment-rules/[id]/route.ts` — НОВОЕ: `PATCH` / `DELETE` — ADMIN; правило своей компании → иначе 404; `WRONG_COMPANY` только для переданных в PATCH исполнителей; CRUD не пишет `Event`
+- `app/api/settings/route.ts` — заглушка заменена: `GET` (любая company-сессия, JSONB без `roundRobinCursor`) / `PATCH` (ADMIN; плоский мёрж `{ ...current, assignMode }`, не затирает остальные поля JSONB)
+- `app/api/users/route.ts` — только `GET`: порог ослаблен с ADMIN до HEAD (список для селекта назначения); `POST` и мутации в `[id]` — без изменений (ADMIN)
+- Миграция не потребовалась — все модели и поля уже в init-миграции Phase 0
+- Проверено: `npm run type-check` — без ошибок; нет `any`
+
+**Out of scope (не делалось):** UI селекта ответственного, таблицы правил и переключателя режима (Таск 3); глубокий мёрж `reactionNorms`/`leadVisibility` и прочие поля настроек (Phase 17); доставка алертов `ASSIGNMENT_FAILED` (Telegram/SSE, Phase 12/13); allow-list маркетолога для этих эндпоинтов (Phase 11.6)
+
+**Definition of Done:** ✅ Все пункты выполнены
+
+---
+
+## 2026-07-03 — Phase 11, Таск 1: Ядро распределения — intake-фикс + `assignLead` (3 уровня) + round-robin
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/intake/createLead.ts` — опциональный 4-й параметр `sourceLabel`: кладётся в `marketing.sourceLabel` поверх результата `normalizeLead`, не затирая остальные marketing-поля тела запроса
+- `app/api/webhooks/leads/route.ts` — фикс: `createLead(body, "api", companyId, sourceLabel)` вместо `createLead(body, sourceLabel, companyId)` — `Lead.source` теперь канонический `"api"`, метка ключа не терялась в `source`, а уходит в `marketing.sourceLabel`
+- `lib/assignmentRules.ts` — НОВОЕ: `tryAssignmentRules(leadId, companyId)` — тристейт `assigned | matched_but_failed | no_match` (не `boolean`); матч `matchSource`/`matchSourceLabel` по `priority asc`; `marketing.sourceLabel` читается через локальный narrow-хелпер без `any`; назначение — `updateMany({ where: { id, companyId } })` + событие `ASSIGNED { toUserId, viaRule }`
+- `lib/roundRobin.ts` — НОВОЕ: `pickNextManager(tx, companyId)` — `pg_advisory_xact_lock(hashtext(companyId))` + выбор среди точного `role: "MANAGER"` (не `hasMinRole` — намеренное исключение HEAD/ADMIN по решению фазы) + обновление `settings.roundRobinCursor`, всё внутри одной транзакции; удалённый/заблокированный на курсоре — берётся следующий активный по кругу; пустой список активных → `null`
+- `lib/assignLead.ts` — заменена заглушка: `assignLead(leadId, companyId)` — уровень 1 (правила) → уровень 2 (`assignMode`, дефолт `MANUAL` на битый JSONB) → уровень 3 (`ASSIGNMENT_FAILED` строго в двух случаях: правило совпало, но не назначило + фоллбэк не сработал, или `ROUND_ROBIN` без активных менеджеров). Round-robin ветка — `pickNextManager` + `lead.updateMany` + `tx.event.create("ASSIGNED")` в одной транзакции (не через `writeEvent`, который не может участвовать в `$transaction`). Плюс `assignLeadTo(leadId, companyId, managerId | null, actorUserId)` — ручное назначение/снятие, курсор не трогает
+- Встроено после коммита во все 4 точки приёма: `app/api/webhooks/tilda/[companyId]/route.ts`, `app/api/webhooks/wordpress/[companyId]/route.ts`, `app/api/webhooks/leads/route.ts` (`void assignLead(...).catch(console.error)`), `app/api/leads/route.ts` POST (`await assignLead(...).catch(...)` — ошибка назначения не роняет ответ)
+- `.docs/modules/assignment.md` — обновлены: тристейт вместо `boolean`, реальная сигнатура `writeEvent`, финальная семантика `ASSIGNMENT_FAILED` (FR-193), код round-robin с advisory lock и обработкой снятого/заблокированного курсора
+- `.docs/modules/leads-intake.md` — обновлён: универсальный вебхук пишет `source: "api"` + `marketing.sourceLabel`, порядок пост-коммитных действий, имя функции `assignLead` (было `autoAssignLead` в псевдокоде)
+- Миграция не потребовалась — `AssignmentRule`, `ASSIGNED`/`ASSIGNMENT_FAILED` были в init-миграции Phase 0; `assignMode`/`roundRobinCursor` — существующие JSONB-поля `Company.settings`
+- Проверено: `npm run type-check`, `npm run lint` (только изменённые файлы), `npm run build` — без ошибок; нет `any`
+
+**Out of scope (не делалось):** `PATCH /api/leads/:id/assign`, CRUD `AssignmentRule`, `GET/PATCH /api/settings` (Таск 2); UI селекта/правил/переключателя (Таск 3); доставка алерта `ASSIGNMENT_FAILED` (Telegram/SSE, Phase 12/13); `notifyNewLead` (Phase 13)
+
+**Definition of Done:** ✅ Все пункты выполнены
+
+---
+
+## 2026-07-02 — Документация v4.1: роль «Маркетолог» (без кода)
+
+**Статус:** ✅ Завершён
+
+**Что сделано (только документация, ни одной строчки кода/схемы):**
+
+- **Новый модуль `.docs/modules/platform-marketer.md`** — полная спецификация роли `MARKETER`: `PlatformRole` (не иерархия с `SUPER_ADMIN` — два скоупа, проверка явным списком `requirePlatformSession({ roles })`), владение компаниями (`Company.createdByPlatformAdminId`), гранты (`CompanyAccessGrant`), каскадная блокировка компаний при блокировке маркетолога (+ email суперадминам с контактами администраторов), вход внутрь компании виртуальным actor'ом `marketer` с allow-list/deny-by-default (не impersonation), квалификация лидов (`Lead.qualification` + `LEAD_QUALIFIED`/`DISQUALIFIED`), страница логов `/platform/logs`
+- **`.docs/database.md` → v4.1** — enum'ы `PlatformRole`/`LeadQualification`, 6 новых `EventType`, поля `Company` и `Lead`, модель `CompanyAccessGrant`, синхронизация `PlatformAdmin` с фактической схемой (`isActive`/`deletedAt` + добавлены `role`/`lastLoginAt`), `PlatformAdminPasswordResetToken` (устранён дрейф доки), транзакция каскадной блокировки, индексы, примечание о безопасной аддитивной миграции
+- **`.docs/modules/platform-admin.md`** — пометки (v4.1): скоупинг списка компаний/активности/дайджеста по владению, impersonation только SUPER_ADMIN, `/platform/admins` только SUPER_ADMIN, обновлена таблица API (auth-колонка с ролями)
+- **`CLAUDE.md` → v4.1** — пять уровней доступа, исключения из `hasMinRole` (платформенные роли — явный список; маркетолог — allow-list, не добавляется в `UserRole`/`ROLE_RANK`), структура (страницы/lib/constants), пример proxy.ts с actor `marketer`, новые AI Rules
+- **`.docs/prd.md` → v4.1** — разделы 2.7 (MKT-01…09), 2.8 (CASC-01…06), 2.9 (LOG-01…05), 4.17 (QUAL-01…06), обновлены PLAT-04…07/09 + PLAT-10…12, SUB-04 (дайджест по владельцу), API-таблица, экраны, security, роадмап, журнал версий
+- **`.docs/phases/_status.md`** — новые фазы: **11.5** (платформа: роль, владение, гранты, каскад), **11.6** (маркетолог внутри компании + квалификация), **11.7** (платформенные логи), **22.5** (экспорт квалификаций в Метрику, research-first); правки Phase 18/21 (доступ маркетолога через allow-list) и Phase 23 (smoke-тесты флоу маркетолога)
+
+**Ключевые решения (согласованы с заказчиком):**
+
+- Дайджест продлений уходит владельцу компании (создателю), не всем
+- Блокировка маркетолога каскадно блокирует его компании; суперадмины получают email с контактами администраторов; разблокировка возвращает только каскадные; приём webhook-лидов не прерывается
+- Квалификация — статус + событие, независима от воронки/закрытия; экспорт в Метрику через API офлайн-конверсий (Phase 22.5, research-first)
+- Скрытие `companyId` компаний маркетологов от суперадмина зафиксировано как UX-барьер/граница ответственности, не гарантия безопасности
+
+**Существующий код не менялся** — Phase 11 (распределение лидов) идёт по плану; реализация роли — фазы 11.5–11.7 по `.docs/modules/platform-marketer.md`.
+
+---
+
 ## 2026-06-27 — Phase 10, Таск 3: UI — блокировка/разблокировка + смена роли + удаление
 
 **Статус:** ✅ Завершён
