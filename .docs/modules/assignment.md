@@ -61,27 +61,44 @@
 
 ## Архитектурные решения
 
-### 1. Единая точка входа `assignLead` — расширена
+### 1. Единая точка входа `assignLead` — реализована (Phase 11, Таск 1)
+
+`tryAssignmentRules` возвращает не `boolean`, а тристейт `"assigned" | "matched_but_failed" | "no_match"` — иначе не выразить разницу между «правило не подошло» (норма для `MANUAL`) и «правило подошло, но не смогло назначить» (это и есть повод для алерта). `ASSIGNMENT_FAILED` внутри `assignLead` пишется через реальный `writeEvent(companyId, type, opts)` (`lib/events.ts`), не через сигнатуру из более раннего псевдокода этого раздела.
 
 ```typescript
 // lib/assignLead.ts
 async function assignLead(leadId: string, companyId: string): Promise<void> {
-  const assigned = await tryAssignmentRules(leadId, companyId);   // НОВОЕ, уровень 1
-  if (assigned) return;
+  const ruleResult = await tryAssignmentRules(leadId, companyId); // уровень 1
+  if (ruleResult === "assigned") return;
 
-  const fallbackAssigned = await tryFallbackMode(leadId, companyId); // уровень 2 (было единственным)
-  if (fallbackAssigned) return;
+  const assignMode = readAssignMode(company.settings); // "MANUAL" | "ROUND_ROBIN", дефолт MANUAL на битый JSONB
 
-  await writeEvent(companyId, "ASSIGNMENT_FAILED", {}, null, leadId); // уровень 3
-  // нотификация руководителю — notifications.md
+  if (assignMode === "ROUND_ROBIN") {
+    // pickNextManager + updateMany(lead) + tx.event.create("ASSIGNED") — одна транзакция (advisory lock)
+    const managerId = await prisma.$transaction(async (tx) => { /* см. «Автораспределение» */ });
+    if (managerId) return;
+
+    await writeEvent(companyId, "ASSIGNMENT_FAILED", { leadId }); // уровень 3, случай (б)
+    return;
+  }
+
+  // MANUAL: без событий, если правило вообще не подошло — это норма
+  if (ruleResult === "matched_but_failed") {
+    await writeEvent(companyId, "ASSIGNMENT_FAILED", { leadId }); // уровень 3, случай (а)
+  }
 }
 
-async function assignLeadTo(leadId: string, managerId: string | null, actorId: string): Promise<void>; // без изменений — ручное назначение/переназначение
+async function assignLeadTo(
+  leadId: string,
+  companyId: string,
+  managerId: string | null,
+  actorUserId: string,
+): Promise<void>; // ручное назначение/снятие — пишет ASSIGNED, roundRobinCursor не трогает
 ```
 
-### 2–4. Назначение после коммита, round-robin через курсор + advisory lock, событие `ASSIGNED` — без изменений
+### 2–4. Назначение после коммита, round-robin через курсор + advisory lock, событие `ASSIGNED`
 
-См. предыдущую версию документа и `.docs/database.md` → «Критичные транзакции».
+Реализовано как описано: `void assignLead(lead.id, companyId).catch(console.error)` во всех точках приёма (ручное создание — `await` с тем же `.catch`, ошибка не роняет ответ). Детали round-robin — см. раздел «Автораспределение» ниже.
 
 ---
 
@@ -101,28 +118,41 @@ async function assignLeadTo(leadId: string, managerId: string | null, actorId: s
 
 ### Серверная логика
 
+`lib/assignmentRules.ts` — `lead.marketing` читается type-safe через локальный narrow-хелпер (`readSourceLabel`, без `any`), назначение — `updateMany({ where: { id, companyId } })`, не голый `update({ where: { id } })`:
+
 ```typescript
-async function tryAssignmentRules(leadId: string, companyId: string): Promise<boolean> {
-  const lead = await prisma.lead.findUniqueOrThrow({ where: { id: leadId } });
+export type AssignmentRuleResult = "assigned" | "matched_but_failed" | "no_match";
+
+async function tryAssignmentRules(leadId: string, companyId: string): Promise<AssignmentRuleResult> {
+  const lead = await prisma.lead.findFirstOrThrow({ where: { id: leadId, companyId }, select: { source: true, marketing: true } });
+  const sourceLabel = readSourceLabel(lead.marketing); // narrow-хелпер, JSONB → string | null
+
   const rules = await prisma.assignmentRule.findMany({
     where: { companyId, isActive: true },
     orderBy: { priority: "asc" },
     include: { assignTo: true, fallbackTo: true },
   });
 
+  let matched = false;
+
   for (const rule of rules) {
     const sourceMatches = !rule.matchSource || rule.matchSource === lead.source;
-    const labelMatches = !rule.matchSourceLabel || rule.matchSourceLabel === lead.marketing?.sourceLabel;
+    const labelMatches = !rule.matchSourceLabel || rule.matchSourceLabel === sourceLabel;
     if (!sourceMatches || !labelMatches) continue;
 
-    const target = (!rule.assignTo.isBlocked && rule.assignTo) || (rule.fallbackTo && !rule.fallbackTo.isBlocked ? rule.fallbackTo : null);
+    matched = true;
+
+    const target = !rule.assignTo.isBlocked ? rule.assignTo : (rule.fallbackTo && !rule.fallbackTo.isBlocked ? rule.fallbackTo : null);
     if (!target) continue; // оба неактивны — пробуем следующее правило
 
-    await prisma.lead.update({ where: { id: leadId }, data: { assignedToId: target.id } });
-    await writeEvent(companyId, "ASSIGNED", { toUserId: target.id, viaRule: rule.id }, null, leadId);
-    return true;
+    const updated = await prisma.lead.updateMany({ where: { id: leadId, companyId }, data: { assignedToId: target.id } });
+    if (updated.count === 0) continue;
+
+    await writeEvent(companyId, "ASSIGNED", { payload: { toUserId: target.id, viaRule: rule.id }, leadId });
+    return "assigned";
   }
-  return false;
+
+  return matched ? "matched_but_failed" : "no_match";
 }
 ```
 
@@ -134,9 +164,42 @@ async function tryAssignmentRules(leadId: string, companyId: string): Promise<bo
 
 ---
 
-## Автораспределение (round-robin) — без изменений, теперь фоллбэк-уровень
+## Автораспределение (round-robin) — фоллбэк-уровень
 
-Логика курсора, advisory lock, учёт только активных менеджеров — без изменений. Разница только в том, **когда** этот механизм вызывается: после того, как `AssignmentRule` не дал результата.
+`lib/roundRobin.ts` — `pickNextManager(tx, companyId)` **должна** вызываться внутри той же транзакции, что держит `pg_advisory_xact_lock(hashtext(companyId))`: лок живёт только на время транзакции, поэтому чтение курсора, выбор менеджера и запись нового курсора — всё в `tx`. Выборка — точное сравнение `role: "MANAGER"` (не `hasMinRole`): HEAD/ADMIN намеренно исключены, получают лиды только правилом или вручную.
+
+```typescript
+async function pickNextManager(tx: Prisma.TransactionClient, companyId: string): Promise<string | null> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}))`;
+
+  const managers = await tx.user.findMany({
+    where: { companyId, role: "MANAGER" },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true, isBlocked: true },
+  });
+  const active = managers.filter((m) => !m.isBlocked);
+  if (active.length === 0) return null; // пустой список активных → null
+
+  const company = await tx.company.findUniqueOrThrow({ where: { id: companyId }, select: { settings: true } });
+  const cursor = readRoundRobinCursor(company.settings); // narrow-хелпер JSONB → string | null
+  const cursorIndex = cursor ? managers.findIndex((m) => m.id === cursor) : -1;
+
+  // Курсор указывает на удалённого/заблокированного — это НЕ ошибка: цикл ниже
+  // всё равно находит следующего активного по кругу от его позиции в общем списке.
+  let next = active[0];
+  if (cursorIndex !== -1) {
+    for (let offset = 1; offset <= managers.length; offset++) {
+      const candidate = managers[(cursorIndex + offset) % managers.length];
+      if (candidate && !candidate.isBlocked) { next = candidate; break; }
+    }
+  }
+
+  await tx.company.update({ where: { id: companyId }, data: { settings: { ...rawSettings, roundRobinCursor: next.id } } });
+  return next.id;
+}
+```
+
+Вызывающая сторона (`assignLead`) оборачивает `pickNextManager` вместе с `lead.updateMany` и `tx.event.create({ type: "ASSIGNED" })` в один `prisma.$transaction` — событие пишется через `tx.event.create` напрямую (паттерн `createLead`), не через `writeEvent`, потому что `writeEvent` использует глобальный `prisma` и `auth()` и не может участвовать в транзакции. `roundRobinCursor` сдвигает только этот путь — `assignLeadTo` его не трогает.
 
 ---
 
@@ -148,18 +211,18 @@ async function tryAssignmentRules(leadId: string, companyId: string): Promise<bo
 
 ## Провал назначения и алерт
 
-### Поведение (FR-193)
+### Поведение (FR-193) — решено окончательно в Phase 11
+
+`ASSIGNMENT_FAILED` пишется ровно в двух случаях, не более:
 
 ```
-Если → ни одно правило не сработало
-     И assignMode = MANUAL (лид без ответственного — это ожидаемо в этом режиме)
-     ИЛИ assignMode = ROUND_ROBIN, но активных менеджеров нет
-То   → лид остаётся без ответственного
-     → событие ASSIGNMENT_FAILED
-     → Telegram руководителю: «Лид {имя} ({источник}) не назначен — нет доступных менеджеров»
+(а) Правило совпало (matched), но не смогло назначить — основной и запасной
+    оба неактивны — и ни одно следующее правило по priority тоже не сработало,
+    И assignMode = MANUAL (фоллбэк тоже не назначил)
+(б) assignMode = ROUND_ROBIN, но активных менеджеров нет
 ```
 
-**Важное уточнение:** в режиме `MANUAL` отсутствие ответственного после приёма — это нормальная, ожидаемая часть рабочего процесса (админ назначает вручную), а не сбой. Алерт `ASSIGNMENT_FAILED` шлётся **только если не сработали правила** — иначе компания в `MANUAL`-режиме получала бы алерт на каждый лид, что противоречит принципу «не плодить шум» (`.docs/modules/notifications.md`). Точная настройка этого нюанса (слать ли алерт при обычном `MANUAL` без правил) — финализируется в `.docs/modules/notifications.md`, где видна вся картина приоритетов алертов.
+**Чистый `MANUAL` без единого совпавшего правила — норма, без события.** Если бы алерт слался при любом `MANUAL`-лиде без ответственного, компания в `MANUAL`-режиме получала бы алерт на каждый лид — это и есть шум, которого нужно избежать (`.docs/modules/notifications.md`). Отсюда и тристейт `tryAssignmentRules` (`assigned | matched_but_failed | no_match`) — булевым результатом эту разницу не выразить. Доставка алерта (Telegram/SSE) — Phase 12/13; здесь — только событие в журнале.
 
 ---
 
@@ -176,7 +239,9 @@ async function tryAssignmentRules(leadId: string, companyId: string): Promise<bo
 Случай: правило ссылается на источник, которого больше нет (например, отключили интеграцию)
 → правило просто не срабатывает (нет совпадения) — не ошибка, не требует очистки
 
-(краевые случаи round-robin — без изменений, см. предыдущую версию)
+Случай: менеджер на позиции курсора удалён или заблокирован
+→ не ошибка — берётся первый активный менеджер, следующий за его позицией по кругу
+→ ручное назначение/снятие (assignLeadTo) курсор не читает и не сдвигает
 ```
 
 ---
@@ -236,7 +301,7 @@ components/
 
 ## Связи с другими модулями
 
-- **`.docs/modules/leads-intake.md`** — вызывает `assignLead(leadId)` после коммита приёма.
+- **`.docs/modules/leads-intake.md`** — вызывает `assignLead(leadId, companyId)` после коммита приёма.
 - **`.docs/modules/notifications.md`** — уведомление назначенному; финальная логика, когда слать `ASSIGNMENT_FAILED`-алерт руководителю.
 - **`.docs/modules/app-settings.md`** — `assignMode` как фоллбэк-уровень 2.
 - **`.docs/modules/admin-users.md`** — список менеджеров для правил и ручного назначения; блокировка влияет на оба уровня.

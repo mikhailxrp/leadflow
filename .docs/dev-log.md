@@ -36,6 +36,29 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-03 — Phase 11, Таск 1: Ядро распределения — intake-фикс + `assignLead` (3 уровня) + round-robin
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/intake/createLead.ts` — опциональный 4-й параметр `sourceLabel`: кладётся в `marketing.sourceLabel` поверх результата `normalizeLead`, не затирая остальные marketing-поля тела запроса
+- `app/api/webhooks/leads/route.ts` — фикс: `createLead(body, "api", companyId, sourceLabel)` вместо `createLead(body, sourceLabel, companyId)` — `Lead.source` теперь канонический `"api"`, метка ключа не терялась в `source`, а уходит в `marketing.sourceLabel`
+- `lib/assignmentRules.ts` — НОВОЕ: `tryAssignmentRules(leadId, companyId)` — тристейт `assigned | matched_but_failed | no_match` (не `boolean`); матч `matchSource`/`matchSourceLabel` по `priority asc`; `marketing.sourceLabel` читается через локальный narrow-хелпер без `any`; назначение — `updateMany({ where: { id, companyId } })` + событие `ASSIGNED { toUserId, viaRule }`
+- `lib/roundRobin.ts` — НОВОЕ: `pickNextManager(tx, companyId)` — `pg_advisory_xact_lock(hashtext(companyId))` + выбор среди точного `role: "MANAGER"` (не `hasMinRole` — намеренное исключение HEAD/ADMIN по решению фазы) + обновление `settings.roundRobinCursor`, всё внутри одной транзакции; удалённый/заблокированный на курсоре — берётся следующий активный по кругу; пустой список активных → `null`
+- `lib/assignLead.ts` — заменена заглушка: `assignLead(leadId, companyId)` — уровень 1 (правила) → уровень 2 (`assignMode`, дефолт `MANUAL` на битый JSONB) → уровень 3 (`ASSIGNMENT_FAILED` строго в двух случаях: правило совпало, но не назначило + фоллбэк не сработал, или `ROUND_ROBIN` без активных менеджеров). Round-robin ветка — `pickNextManager` + `lead.updateMany` + `tx.event.create("ASSIGNED")` в одной транзакции (не через `writeEvent`, который не может участвовать в `$transaction`). Плюс `assignLeadTo(leadId, companyId, managerId | null, actorUserId)` — ручное назначение/снятие, курсор не трогает
+- Встроено после коммита во все 4 точки приёма: `app/api/webhooks/tilda/[companyId]/route.ts`, `app/api/webhooks/wordpress/[companyId]/route.ts`, `app/api/webhooks/leads/route.ts` (`void assignLead(...).catch(console.error)`), `app/api/leads/route.ts` POST (`await assignLead(...).catch(...)` — ошибка назначения не роняет ответ)
+- `.docs/modules/assignment.md` — обновлены: тристейт вместо `boolean`, реальная сигнатура `writeEvent`, финальная семантика `ASSIGNMENT_FAILED` (FR-193), код round-robin с advisory lock и обработкой снятого/заблокированного курсора
+- `.docs/modules/leads-intake.md` — обновлён: универсальный вебхук пишет `source: "api"` + `marketing.sourceLabel`, порядок пост-коммитных действий, имя функции `assignLead` (было `autoAssignLead` в псевдокоде)
+- Миграция не потребовалась — `AssignmentRule`, `ASSIGNED`/`ASSIGNMENT_FAILED` были в init-миграции Phase 0; `assignMode`/`roundRobinCursor` — существующие JSONB-поля `Company.settings`
+- Проверено: `npm run type-check`, `npm run lint` (только изменённые файлы), `npm run build` — без ошибок; нет `any`
+
+**Out of scope (не делалось):** `PATCH /api/leads/:id/assign`, CRUD `AssignmentRule`, `GET/PATCH /api/settings` (Таск 2); UI селекта/правил/переключателя (Таск 3); доставка алерта `ASSIGNMENT_FAILED` (Telegram/SSE, Phase 12/13); `notifyNewLead` (Phase 13)
+
+**Definition of Done:** ✅ Все пункты выполнены
+
+---
+
 ## 2026-07-02 — Документация v4.1: роль «Маркетолог» (без кода)
 
 **Статус:** ✅ Завершён

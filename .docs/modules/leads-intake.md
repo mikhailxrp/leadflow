@@ -112,11 +112,13 @@ export async function POST(req: Request, { params }: { params: { companyId: stri
 
 ```
 коммит приёма
-  → autoAssignLead(leadId)              // assignment: AssignmentRule → assignMode
-  → notifyNewLead(leadId)                // notifications: SSE + Telegram
-  → flagPossibleDuplicates(leadId)       // пометка дублей, событие DUPLICATE_FLAGGED
   → touchIntegrationSource(companyId, source)  // обновить здоровье источника
+  → flagPossibleDuplicates(leadId)       // пометка дублей, событие DUPLICATE_FLAGGED
+  → assignLead(leadId, companyId)         // assignment: AssignmentRule → assignMode → ASSIGNMENT_FAILED (Phase 11)
+  → notifyNewLead(leadId)                // notifications: SSE + Telegram (Phase 13)
 ```
+
+Во всех трёх вебхуках — `void assignLead(lead.id, companyId).catch(console.error)`, как и `flagPossibleDuplicates`: ошибка внутри назначения не должна ронять ответ `200 OK` источнику (паттерн `flagPossibleDuplicates`). В ручном создании лида (`POST /api/leads`) — допустимо `await assignLead(...)` с тем же `.catch`, поскольку там уже есть человек у экрана, ожидающий ответ, но ошибка назначения всё равно не должна возвращать не-201 ответ.
 
 ---
 
@@ -136,7 +138,9 @@ export async function POST(req: Request, { params }: { params: { companyId: stri
 
 ## Источник: универсальный webhook
 
-`POST /api/webhooks/leads?key=<API_KEY>&source=<label>` — принимает любой JSON. `companyId` определяется из `ApiKey`, не из пути и не из тела.
+`POST /api/webhooks/leads?key=<API_KEY>&source=<label>` (или `X-API-Key`) — принимает любой JSON. `companyId` и метка (`sourceLabel`) определяются из `ApiKey`, не из пути и не из тела.
+
+**`Lead.source` — всегда канонический `"api"`, не метка ключа.** Метка (`ApiKey.sourceLabel`) кладётся в `marketing.sourceLabel` поверх результата `normalizeLead`, не затирая остальные marketing-поля из тела запроса: `createLead(body, "api", companyId, sourceLabel)` — 4-й параметр `createLead` (`lib/intake/createLead.ts`), опциональный, используется только этим источником. Матчинг `AssignmentRule` (`.docs/modules/assignment.md`) — `matchSource` ↔ `Lead.source` (`"api"`), `matchSourceLabel` ↔ `marketing.sourceLabel` (метка ключа): без этого фикса правило по label никогда бы не совпало, а канал `api` терялся бы в `Lead.source`.
 
 ## Источник: Яндекс Директ
 
@@ -296,7 +300,7 @@ lib/validations/
 
 ## Связи с другими модулями
 
-- **`.docs/modules/assignment.md`** — `autoAssignLead(leadId)` после коммита.
+- **`.docs/modules/assignment.md`** — `assignLead(leadId, companyId)` после коммита.
 - **`.docs/modules/notifications.md`** — `notifyNewLead(leadId)`; мониторинг здоровья источников.
 - **`.docs/modules/integrations.md`** — UI карточек источников, генерация API-ключей, отображение статуса здоровья.
 - **`.docs/modules/leads.md`** — синхронная проверка дублей при ручном создании; отображение пометки дубля.

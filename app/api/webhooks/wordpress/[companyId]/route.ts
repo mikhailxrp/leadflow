@@ -3,6 +3,7 @@ import { parseBody } from '@/lib/intake/parseBody';
 import { createLead } from '@/lib/intake/createLead';
 import { flagPossibleDuplicates } from '@/lib/intake/flagPossibleDuplicates';
 import { touchIntegrationSource } from '@/lib/intake/touchIntegrationSource';
+import { assignLead } from '@/lib/assignLead';
 import { webhookBodySchema } from '@/lib/validations/webhooks';
 import { prisma } from '@/lib/prisma';
 
@@ -42,6 +43,7 @@ export async function POST(
     const lead = await createLead(body, 'wordpress', companyId);
     await touchIntegrationSource(companyId, 'wordpress', '', false);
     void flagPossibleDuplicates(lead.id, companyId).catch(console.error);
+    void assignLead(lead.id, companyId).catch(console.error);
     return Response.json({ ok: true });
   } catch (error) {
     console.error('[wordpress webhook] createLead failed:', error);

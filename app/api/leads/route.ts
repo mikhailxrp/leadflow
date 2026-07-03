@@ -1,5 +1,6 @@
 import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
+import { assignLead } from '@/lib/assignLead';
 import { createLead } from '@/lib/intake/createLead';
 import { findPossibleDuplicates } from '@/lib/intake/findPossibleDuplicates';
 import { flagPossibleDuplicates } from '@/lib/intake/flagPossibleDuplicates';
@@ -102,6 +103,10 @@ export async function POST(request: Request): Promise<Response> {
     if (confirmDuplicate) {
       void flagPossibleDuplicates(lead.id, companyId).catch(console.error);
     }
+
+    await assignLead(lead.id, companyId).catch((error) => {
+      console.error('[POST /api/leads] assignLead failed:', error);
+    });
 
     return Response.json({ id: lead.id }, { status: 201 });
   } catch (error) {
