@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import { hasMinRole } from '@/constants/roles';
 import { getLeadById } from '@/lib/leads/getLeadById';
 import type { CompanySession } from '@/types/session';
 import { PageContent } from '@/components/layout/AppLayout';
@@ -125,6 +126,7 @@ export default async function LeadDetailPage({
             takenAt={takenAtStr}
             closeType={lead.closeType}
             assignedTo={lead.assignedTo}
+            canAssign={hasMinRole(companySession.user.role, 'HEAD')}
           />
           <LeadComments leadId={lead.id} comments={serializedComments} />
           <TaskBlock leadId={lead.id} highlightTaskId={taskId} />

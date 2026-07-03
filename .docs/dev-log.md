@@ -36,6 +36,30 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-03 — Phase 11, Таск 3: UI — селект ответственного + правила назначения + переключатель режима
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `components/leads/AssignManagerSelect.tsx` — НОВОЕ: клиентский селект (`GET /api/users`, `PATCH /api/leads/:id/assign`), опция «Не назначен» → `managerId: null`; заблокированные исключены из выбора, кроме уже назначенного (виден с пометкой «заблокирован»); оптимистичный откат при ошибке, `router.refresh()` при успехе (обновляет историю `ASSIGNED`); синхронизация с обновлённым пропом `assignedTo` — без эффекта (паттерн «adjusting state when a prop changes», иначе падает `react-hooks/set-state-in-effect`)
+- `components/leads/LeadSidebar.tsx` — новые пропсы `assignedTo: { id, name } | null` + `canAssign: boolean`; при `canAssign` рендерится `AssignManagerSelect`, иначе прежний read-only текст
+- `app/(app)/leads/[id]/page.tsx` — `canAssign = hasMinRole(companySession.user.role, 'HEAD')` прокинут в `LeadSidebar`
+- `components/settings/AssignModeSection.tsx` — НОВОЕ: радио MANUAL/ROUND_ROBIN, немедленный `PATCH /api/settings` при выборе, откат при ошибке, toast; без `activeManagersOnly` (такой настройки не существует)
+- `components/settings/AssignmentRulesSection.tsx` + `components/settings/AssignmentRulesList.tsx` — НОВОЕ: таблица правил (источник/метка/исполнитель/запасной/приоритет/активность), создание и редактирование в модалке (клиентская валидация теми же Zod-схемами `lib/validations/assign.ts`, пустая строка → `null` до валидации), деактивация тумблером (мгновенный `PATCH`), удаление с inline-подтверждением (паттерн `LossReasonsList`); `PATCH` с пустым diff не отправляется (edit-модалка закрывается без запроса, если ничего не изменилось); ошибки `WRONG_COMPANY`/`VALIDATION_ERROR` показываются текстом, не «тихо»
+- `components/settings/SettingsClientArea.tsx` — `DistributionSection` и ключ `'distribution'` убраны из `SettingsSections`/`DirtyKey`
+- `components/settings/DistributionSection.tsx` — удалён (заглушка Phase 4 с несуществующей настройкой `activeManagersOnly`)
+- `app/(admin)/admin/settings/page.tsx` — секции «Распределение» (режим + правила) вынесены **вне** `SettingsDirtyProvider` (немедленное сохранение, паттерн «Причины отказа»); `assignMode` читается локальным `readAssignMode` (дефолт `MANUAL` на битый/отсутствующий JSONB — `lib/assignLead.ts` не трогался, т.к. вне скоупа таска); список правил и пользователей компании — серверными пропсами
+- `.docs/phases/phase-11.md` — пути компонентов поправлены на фактические (`components/settings/*`, не `components/admin/settings/*`); статусы Таска 3 и фазы в целом → ✅ Готово
+
+**Out of scope (не делалось):** доставка алерта `ASSIGNMENT_FAILED` (Telegram/SSE, Phase 12/13); уведомление назначенному менеджеру (Phase 13); остальные настройки компании и секции-заглушки (`NotificationsSection`/`RemindersSection`/`SecuritySection`) — без изменений; назначение из списка лидов/Kanban — не реализовывалось (только карточка лида); изменения API-роутов и схемы БД — не потребовались.
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; нет `any`. **Живая проверка в браузере не проводилась** — в dev-БД не нашлось известных тестовых учётных данных (пароли захэшированы), а временный сброс пароля пользователю согласовать не стали (пользователь предпочёл пропустить живую проверку и положиться на статическую верификацию).
+
+**Definition of Done:** выполнено по коду; пункт «нет ошибок в консоли браузера» не проверен вживую (см. выше)
+
+---
+
 ## 2026-07-03 — Phase 11, Таск 2: API — ручное назначение + CRUD AssignmentRule + минимальный `/api/settings`
 
 **Статус:** ✅ Завершён

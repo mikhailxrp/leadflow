@@ -4,6 +4,7 @@ import type { CloseType } from '@prisma/client';
 import Card from '@/components/ui/Card';
 import TakeInWorkButton from '@/components/leads/TakeInWorkButton';
 import CloseLeadMenu from '@/components/leads/CloseLeadMenu';
+import AssignManagerSelect from '@/components/leads/AssignManagerSelect';
 
 const CLOSE_TYPE_LABELS: Record<CloseType, string> = {
   WON: 'Сделка',
@@ -20,7 +21,8 @@ interface LeadSidebarProps {
   hasTakenInWork: boolean;
   takenAt: string | null;
   closeType: CloseType | null;
-  assignedTo: { name: string } | null;
+  assignedTo: { id: string; name: string } | null;
+  canAssign: boolean;
 }
 
 export default function LeadSidebar({
@@ -29,6 +31,7 @@ export default function LeadSidebar({
   takenAt,
   closeType,
   assignedTo,
+  canAssign,
 }: LeadSidebarProps) {
   return (
     <Card padding="lg">
@@ -41,11 +44,15 @@ export default function LeadSidebar({
           <span className="text-[12px] font-normal text-[var(--color-text-secondary)]">
             Ответственный
           </span>
-          <span className="text-[13px] text-[var(--color-text-primary)]">
-            {assignedTo?.name ?? (
-              <span className="text-[var(--color-text-tertiary)]">Не назначен</span>
-            )}
-          </span>
+          {canAssign ? (
+            <AssignManagerSelect leadId={leadId} assignedTo={assignedTo} />
+          ) : (
+            <span className="text-[13px] text-[var(--color-text-primary)]">
+              {assignedTo?.name ?? (
+                <span className="text-[var(--color-text-tertiary)]">Не назначен</span>
+              )}
+            </span>
+          )}
         </div>
 
         {closeType !== null && (
