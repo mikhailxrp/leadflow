@@ -36,6 +36,28 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-03 — Phase 11, Таск 2: API — ручное назначение + CRUD AssignmentRule + минимальный `/api/settings`
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/assign.ts` — НОВОЕ: `assignSchema` (`managerId` nullable — снятие ответственного), `createAssignmentRuleSchema`, `updateAssignmentRuleSchema` (partial + `.refine` «минимум одно поле»)
+- `lib/validations/settings.ts` — НОВОЕ: `updateSettingsSchema` — пока только `assignMode: MANUAL | ROUND_ROBIN`
+- `app/api/leads/[id]/assign/route.ts` — НОВОЕ: `PATCH`, HEAD+; лид `findFirst({ id, companyId })` → 404; `managerId !== null` — пользователь своей компании и не заблокирован → иначе `400 WRONG_COMPANY`; `null` — снятие без лишней проверки; вызов `assignLeadTo` (событие `ASSIGNED`, курсор не трогает)
+- `app/api/assignment-rules/route.ts` — НОВОЕ: `GET` (список по `priority asc`, include имён исполнителей) / `POST` — ADMIN; `assignToId`/`fallbackToId` только пользователи компании → `400 WRONG_COMPANY`; блокировка исполнителей **не** проверяется (на рантайме правило уходит на запасного)
+- `app/api/assignment-rules/[id]/route.ts` — НОВОЕ: `PATCH` / `DELETE` — ADMIN; правило своей компании → иначе 404; `WRONG_COMPANY` только для переданных в PATCH исполнителей; CRUD не пишет `Event`
+- `app/api/settings/route.ts` — заглушка заменена: `GET` (любая company-сессия, JSONB без `roundRobinCursor`) / `PATCH` (ADMIN; плоский мёрж `{ ...current, assignMode }`, не затирает остальные поля JSONB)
+- `app/api/users/route.ts` — только `GET`: порог ослаблен с ADMIN до HEAD (список для селекта назначения); `POST` и мутации в `[id]` — без изменений (ADMIN)
+- Миграция не потребовалась — все модели и поля уже в init-миграции Phase 0
+- Проверено: `npm run type-check` — без ошибок; нет `any`
+
+**Out of scope (не делалось):** UI селекта ответственного, таблицы правил и переключателя режима (Таск 3); глубокий мёрж `reactionNorms`/`leadVisibility` и прочие поля настроек (Phase 17); доставка алертов `ASSIGNMENT_FAILED` (Telegram/SSE, Phase 12/13); allow-list маркетолога для этих эндпоинтов (Phase 11.6)
+
+**Definition of Done:** ✅ Все пункты выполнены
+
+---
+
 ## 2026-07-03 — Phase 11, Таск 1: Ядро распределения — intake-фикс + `assignLead` (3 уровня) + round-robin
 
 **Статус:** ✅ Завершён
