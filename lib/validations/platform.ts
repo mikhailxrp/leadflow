@@ -1,3 +1,4 @@
+import { EventType } from '@prisma/client';
 import { z } from 'zod';
 
 export const loginSchema = z.object({
@@ -93,6 +94,25 @@ export const platformResetPasswordSchema = z.object({
   password: z.string().min(8),
 });
 
+export const platformLogsQuerySchema = z
+  .object({
+    companyId: z.string().cuid(),
+    type: z.nativeEnum(EventType).optional(),
+    from: z.string().datetime().optional(),
+    to: z.string().datetime().optional(),
+    leadId: z.string().cuid().optional(),
+    page: z.coerce.number().int().min(1).default(1),
+  })
+  .refine((data) => !data.from || !data.to || data.from <= data.to, {
+    message: 'from must be before or equal to to',
+    path: ['from'],
+  });
+
+export const platformLogsLeadSearchSchema = z.object({
+  companyId: z.string().cuid(),
+  q: z.string().min(1),
+});
+
 export const cronSubscriptionAuthSchema = z
   .object({
     authorization: z.string().optional(),
@@ -133,4 +153,8 @@ export type PlatformResetPasswordInput = z.infer<
 >;
 export type CronSubscriptionAuthInput = z.infer<
   typeof cronSubscriptionAuthSchema
+>;
+export type PlatformLogsQueryInput = z.infer<typeof platformLogsQuerySchema>;
+export type PlatformLogsLeadSearchInput = z.infer<
+  typeof platformLogsLeadSearchSchema
 >;

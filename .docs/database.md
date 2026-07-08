@@ -595,6 +595,7 @@ model Event {
   @@index([type])
   @@index([createdAt])
   @@index([impersonatedByPlatformAdminId])
+  @@index([companyId, createdAt])
 }
 ```
 
@@ -1003,6 +1004,7 @@ await prisma.$transaction(async (tx) => {
 @@unique([companyId, platformAdminId]) // CompanyAccessGrant — один грант на пару (v4.1)
 @@index([platformAdminId])          // CompanyAccessGrant — компании маркетолога по грантам (v4.1)
 @@index([adminId]) / [expiresAt]    // PlatformAdminPasswordResetToken
+@@index([companyId, createdAt])     // Event — выборка логов по компании с сортировкой по дате (Phase 11.7)
 ```
 
 ---
