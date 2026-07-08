@@ -13,6 +13,16 @@ enum UserRole {
   ADMIN
 }
 
+enum PlatformRole {
+  SUPER_ADMIN
+  MARKETER
+}
+
+enum LeadQualification {
+  QUALIFIED
+  DISQUALIFIED
+}
+
 enum AssignMode {
   MANUAL
   ROUND_ROBIN
@@ -66,8 +76,14 @@ enum EventType {
   COMPANY_BLOCKED
   COMPANY_UNBLOCKED
   COMPANY_PAYMENT_UPDATED
+  COMPANY_ACCESS_GRANTED
+  COMPANY_ACCESS_REVOKED
   PLATFORM_IMPERSONATION_STARTED
   PLATFORM_IMPERSONATION_ENDED
+  MARKETER_ACCESS_STARTED
+  MARKETER_ACCESS_ENDED
+  LEAD_QUALIFIED
+  LEAD_DISQUALIFIED
 }
 
 enum ReminderStatus {
@@ -95,12 +111,14 @@ enum ImportStatus {
 }
 
 model Company {
-  id            String    @id @default(cuid())
-  name          String
-  isBlocked     Boolean   @default(false)
-  nextPaymentAt DateTime?
-  settings      Json      @default("{}")
-  createdAt     DateTime  @default(now())
+  id                       String    @id @default(cuid())
+  name                     String
+  isBlocked                Boolean   @default(false)
+  nextPaymentAt            DateTime?
+  settings                 Json      @default("{}")
+  createdAt                DateTime  @default(now())
+  createdByPlatformAdminId String?
+  blockedByMarketerCascade Boolean   @default(false)
 
   users              User[]
   leads              Lead[]
@@ -115,8 +133,10 @@ model Company {
   integrationSources IntegrationSource[]
   assignmentRules    AssignmentRule[]
   invites            CompanyInvite[]
+  accessGrants       CompanyAccessGrant[]
 
   @@index([nextPaymentAt])
+  @@index([createdByPlatformAdminId])
 }
 
 model User {
@@ -162,13 +182,15 @@ model UserPasswordResetToken {
 }
 
 model PlatformAdmin {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String       @id @default(cuid())
+  email        String       @unique
   passwordHash String
   name         String
-  isActive     Boolean  @default(true)
+  role         PlatformRole @default(SUPER_ADMIN)
+  isActive     Boolean      @default(true)
   deletedAt    DateTime?
-  createdAt    DateTime @default(now())
+  lastLoginAt  DateTime?
+  createdAt    DateTime     @default(now())
 
   passwordResetTokens PlatformAdminPasswordResetToken[]
 }
@@ -204,6 +226,8 @@ model Lead {
   closedAt      DateTime?
   lossReasonId  String?
   importBatchId String?
+  qualification LeadQualification?
+  qualifiedAt   DateTime?
   createdAt     DateTime   @default(now())
 
   company                 Company       @relation(fields: [companyId], references: [id])
@@ -422,6 +446,21 @@ model ImportBatch {
   leads     Lead[]
 
   @@index([companyId])
+}
+
+model CompanyAccessGrant {
+  id              String   @id @default(cuid())
+  companyId       String
+  // маркетолог-получатель / суперадмин-выдавший — без FK на PlatformAdmin,
+  // грант переживает удаление платформенного пользователя
+  platformAdminId String
+  grantedById     String
+  createdAt       DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, platformAdminId])
+  @@index([platformAdminId])
 }
 
 model CompanyInvite {

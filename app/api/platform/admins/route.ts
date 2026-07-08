@@ -28,7 +28,7 @@ function toListItem(admin: {
 
 export async function GET(): Promise<Response> {
   try {
-    await requirePlatformSession();
+    await requirePlatformSession({ roles: ['SUPER_ADMIN'] });
   } catch (error) {
     const response = unauthorizedResponse(error);
     if (response) {
@@ -64,7 +64,7 @@ export async function GET(): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    await requirePlatformSession();
+    await requirePlatformSession({ roles: ['SUPER_ADMIN'] });
   } catch (error) {
     const response = unauthorizedResponse(error);
     if (response) {

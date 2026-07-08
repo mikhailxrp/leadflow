@@ -1,13 +1,17 @@
 'use client';
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import type { CompanyActivityItem } from '@/types/platform';
+import type { CompanyActivityItem, MarketerActivityItem } from '@/types/platform';
+import type { PlatformRole } from '@prisma/client';
 
 type ActivityPeriod = 7 | 30 | 90;
+type ActivityTab = 'companies' | 'marketers';
 
 interface CompanyActivityTableProps {
   initialData: CompanyActivityItem[];
+  initialMarketers?: MarketerActivityItem[];
   initialPeriod: ActivityPeriod;
+  role: PlatformRole;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -101,9 +105,13 @@ const SORTABLE_COLUMNS: { key: SortKey; label: string }[] = [
 
 export default function CompanyActivityTable({
   initialData,
+  initialMarketers,
   initialPeriod,
+  role,
 }: CompanyActivityTableProps): ReactNode {
   const [data, setData] = useState<CompanyActivityItem[]>(initialData);
+  const [marketers] = useState<MarketerActivityItem[]>(initialMarketers ?? []);
+  const [tab, setTab] = useState<ActivityTab>('companies');
   const [period, setPeriod] = useState<ActivityPeriod>(initialPeriod);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('lastLoginAt');
@@ -124,8 +132,10 @@ export default function CompanyActivityTable({
         throw new Error('Failed to fetch company activity');
       }
 
-      const nextData = (await response.json()) as CompanyActivityItem[];
-      setData(nextData);
+      const nextData = (await response.json()) as {
+        companies: CompanyActivityItem[];
+      };
+      setData(nextData.companies);
       setPeriod(nextPeriod);
     } catch (error) {
       console.error(error);
@@ -203,6 +213,121 @@ export default function CompanyActivityTable({
         </div>
       </div>
 
+      {role === 'SUPER_ADMIN' ? (
+        <div
+          className="
+            mb-6 inline-flex rounded-[8px]
+            border border-[0.5px] border-[var(--color-border)]
+            bg-[var(--color-bg-surface)]
+            p-1
+          "
+          role="tablist"
+          aria-label="Раздел активности"
+        >
+          {(
+            [
+              { value: 'companies', label: 'Компании' },
+              { value: 'marketers', label: 'Маркетологи' },
+            ] as const satisfies ReadonlyArray<{ value: ActivityTab; label: string }>
+          ).map((option) => {
+            const isActive = tab === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setTab(option.value)}
+                className={`
+                  rounded-[6px] px-3 py-1.5
+                  text-[13px] font-medium transition-colors duration-150
+                  ${
+                    isActive
+                      ? 'bg-[#10B981] text-white'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)]'
+                  }
+                `}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {tab === 'marketers' ? (
+        marketers.length === 0 ? (
+          <p className="py-12 text-center text-[14px] text-[var(--color-text-secondary)]">
+            Маркетологи ещё не созданы
+          </p>
+        ) : (
+          <div
+            className="
+              overflow-x-auto rounded-[14px]
+              border border-[0.5px] border-[var(--color-border)]
+              bg-[var(--color-bg-surface)]
+            "
+          >
+            <table className="w-full min-w-[700px] text-left">
+              <thead>
+                <tr className="border-b border-[0.5px] border-[var(--color-border)]">
+                  {['Маркетолог', 'Email', 'Статус', 'Последний вход', 'Компаний создано'].map(
+                    (header) => (
+                      <th
+                        key={header}
+                        className="
+                          whitespace-nowrap px-4 py-3
+                          text-[11px] font-medium text-[var(--color-text-secondary)]
+                        "
+                      >
+                        {header}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {marketers.map((marketer) => (
+                  <tr
+                    key={marketer.id}
+                    className="
+                      border-b border-[0.5px] border-[var(--color-border)]
+                      last:border-b-0 transition-colors duration-150
+                      hover:bg-[var(--color-bg-surface-2)]
+                    "
+                  >
+                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
+                      {marketer.name}
+                    </td>
+                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
+                      {marketer.email}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex rounded-[20px] px-2.5 py-1 text-[12px] font-medium ${
+                          marketer.isActive
+                            ? 'bg-[var(--color-badge-success-bg)] text-[var(--color-badge-success-text)]'
+                            : 'bg-[var(--color-badge-danger-bg)] text-[var(--color-badge-danger-text)]'
+                        }`}
+                      >
+                        {marketer.isActive ? 'Активен' : 'Заблокирован'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
+                      {formatLastLogin(marketer.lastLoginAt)}
+                    </td>
+                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
+                      {marketer.companiesCreated}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : (
+        <>
       <div className="mb-4">
         <label htmlFor="company-search" className="sr-only">
           Поиск по названию компании
@@ -312,6 +437,8 @@ export default function CompanyActivityTable({
             </tbody>
           </table>
         </div>
+      )}
+        </>
       )}
     </main>
   );

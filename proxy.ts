@@ -23,6 +23,15 @@ export const proxy = auth((req) => {
     if (!session || session.kind !== 'platform') {
       return NextResponse.redirect(new URL('/platform/login', req.url));
     }
+
+    if (
+      (pathname.startsWith('/platform/admins') ||
+        pathname.startsWith('/platform/marketers')) &&
+      session.admin.role !== 'SUPER_ADMIN'
+    ) {
+      return NextResponse.redirect(new URL('/platform/companies', req.url));
+    }
+
     return NextResponse.next();
   }
 
