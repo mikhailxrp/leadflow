@@ -10,7 +10,9 @@ jobs:
     steps:
       - name: Pull latest code
         working-directory: /apps/leadkanal-dev
-        run: git pull origin dev
+        run: |
+          git fetch origin dev
+          git reset --hard origin/dev
 
       - name: Install dependencies
         working-directory: /apps/leadkanal-dev
