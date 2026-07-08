@@ -17,7 +17,7 @@ export default function PlatformLoginPage() {
               aria-hidden="true"
             />
             <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-              LeadFlow Platform
+              Лид-Канал Platform
             </span>
           </div>
 

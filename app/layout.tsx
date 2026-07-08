@@ -4,11 +4,11 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'LeadFlow',
-    template: '%s — LeadFlow',
+    default: 'Лид-Канал',
+    template: '%s — Лид-Канал',
   },
   description:
-    'LeadFlow — система для сбора, обработки и сопровождения лидов от первого контакта до сделки.',
+    'Лид-Канал — система для сбора, обработки и сопровождения лидов от первого контакта до сделки.',
   icons: {
     icon: '/icon.svg',
   },

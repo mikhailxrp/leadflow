@@ -43,7 +43,7 @@ export default function ImpersonationBanner(): ReactNode {
       role="status"
     >
       <p className="text-[13px] font-medium text-[#DC2626]">
-        Вы вошли от имени поддержки LeadFlow
+        Вы вошли от имени поддержки Лид-Канал
       </p>
       <Button
         variant="danger"

@@ -83,7 +83,7 @@ export default function PlatformLoginForm() {
         label="Email"
         type="email"
         name="email"
-        placeholder="admin@leadflow.ru"
+        placeholder="admin@lidkanal.ru"
         autoComplete="email"
         required
         error={fieldErrors.email}

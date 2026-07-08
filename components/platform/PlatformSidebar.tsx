@@ -44,7 +44,7 @@ export default function PlatformSidebar() {
       <div className="flex items-center gap-2 px-6 py-6">
         <div className="h-2.5 w-2.5 rounded-full bg-[#10B981]" />
         <span className="text-base font-medium tracking-wide text-white">
-          LeadFlow
+          Лид-Канал
         </span>
       </div>
 

@@ -15,7 +15,7 @@ interface ContactsState {
 }
 
 const INITIAL_STATE: ContactsState = {
-  email: 'admin@leadflow.ru',
+  email: 'admin@lidkanal.ru',
   phone: '+7 (999) 123-45-67',
   telegram: '',
   max: '',

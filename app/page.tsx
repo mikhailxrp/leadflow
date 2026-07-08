@@ -11,7 +11,7 @@ export default function Home() {
           >
             <span className="block h-[35px] w-[35px] rounded-full bg-[#10B981] animate-pulse-dot" />
           </span>
-          <h1 className="text-[42px] font-medium leading-[1.3]">LeadFlow</h1>
+          <h1 className="text-[42px] font-medium leading-[1.3]">Лид-Канал</h1>
         </div>
 
         <Link
