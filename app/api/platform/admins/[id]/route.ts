@@ -15,7 +15,7 @@ export async function DELETE(
 ): Promise<Response> {
   let session;
   try {
-    session = await requirePlatformSession();
+    session = await requirePlatformSession({ roles: ['SUPER_ADMIN'] });
   } catch (error) {
     const response = unauthorizedResponse(error);
     if (response) {

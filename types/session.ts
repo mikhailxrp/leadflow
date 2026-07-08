@@ -1,4 +1,4 @@
-import type { UserRole } from '@prisma/client';
+import type { PlatformRole, UserRole } from '@prisma/client';
 import type { DefaultSession } from 'next-auth';
 
 export type CompanySession = {
@@ -17,6 +17,7 @@ export type PlatformSession = {
   admin: {
     id: string;
     email: string;
+    role: PlatformRole;
   };
   user?: never;
 };

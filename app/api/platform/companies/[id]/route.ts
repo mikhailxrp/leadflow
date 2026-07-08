@@ -1,5 +1,6 @@
 import { writeEvent } from '@/lib/events';
 import { requirePlatformSession } from '@/lib/platform/auth';
+import { canManageCompany, resolveOwnerRoles } from '@/lib/platform/companyVisibility';
 import { getSubscriptionStatus } from '@/lib/platform/subscription';
 import { prisma } from '@/lib/prisma';
 import { patchCompanySchema } from '@/lib/validations/platform';
@@ -21,7 +22,7 @@ export async function PATCH(
 ): Promise<Response> {
   let session;
   try {
-    session = await requirePlatformSession();
+    session = await requirePlatformSession({ roles: ['SUPER_ADMIN', 'MARKETER'] });
   } catch (error) {
     const response = unauthorizedResponse(error);
     if (response) {
@@ -52,11 +53,20 @@ export async function PATCH(
 
   const existing = await prisma.company.findUnique({
     where: { id },
-    select: { id: true },
+    select: { id: true, createdByPlatformAdminId: true },
   });
 
   if (!existing) {
     return Response.json({ error: 'Company not found' }, { status: 404 });
+  }
+
+  const ownerRoles = await resolveOwnerRoles([existing.createdByPlatformAdminId]);
+  const ownerRole = existing.createdByPlatformAdminId
+    ? ownerRoles.get(existing.createdByPlatformAdminId)
+    : undefined;
+
+  if (!canManageCompany(session.admin, existing, ownerRole)) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   if ('isBlocked' in parsed.data) {
@@ -65,7 +75,7 @@ export async function PATCH(
     try {
       const company = await prisma.company.update({
         where: { id },
-        data: { isBlocked },
+        data: { isBlocked, blockedByMarketerCascade: false },
         select: {
           id: true,
           name: true,

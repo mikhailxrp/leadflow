@@ -31,7 +31,7 @@ async function fetchAdmins(): Promise<PlatformAdminListItem[]> {
 }
 
 export default async function PlatformAdminsPage() {
-  const session = await requirePlatformSession();
+  const session = await requirePlatformSession({ roles: ['SUPER_ADMIN'] });
   const admins = await fetchAdmins();
 
   return <PlatformAdminsTable admins={admins} currentAdminId={session.admin.id} />;

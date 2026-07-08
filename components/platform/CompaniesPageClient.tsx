@@ -1,25 +1,70 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import CompaniesTable from '@/components/platform/CompaniesTable';
 import CreateCompanyModal from '@/components/platform/CreateCompanyModal';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
 import type { PlatformCompanyListItem } from '@/types/platform';
+import type { PlatformRole } from '@prisma/client';
 
 interface CompaniesPageClientProps {
   companies: PlatformCompanyListItem[];
+  role: PlatformRole;
 }
 
 function needsRenewal(status: PlatformCompanyListItem['subscriptionStatus']): boolean {
   return status === 'expiring' || status === 'overdue';
 }
 
+function GoToCompanyById(): ReactNode {
+  const router = useRouter();
+  const [companyId, setCompanyId] = useState('');
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    const trimmed = companyId.trim();
+    if (!trimmed) {
+      return;
+    }
+    router.push(`/platform/companies/${trimmed}`);
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mb-6 flex flex-wrap items-end gap-2"
+    >
+      <div className="flex-1 min-w-[220px]">
+        <label
+          htmlFor="company-id-lookup"
+          className="mb-1 block text-[11px] font-medium text-[var(--color-text-secondary)]"
+        >
+          Войти в компанию по ID
+        </label>
+        <Input
+          id="company-id-lookup"
+          value={companyId}
+          onChange={(event) => setCompanyId(event.target.value)}
+          placeholder="ID компании"
+        />
+      </div>
+      <Button type="submit" variant="secondary" size="sm">
+        Перейти
+      </Button>
+    </form>
+  );
+}
+
 export default function CompaniesPageClient({
   companies,
+  role,
 }: CompaniesPageClientProps): ReactNode {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const renewalCompanies = companies.filter((company) =>
-    needsRenewal(company.subscriptionStatus),
+  const renewalCompanies = companies.filter(
+    (company) => company.id && needsRenewal(company.subscriptionStatus),
   );
 
   return (
@@ -42,6 +87,8 @@ export default function CompaniesPageClient({
           + Создать компанию
         </button>
       </div>
+
+      {role === 'SUPER_ADMIN' ? <GoToCompanyById /> : null}
 
       {renewalCompanies.length > 0 ? (
         <section

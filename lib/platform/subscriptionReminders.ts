@@ -2,6 +2,7 @@ import 'server-only';
 
 import { prisma } from '@/lib/prisma';
 import { isEmailConfigured } from '@/lib/email';
+import { isPlatformCompany, resolveOwnerRoles } from '@/lib/platform/companyVisibility';
 import { getSubscriptionStatus } from '@/lib/platform/subscription';
 import { sendSubscriptionReminderEmail } from '@/lib/platform/sendSubscriptionReminderEmail';
 import type { SubscriptionStatus } from '@/types/platform';
@@ -12,6 +13,7 @@ export type CompanyNeedingRenewal = {
   nextPaymentAt: Date;
   status: Extract<SubscriptionStatus, 'expiring' | 'overdue'>;
   daysUntilDue: number;
+  createdByPlatformAdminId: string | null;
 };
 
 export type SubscriptionDigestResult = {
@@ -28,6 +30,7 @@ export async function collectCompaniesNeedingRenewal(
       id: true,
       name: true,
       nextPaymentAt: true,
+      createdByPlatformAdminId: true,
     },
   });
 
@@ -57,6 +60,7 @@ export async function collectCompaniesNeedingRenewal(
       nextPaymentAt: company.nextPaymentAt,
       status,
       daysUntilDue,
+      createdByPlatformAdminId: company.createdByPlatformAdminId,
     });
   }
 
@@ -76,21 +80,61 @@ export async function sendSubscriptionDigest(
     return { companies: 0, emailsSent: 0 };
   }
 
+  const ownerRoles = await resolveOwnerRoles(
+    companies.map((company) => company.createdByPlatformAdminId),
+  );
+
+  const platformCompanies: CompanyNeedingRenewal[] = [];
+  const marketerCompaniesByOwnerId = new Map<string, CompanyNeedingRenewal[]>();
+
+  for (const company of companies) {
+    const ownerId = company.createdByPlatformAdminId;
+    const ownerRole = ownerId ? ownerRoles.get(ownerId) : undefined;
+
+    if (!ownerId || isPlatformCompany(company, ownerRole)) {
+      platformCompanies.push(company);
+      continue;
+    }
+
+    const existing = marketerCompaniesByOwnerId.get(ownerId) ?? [];
+    existing.push(company);
+    marketerCompaniesByOwnerId.set(ownerId, existing);
+  }
+
   const admins = await prisma.platformAdmin.findMany({
     where: {
       isActive: true,
       deletedAt: null,
     },
-    select: { email: true },
+    select: { id: true, email: true, role: true },
   });
 
   let emailsSent = 0;
 
   if (isEmailConfigured()) {
-    for (const admin of admins) {
+    if (platformCompanies.length > 0) {
+      for (const admin of admins) {
+        if (admin.role !== 'SUPER_ADMIN') {
+          continue;
+        }
+
+        await sendSubscriptionReminderEmail({
+          email: admin.email,
+          companies: platformCompanies,
+        });
+        emailsSent += 1;
+      }
+    }
+
+    for (const [ownerId, ownerCompanies] of marketerCompaniesByOwnerId) {
+      const marketer = admins.find((admin) => admin.id === ownerId);
+      if (!marketer) {
+        continue;
+      }
+
       await sendSubscriptionReminderEmail({
-        email: admin.email,
-        companies,
+        email: marketer.email,
+        companies: ownerCompanies,
       });
       emailsSent += 1;
     }

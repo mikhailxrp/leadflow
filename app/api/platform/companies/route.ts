@@ -1,8 +1,15 @@
 import { createCompany } from '@/lib/platform/createCompany';
 import { requirePlatformSession } from '@/lib/platform/auth';
+import {
+  canManageCompany,
+  isPlatformCompany,
+  resolveOwnerRoles,
+  visibilityWhere,
+} from '@/lib/platform/companyVisibility';
 import { getSubscriptionStatus } from '@/lib/platform/subscription';
 import { prisma } from '@/lib/prisma';
 import { createCompanySchema } from '@/lib/validations/platform';
+import type { PlatformCompanyListItem } from '@/types/platform';
 
 function unauthorizedResponse(error: unknown): Response | null {
   if (error instanceof Response) {
@@ -12,8 +19,9 @@ function unauthorizedResponse(error: unknown): Response | null {
 }
 
 export async function GET(): Promise<Response> {
+  let session;
   try {
-    await requirePlatformSession();
+    session = await requirePlatformSession({ roles: ['SUPER_ADMIN', 'MARKETER'] });
   } catch (error) {
     const response = unauthorizedResponse(error);
     if (response) {
@@ -25,6 +33,7 @@ export async function GET(): Promise<Response> {
   try {
     const [companies, lastLogins] = await Promise.all([
       prisma.company.findMany({
+        where: visibilityWhere(session.admin),
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
@@ -32,6 +41,7 @@ export async function GET(): Promise<Response> {
           isBlocked: true,
           nextPaymentAt: true,
           createdAt: true,
+          createdByPlatformAdminId: true,
           _count: { select: { users: true } },
         },
       }),
@@ -45,7 +55,32 @@ export async function GET(): Promise<Response> {
       lastLogins.map((row) => [row.companyId, row._max.lastLoginAt]),
     );
 
-    const result = companies.map((company) => {
+    const ownerRoles = await resolveOwnerRoles(
+      companies.map((company) => company.createdByPlatformAdminId),
+    );
+
+    const result: PlatformCompanyListItem[] = companies.map((company) => {
+      const ownerRole = company.createdByPlatformAdminId
+        ? ownerRoles.get(company.createdByPlatformAdminId)
+        : undefined;
+      const lastLoginAt =
+        lastLoginByCompanyId.get(company.id)?.toISOString() ?? null;
+
+      if (
+        session.admin.role === 'SUPER_ADMIN' &&
+        !isPlatformCompany(company, ownerRole)
+      ) {
+        return {
+          name: company.name,
+          isBlocked: company.isBlocked,
+          createdAt: company.createdAt.toISOString(),
+          userCount: company._count.users,
+          lastLoginAt,
+          ownedByMarketer: true,
+          manageable: false,
+        };
+      }
+
       const subscriptionStatus = getSubscriptionStatus(company.nextPaymentAt);
 
       return {
@@ -54,10 +89,10 @@ export async function GET(): Promise<Response> {
         isBlocked: company.isBlocked,
         createdAt: company.createdAt.toISOString(),
         userCount: company._count.users,
-        lastLoginAt:
-          lastLoginByCompanyId.get(company.id)?.toISOString() ?? null,
+        lastLoginAt,
         nextPaymentAt: company.nextPaymentAt?.toISOString() ?? null,
         subscriptionStatus: subscriptionStatus.status,
+        manageable: canManageCompany(session.admin, company, ownerRole),
       };
     });
 
@@ -69,8 +104,9 @@ export async function GET(): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  let session;
   try {
-    await requirePlatformSession();
+    session = await requirePlatformSession({ roles: ['SUPER_ADMIN', 'MARKETER'] });
   } catch (error) {
     const response = unauthorizedResponse(error);
     if (response) {
@@ -104,7 +140,10 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const { company, inviteToken } = await createCompany(parsed.data);
+    const { company, inviteToken } = await createCompany({
+      ...parsed.data,
+      createdByPlatformAdminId: session.admin.id,
+    });
     const baseUrl = appUrl.replace(/\/$/, '');
     const inviteUrl = `${baseUrl}/accept-invite?token=${inviteToken}`;
 

@@ -1,4 +1,4 @@
-import type { UserRole } from '@prisma/client';
+import type { PlatformRole, UserRole } from '@prisma/client';
 import type { DefaultSession } from 'next-auth';
 
 declare module 'next-auth' {
@@ -13,6 +13,7 @@ declare module 'next-auth' {
     admin?: {
       id: string;
       email: string;
+      role: PlatformRole;
     };
   }
 
@@ -20,6 +21,7 @@ declare module 'next-auth' {
     kind?: 'company' | 'platform';
     companyId?: string;
     role?: UserRole;
+    platformRole?: PlatformRole;
     impersonatedByPlatformAdminId?: string;
   }
 }
@@ -31,6 +33,7 @@ declare module '@auth/core/jwt' {
     adminId?: string;
     companyId?: string;
     role?: UserRole;
+    platformRole?: PlatformRole;
     impersonatedByPlatformAdminId?: string;
     email?: string;
   }
@@ -43,6 +46,7 @@ declare module 'next-auth/jwt' {
     adminId?: string;
     companyId?: string;
     role?: UserRole;
+    platformRole?: PlatformRole;
     impersonatedByPlatformAdminId?: string;
     email?: string;
   }
