@@ -36,6 +36,86 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-08 — Phase 11.6, Таск 3: Квалификация лидов — API + события + UI (карточка + список)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/leads.ts` — `qualificationSchema` (`qualification: z.enum(['QUALIFIED','DISQUALIFIED']).nullable()`) + `QualificationInput`
+- `app/api/leads/[id]/qualification/route.ts` (новый) — `PATCH`, `requireCompanyAccess({ minRole: 'HEAD', method: 'PATCH', pathname })`; `where: { id, companyId }`; обновляет `qualification` + `qualifiedAt` (`now()` при установке, `null` при сбросе); события: `LEAD_QUALIFIED`/`LEAD_DISQUALIFIED` при установке, `LEAD_UPDATED { qualification: null }` при сбросе; `userId` в `writeEvent` только из ветки `actor.actor === 'user'`
+- `constants/marketerAccess.ts` — в `MARKETER_ALLOWED_API` добавлено `PATCH /api/leads/:id/qualification`
+- `lib/leads/getLeads.ts` — `qualification` в `LeadListItem`, Prisma `select` и маппинг
+- `lib/leads/getLeadById.ts` — `qualification` в `LeadDetail`, `select` и возвращаемый объект
+- `app/api/leads/[id]/route.ts` — `qualification` + `qualifiedAt` в `LEAD_CARD_SELECT`, типы и `formatLeadCardResponse`
+- `constants/eventLabels.ts` — подписи `LEAD_QUALIFIED` («Лид помечен целевым»), `LEAD_DISQUALIFIED` («Лид помечен нецелевым»)
+- `components/leads/QualificationBadge.tsx` (новый) — «Целевой» / «Нецелевой» / «Не оценён»
+- `components/leads/QualificationControl.tsx` (новый) — переключатель → `PATCH .../qualification` + `router.refresh()`
+- `app/(app)/leads/[id]/page.tsx` — `canQualify = marketer || HEAD+`; пропсы `qualification` + `canQualify` в `LeadSidebar`
+- `components/leads/LeadSidebar.tsx` — блок квалификации: `QualificationControl` при `canQualify`, иначе `QualificationBadge`
+- `components/leads/LeadsTable.tsx` — колонка «Квалификация» с `QualificationBadge`
+
+**Out of scope (не делалось):** экспорт в Яндекс Метрику (Phase 22.5); фильтр списка по квалификации; batch-квалификация; `/platform/logs` (Phase 11.7); влияние на риск/воронку/назначение — намеренно отсутствует.
+
+**Проверено:** `npm run type-check`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
+## 2026-07-08 — Phase 11.6, Таск 2: `marketerAccess.ts` (allow-list) + `requireCompanyAccess.ts` + `proxy.ts` + read-only доска
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `constants/marketerAccess.ts` (новый) — единственный источник правды: `MARKETER_ALLOWED_PAGES` (`/leads`, `/pipeline`); `MARKETER_ALLOWED_API` — сверка по RegExp **и** методу (`GET /api/leads`, `GET /api/leads/:id`, `.../duplicates`, `.../events`, `GET /api/pipeline/board`, `GET /api/stages`, `GET /api/loss-reasons`); хелперы `isMarketerAllowedPage`, `isMarketerAllowedApi`
+- `lib/auth/requireCompanyAccess.ts` (новый) — `requireCompanyUser({ minRole })`: 401 без company-сессии, **403** для `session.marketer` или недостаточной роли; `requireCompanyAccess({ minRole, method, pathname })`: для `user` — `hasMinRole`, для `marketer` — allow-list; возвращает discriminated union `CompanyActor`; `toCompanyActor(session)` — для Server Components
+- `proxy.ts` — ветка `session.marketer` **до** чтения `session.user.role`: `isMarketerAllowedPage(pathname) ? next() : redirect('/leads')`
+- API чтения переведены на `requireCompanyAccess`: `GET /api/leads`, `GET /api/leads/:id`, `.../duplicates`, `.../events`, `GET /api/pipeline/board`, `GET /api/stages`, `GET /api/loss-reasons`
+- API мутаций переведены на `requireCompanyUser`: `POST /api/leads`, `PATCH/DELETE /api/leads/:id`, `take`, `assign`, `close`, `stage`, `POST comments` — маркетолог получает **403**, не 401
+- `lib/leads/getLeads.ts`, `lib/leads/getLeadById.ts` — принимают `CompanyActor`; для `actor === 'marketer'` — все лиды компании, без `visibilityWhere`/`leadVisibility`
+- `lib/pipeline/boardQuery.ts` — `userId`/`role` опциональны; без них видимость не ограничивается (как HEAD)
+- `app/api/leads/[id]/route.ts` (GET) — `recordLeadOpenedOnce` только при `actor.actor === 'user'`
+- Страницы: `leads/page.tsx`, `leads/[id]/page.tsx`, `pipeline/page.tsx` — `toCompanyActor(session)` вместо guard `!session.user`; скрыты «Добавить лид», редактирование/удаление, форма комментария, блок «Взять в работу»/закрытие (`canManage`/`canComment`)
+- `components/pipeline/PipelineBoard.tsx` (+ `PipelineColumn`, `PipelineCard`) — проп `readOnly`: без `DndContext`/drag при `true`
+- `components/leads/LeadSidebar.tsx` — проп `canManage` скрывает `TakeInWorkButton` + `CloseLeadMenu`; `LeadComments.tsx` — `canComment` скрывает форму отправки
+
+**Out of scope (не делалось):** квалификация лидов (`PATCH /api/leads/:id/qualification`, бейдж, переключатель) — Таск 3; `/reports`, `/admin/integrations` в allow-list — Phase 21/18; блокировка прямого захода на `/leads/new` по URL — только скрыта кнопка «Добавить лид»; `TaskBlock` на моках — не трогался.
+
+**Проверено:** `npm run type-check`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
+## 2026-07-08 — Phase 11.6, Таск 1: Actor `marketer` в сессии + провайдер + вход/выход + баннер + оболочка + `writeEvent`
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `types/session.ts` — `CompanySession` стал объединением двух вариантов actor'а: `{ user: {...}; marketer?: never }` | `{ marketer: {platformAdminId, companyId}; user?: never }`
+- `types/next-auth.d.ts` — `Session.marketer?: {platformAdminId, companyId}`; `marketerPlatformAdminId?: string` в оба JWT-augmentation блока (`@auth/core/jwt` + `next-auth/jwt`)
+- `lib/platform/marketerAccess.ts` (новый) — `createMarketerAccessToken`/`consumeMarketerAccessToken`, in-memory `Map`, одноразовый, TTL 60 сек (по образцу `impersonate.ts`)
+- `lib/auth.ts` — провайдер `Credentials({ id: 'marketer-access' })`: обменивает токен на `{kind:'company', companyId, marketerPlatformAdminId}` без `prisma.user.findFirst`; `jwt`/`session` callbacks различают marketer- и user-ветки company-сессии по наличию поля `marketerPlatformAdminId` на auth-user
+- `lib/events.ts` — `writeEvent`: при `session.kind==='company' && session.marketer` жёстко `userId=null` + `impersonatedByPlatformAdminId=session.marketer.platformAdminId` (перекрывает `opts.userId`); обычная сессия не затронута
+- `app/api/platform/companies/[id]/marketer-access/route.ts` (новый) — `POST`, `requirePlatformSession({roles:['MARKETER']})`, видимость через `visibilityWhere` (не `canManageCompany` — грант тоже пускает), `MARKETER_ACCESS_STARTED`, ответ `{token}`
+- `app/api/platform/marketer-access/end/route.ts` (новый) — `POST`, guard `kind==='company' && session.marketer`, `MARKETER_ACCESS_ENDED`, `createRestoreToken` (переиспользован из `impersonate.ts`)
+- `components/platform/MarketerAccessButton.tsx` (новый), `MarketerBanner.tsx` (новый) — по образцу `ImpersonateButton`/`ImpersonationBanner`
+- `components/platform/CompaniesTable.tsx` — колонка «Действия»: кнопка входа при `role==='MARKETER'` независимо от `manageable`; `CompaniesPageClient.tsx` прокидывает `role`
+- `constants/navItems.ts` — `getMarketerNavItems()` возвращает узкий `MarketerNavItem[]` (Лиды, Воронка), не переиспользует `SidebarNavItem.minRole`
+- `components/layout/AppShell.tsx` — ветка `session.marketer`: подгружает `Company.name`, рендерит сайдбар маркетолога + `MarketerBanner`
+- Ripple-фикс компиляции после смены `CompanySession` на union: `proxy.ts`, `app/(app)/leads/page.tsx`, `app/(app)/leads/[id]/page.tsx`, `app/api/leads/[id]/route.ts`, `.../events/route.ts`, `.../duplicates/route.ts` — добавлен `!session.user` в guard; `lib/leads/getLeads.ts`, `lib/leads/getLeadById.ts` — заглушка `if (!session.user) throw`. Там, где типизированные хелперы (`getLeadsWithRisk`, `getLeadById`, `getCompanyLeadContext`) принимают `session: CompanySession`, а вызывающий код передаёт уже сужённую (`!session.user` проверена) сессию next-auth — точечный `session as CompanySession` в месте вызова остаётся: `Session.marketer` типизирован как `{...}|undefined` у **обоих** вариантов сессии одновременно (next-auth `Session` — плоский интерфейс, не union), поэтому TS не может структурно сузить его до `marketer?: never`/`user?: never` только через `!session.user`
+
+**Out of scope (не делалось):** allow-list (`constants/marketerAccess.ts`), `requireCompanyAccess.ts`, ветка `proxy.ts` для `/leads`/`/pipeline` под marketer — Таск 2 (в текущем виде marketer после входа будет редиректиться на `/login`, это ожидаемо); квалификация лидов — Таск 3; `/reports`, `/admin/integrations`, `/platform/logs` — другие фазы.
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
 ## 2026-07-08 — Phase 11.5, Таск 4: Гранты доступа — API + UI + события
 
 **Статус:** ✅ Завершён

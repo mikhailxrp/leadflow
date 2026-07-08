@@ -1,24 +1,12 @@
-import { hasMinRole } from '@/constants/roles';
-import { auth } from '@/lib/auth';
+import { requireCompanyAccess, requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { assignLead } from '@/lib/assignLead';
 import { createLead } from '@/lib/intake/createLead';
 import { findPossibleDuplicates } from '@/lib/intake/findPossibleDuplicates';
 import { flagPossibleDuplicates } from '@/lib/intake/flagPossibleDuplicates';
 import { getLeadsWithRisk } from '@/lib/leads/getLeads';
 import { createLeadSchema, leadsQuerySchema } from '@/lib/validations/leads';
-import type { CompanySession } from '@/types/session';
 
 export async function GET(request: Request): Promise<Response> {
-  const session = await auth();
-
-  if (!session || session.kind !== 'company' || !session.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!hasMinRole(session.user.role, 'MANAGER')) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
   const { searchParams } = new URL(request.url);
   const parsed = leadsQuerySchema.safeParse({
     search: searchParams.get('search') ?? undefined,
@@ -34,8 +22,16 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json({ error: 'VALIDATION_ERROR' }, { status: 400 });
   }
 
+  let actor;
   try {
-    const result = await getLeadsWithRisk(parsed.data, session as CompanySession);
+    actor = await requireCompanyAccess({ minRole: 'MANAGER', method: 'GET', pathname: '/api/leads' });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
+  }
+
+  try {
+    const result = await getLeadsWithRisk(parsed.data, actor);
     return Response.json(result);
   } catch (error) {
     console.error('[GET /api/leads] getLeadsWithRisk failed:', error);
@@ -52,17 +48,15 @@ function toNullableString(value: string | undefined): string | null {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const session = await auth();
-
-  if (!session || session.kind !== 'company' || !session.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  let user;
+  try {
+    user = await requireCompanyUser({ minRole: 'MANAGER' });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
   }
 
-  if (!hasMinRole(session.user.role, 'MANAGER')) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const companyId = session.user.companyId;
+  const companyId = user.companyId;
 
   let body: unknown;
   try {

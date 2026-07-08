@@ -1,5 +1,4 @@
-import { hasMinRole } from '@/constants/roles';
-import { auth } from '@/lib/auth';
+import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { assignLeadTo } from '@/lib/assignLead';
 import { prisma } from '@/lib/prisma';
 import { assignSchema } from '@/lib/validations/assign';
@@ -8,18 +7,16 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const session = await auth();
-
-  if (!session || session.kind !== 'company' || !session.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!hasMinRole(session.user.role, 'HEAD')) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  let user;
+  try {
+    user = await requireCompanyUser({ minRole: 'HEAD' });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
   }
 
   const { id } = await params;
-  const { companyId, id: actorUserId } = session.user;
+  const { companyId, userId: actorUserId } = user;
 
   let body: unknown;
   try {

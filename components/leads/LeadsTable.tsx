@@ -7,6 +7,7 @@ import type { RiskResult } from "@/lib/risk/computeRisk";
 import RiskBadge from "@/components/leads/RiskBadge";
 import DuplicateBadge from "@/components/leads/DuplicateBadge";
 import LeadRowQuickActions from "@/components/leads/LeadRowQuickActions";
+import QualificationBadge from "@/components/leads/QualificationBadge";
 
 const SOURCE_LABELS: Record<string, string> = {
   tilda: "Tilda",
@@ -41,6 +42,7 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
               "Ответственный",
               "Этап",
               "Риск",
+              "Квалификация",
               "Создан",
               "",
             ].map((col) => (
@@ -106,6 +108,10 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
 
               <td className="px-4 py-3">
                 <RiskBadge level={lead.risk.level} reason={lead.risk.reason} />
+              </td>
+
+              <td className="px-4 py-3">
+                <QualificationBadge qualification={lead.qualification} />
               </td>
 
               <td className="px-4 py-3 text-[var(--color-text-tertiary)]">

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { hasMinRole } from '@/constants/roles';
+import { isMarketerAllowedPage } from '@/constants/marketerAccess';
 import type { AppSession } from '@/types/session';
 
 export const proxy = auth((req) => {
@@ -36,6 +37,17 @@ export const proxy = auth((req) => {
   }
 
   if (!session || session.kind !== 'company') {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+
+  if (session.marketer) {
+    if (!isMarketerAllowedPage(pathname)) {
+      return NextResponse.redirect(new URL('/leads', req.url));
+    }
+    return NextResponse.next();
+  }
+
+  if (!session.user) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 

@@ -2,12 +2,15 @@
 
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
+import type { PlatformRole } from '@prisma/client';
 import Button from '@/components/ui/Button';
+import MarketerAccessButton from '@/components/platform/MarketerAccessButton';
 import type { SubscriptionStatus } from '@/types/platform';
 import type { PlatformCompanyListItem } from '@/types/platform';
 
 interface CompaniesTableProps {
   companies: PlatformCompanyListItem[];
+  role: PlatformRole;
 }
 
 const SUBSCRIPTION_LABELS: Record<SubscriptionStatus, string> = {
@@ -103,6 +106,7 @@ function rowKey(company: PlatformCompanyListItem, index: number): string {
 
 export default function CompaniesTable({
   companies: initialCompanies,
+  role,
 }: CompaniesTableProps): ReactNode {
   const [companies, setCompanies] =
     useState<PlatformCompanyListItem[]>(initialCompanies);
@@ -305,27 +309,32 @@ export default function CompaniesTable({
                   </Link>
                 </td>
                 <td className="px-4 py-3" data-actions="true">
-                  {company.manageable ? (
-                    company.isBlocked ? (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={isPending}
-                        onClick={() => handleToggleBlock(company)}
-                      >
-                        Разблокировать
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        disabled={isPending}
-                        onClick={() => handleToggleBlock(company)}
-                      >
-                        Заблокировать
-                      </Button>
-                    )
-                  ) : null}
+                  <div className="flex items-center gap-2">
+                    {role === 'MARKETER' ? (
+                      <MarketerAccessButton companyId={companyId} />
+                    ) : null}
+                    {company.manageable ? (
+                      company.isBlocked ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={isPending}
+                          onClick={() => handleToggleBlock(company)}
+                        >
+                          Разблокировать
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          disabled={isPending}
+                          onClick={() => handleToggleBlock(company)}
+                        >
+                          Заблокировать
+                        </Button>
+                      )
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             );

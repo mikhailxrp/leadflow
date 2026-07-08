@@ -15,13 +15,19 @@ export async function writeEvent(
 ): Promise<void> {
   const session = await auth();
 
-  const impersonatedByPlatformAdminId =
-    session?.kind === 'company' &&
-    session.user?.impersonatedByPlatformAdminId
-      ? session.user.impersonatedByPlatformAdminId
-      : null;
+  let userId = opts.userId ?? null;
+  let impersonatedByPlatformAdminId: string | null = null;
 
-  const { payload = {}, userId = null, leadId = null } = opts;
+  if (session?.kind === 'company') {
+    if (session.marketer) {
+      userId = null;
+      impersonatedByPlatformAdminId = session.marketer.platformAdminId;
+    } else if (session.user?.impersonatedByPlatformAdminId) {
+      impersonatedByPlatformAdminId = session.user.impersonatedByPlatformAdminId;
+    }
+  }
+
+  const { payload = {}, leadId = null } = opts;
 
   await prisma.event.create({
     data: {

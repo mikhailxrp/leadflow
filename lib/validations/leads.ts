@@ -63,9 +63,14 @@ export const changeStageSchema = z.object({
   stageId: z.string().min(1),
 });
 
+export const qualificationSchema = z.object({
+  qualification: z.enum(['QUALIFIED', 'DISQUALIFIED']).nullable(),
+});
+
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export type LeadsQueryInput = z.infer<typeof leadsQuerySchema>;
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 export type CloseLeadInput = z.infer<typeof closeLeadSchema>;
 export type CommentInput = z.infer<typeof commentSchema>;
 export type ChangeStageInput = z.infer<typeof changeStageSchema>;
+export type QualificationInput = z.infer<typeof qualificationSchema>;

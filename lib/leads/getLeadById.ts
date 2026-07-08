@@ -1,9 +1,9 @@
-import type { CloseType, EventType, Prisma } from '@prisma/client';
+import type { CloseType, EventType, LeadQualification, Prisma } from '@prisma/client';
 import { getLeadVisibility, visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
 import { computeRiskBatch } from '@/lib/risk/computeRiskBatch';
 import type { RiskResult } from '@/lib/risk/computeRisk';
-import type { CompanySession } from '@/types/session';
+import type { CompanyActor } from '@/lib/auth/requireCompanyAccess';
 
 export interface LeadHistoryEvent {
   id: string;
@@ -29,6 +29,8 @@ export interface LeadDetail {
   createdAt: Date;
   closeType: CloseType | null;
   closedAt: Date | null;
+  qualification: LeadQualification | null;
+  qualifiedAt: Date | null;
   lossReason: { id: string; label: string } | null;
   assignedTo: { id: string; name: string } | null;
   stage: { id: string; name: string; color: string; stageTimeLimitDays: number | null };
@@ -66,9 +68,9 @@ function extractLossReasonId(payload: Prisma.JsonValue): string | null {
 
 export async function getLeadById(
   id: string,
-  session: CompanySession,
+  actor: CompanyActor,
 ): Promise<LeadDetail | null> {
-  const { companyId, role, id: userId } = session.user;
+  const { companyId } = actor;
 
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
@@ -76,7 +78,9 @@ export async function getLeadById(
   });
 
   const leadVisibility = getLeadVisibility(company.settings);
-  const visibility = visibilityWhere(role, userId, leadVisibility);
+  // Маркетолог видит все лиды компании (как HEAD) — visibilityWhere/leadVisibility к нему не применяются.
+  const visibility =
+    actor.actor === 'user' ? visibilityWhere(actor.role, actor.userId, leadVisibility) : {};
 
   const andConditions: Prisma.LeadWhereInput[] = [{ id }, { companyId }];
   if (Object.keys(visibility).length > 0) {
@@ -96,6 +100,8 @@ export async function getLeadById(
         createdAt: true,
         closeType: true,
         closedAt: true,
+        qualification: true,
+        qualifiedAt: true,
         utm: true,
         marketing: true,
         customFields: true,
@@ -189,6 +195,7 @@ export async function getLeadById(
           source: lead.source,
           createdAt: lead.createdAt.toISOString(),
           closeType: lead.closeType,
+          qualification: lead.qualification,
           lossReason: lead.lossReason,
           hasDuplicate,
           firstMatchedLeadId: null,
@@ -255,6 +262,8 @@ export async function getLeadById(
     createdAt: lead.createdAt,
     closeType: lead.closeType,
     closedAt: lead.closedAt,
+    qualification: lead.qualification,
+    qualifiedAt: lead.qualifiedAt,
     lossReason: lead.lossReason,
     assignedTo: lead.assignedTo,
     stage: lead.stage,

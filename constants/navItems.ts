@@ -22,3 +22,18 @@ export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
 export function getNavItemsForRole(role: UserRole): SidebarNavItem[] {
   return SIDEBAR_NAV_ITEMS.filter((item) => hasMinRole(role, item.minRole));
 }
+
+export interface MarketerNavItem {
+  label: string;
+  icon: string;
+  href: string;
+}
+
+const MARKETER_NAV_ITEMS: MarketerNavItem[] = [
+  { label: 'Лиды', icon: 'lucide:users', href: '/leads' },
+  { label: 'Воронка', icon: 'lucide:kanban', href: '/pipeline' },
+];
+
+export function getMarketerNavItems(): MarketerNavItem[] {
+  return MARKETER_NAV_ITEMS;
+}
