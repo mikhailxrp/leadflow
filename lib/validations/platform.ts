@@ -44,6 +44,22 @@ export const platformAdminParamsSchema = z.object({
   id: z.string().min(1),
 });
 
+export const createMarketerSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1).max(100),
+  password: z.string().min(8),
+});
+
+export const updateMarketerSchema = z
+  .object({
+    isActive: z.boolean(),
+  })
+  .strict();
+
+export const marketerParamsSchema = z.object({
+  id: z.string().min(1),
+});
+
 export const activityPeriodSchema = z.coerce
   .number()
   .int()
@@ -81,6 +97,9 @@ export type EndImpersonationBodyInput = z.infer<
 >;
 export type CreatePlatformAdminInput = z.infer<typeof createPlatformAdminSchema>;
 export type PlatformAdminParamsInput = z.infer<typeof platformAdminParamsSchema>;
+export type CreateMarketerInput = z.infer<typeof createMarketerSchema>;
+export type UpdateMarketerInput = z.infer<typeof updateMarketerSchema>;
+export type MarketerParamsInput = z.infer<typeof marketerParamsSchema>;
 export type PlatformForgotPasswordInput = z.infer<
   typeof platformForgotPasswordSchema
 >;

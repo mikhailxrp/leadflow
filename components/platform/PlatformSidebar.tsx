@@ -3,8 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon } from '@iconify/react';
+import type { PlatformRole } from '@prisma/client';
 import PlatformSignOutButton from '@/components/platform/PlatformSignOutButton';
 import ThemeToggle from '@/components/ui/ThemeToggle';
+
+interface PlatformSidebarProps {
+  role: PlatformRole;
+}
 
 const NAV_ITEMS = [
   {
@@ -16,6 +21,13 @@ const NAV_ITEMS = [
     label: 'Администраторы',
     href: '/platform/admins',
     icon: 'tabler:users',
+    superAdminOnly: true,
+  },
+  {
+    label: 'Маркетологи',
+    href: '/platform/marketers',
+    icon: 'tabler:speakerphone',
+    superAdminOnly: true,
   },
   {
     label: 'Активность',
@@ -36,8 +48,11 @@ function linkClassName(active: boolean): string {
   `;
 }
 
-export default function PlatformSidebar() {
+export default function PlatformSidebar({ role }: PlatformSidebarProps) {
   const pathname = usePathname();
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => !('superAdminOnly' in item) || role === 'SUPER_ADMIN',
+  );
 
   return (
     <aside className="flex h-screen w-[220px] flex-shrink-0 flex-col bg-[#1A1F2E]">
@@ -49,7 +64,7 @@ export default function PlatformSidebar() {
       </div>
 
       <nav className="mt-2 flex-1 space-y-1 px-3">
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
 

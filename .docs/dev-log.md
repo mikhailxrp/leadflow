@@ -36,6 +36,31 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-08 — Phase 11.5, Таск 3: `/platform/marketers` — API + UI + каскадная блокировка + email
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/platform.ts` — `createMarketerSchema` (`email`, `name`, `password: min(8)`), `updateMarketerSchema` (`{ isActive: z.boolean() }.strict()`), `marketerParamsSchema` (`{ id: z.string().min(1) }`) + `z.infer`-типы
+- `app/api/platform/marketers/route.ts` (новый) — `GET` список маркетологов (`role: MARKETER`, `deletedAt: null`) с `companiesCreated` через `groupBy`; `POST` создаёт/восстанавливает `PlatformAdmin { role: MARKETER }` с bcrypt-хэшем, email уникален глобально (409 при дубле); ответ — `MarketerActivityItem`
+- `app/api/platform/marketers/[id]/route.ts` (новый) — `PATCH { isActive }` → `blockMarketer`/`unblockMarketer`; `sendCascadeBlockEmail` **после** коммита транзакции (только при блокировке и непустом списке компаний)
+- `lib/platform/cascadeBlock.ts` (новый) — `blockMarketer`: транзакция (`PlatformAdmin.isActive = false` → выборка компаний с `createdByPlatformAdminId` и `isBlocked: false` → `updateMany` с `blockedByMarketerCascade: true` → `tx.event.create` `COMPANY_BLOCKED { cascade: true }` на каждую); `unblockMarketer`: симметрично, фильтр строго `blockedByMarketerCascade: true`; гранты не участвуют; возвращает список затронутых компаний + `blockedAt` (момент вызова, не поле БД)
+- `lib/platform/sendCascadeBlockEmail.ts` (новый) — всем активным `SUPER_ADMIN`; по каждой компании — название, дата блокировки, администраторы (`User { role: ADMIN }`); `isEmailConfigured()` → graceful skip (`console.warn`)
+- `app/(platform)/platform/marketers/page.tsx` (новый) — Server Component, `requirePlatformSession({ roles: ['SUPER_ADMIN'] })`, fetch списка по паттерну `admins/page.tsx`
+- `components/platform/MarketersTable.tsx` (новый) — Client Component: таблица + модалка создания (email/name/password) + переключатель блокировки/разблокировки с `window.confirm` (предупреждение о каскаде), inline error
+- `proxy.ts` — гейт SUPER_ADMIN-only на `/platform/admins` и `/platform/marketers` через `session.admin.role` (не `platformRole`) → redirect `/platform/companies`
+- `app/(platform)/layout.tsx` — читает платформенную сессию, прокидывает `role` в `PlatformSidebar`
+- `components/platform/PlatformSidebar.tsx` — принимает `role` пропом; пункты «Маркетологи» и «Администраторы» только при `role === 'SUPER_ADMIN'`
+
+**Out of scope (не делалось):** вход маркетолога внутрь компании, actor `marketer`, allow-list, баннер — Phase 11.6; гранты (`CompanyAccessGrant` API/UI) — Таск 4; квалификация лидов, `/platform/logs` — другие фазы.
+
+**Проверено:** `npm run type-check`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
 ## 2026-07-08 — Phase 11.5, Таск 2: `companyVisibility.ts` + скоупинг компаний/активности/дайджеста + владение в `createCompany`
 
 **Статус:** ✅ Завершён
