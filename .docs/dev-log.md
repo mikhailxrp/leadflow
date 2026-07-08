@@ -36,6 +36,49 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-09 — Phase 11.7, Таск 2: UI `/platform/logs`: filter-first + таблица + пагинация + «путь лида» + пункт сайдбара
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `app/(platform)/platform/logs/page.tsx` (новый) — Server Component: `requirePlatformSession({ roles: ['SUPER_ADMIN', 'MARKETER'] })`; список компаний через `GET /api/platform/companies` (уже отфильтрован: суперадмин не видит marketer-owned); данные логов на сервере не грузятся
+- `components/platform/PlatformLogsClient.tsx` (новый) — состояние фильтров (`companyId`, `type`, `from`, `to`, `leadId`, `page`); сброс `page` на 1 при смене любого фильтра; `leadId` только для `MARKETER` в режиме «путь лида»
+- `components/platform/PlatformLogsFilters.tsx` (новый) — селект компании, типа (`Object.values(EventType)` + `getPlatformEventLabel`), период `from`/`to`; для маркетолога — тумблер «Путь лида» + `LeadPathSearch`
+- `components/platform/PlatformLogsTable.tsx` (новый) — `fetch('/api/platform/logs?...')` только при выбранной компании; колонки дата/событие/актор/лид (без сырого `payload`); пагинация по `hasMore`; `toDayBoundaryIso` — конец дня для `to` (`T23:59:59.999Z`); пустые состояния и лоадер
+- `components/platform/LeadPathSearch.tsx` (новый) — debounced `GET /api/platform/logs/leads`, выбор лида → `leadId` в фильтры
+- `components/platform/PlatformSidebar.tsx` — пункт «Логи» (`/platform/logs`, `tabler:list-details`) для обеих ролей
+
+**Out of scope (не делалось):** изменение записи событий; разбор `payload` по типам; экспорт/аналитика; keyset-пагинация.
+
+**Проверено:** `npm run type-check`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
+## 2026-07-09 — Phase 11.7, Таск 1: `GET /api/platform/logs` + скоуп видимости + пагинация + лейблы + резолв акторов + поиск лида + индекс
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` + миграция `20260708213836_platform_logs_event_index` — композитный индекс `Event(companyId, createdAt)`; `.docs/database.md` обновлён
+- `constants/eventLabels.ts` — `PLATFORM_EVENT_LABELS` с `satisfies Record<EventType, string>` (все 45 типов) + `getPlatformEventLabel(type)`; новый `EventType` без подписи — ошибка компиляции
+- `lib/validations/platform.ts` — `platformLogsQuerySchema` (`companyId` обязателен, опц. `type`/`from`/`to`/`leadId`/`page`, refine `from <= to`); `platformLogsLeadSearchSchema` (`companyId`, `q`)
+- `lib/platform/logs.ts` (новый) — `assertCompanyVisible`: `visibilityWhere` + для `SUPER_ADMIN` отсечение marketer-owned через `isPlatformCompany` (403, не 404); `getCompanyLogs` — фильтры, `orderBy createdAt desc`, pageSize=50, `hasMore`; батч `User.findMany` по странице; `resolveActorLabel` — 4 случая (пользователь / «{имя} (поддержка)» / «Маркетолог (платформа)» / «Система»); `leadId`-фильтр только для `MARKETER`; `searchCompanyLeads` — поиск по name/email/phone, `take: 20`
+- `types/platform.ts` — `PlatformLogItem`, `PlatformLogsResponse`, `PlatformLogLeadSearchResult`
+- `app/api/platform/logs/route.ts` (новый) — `GET`, `requirePlatformSession({ roles: ['SUPER_ADMIN', 'MARKETER'] })`, Zod → 400; `leadId` от `SUPER_ADMIN` → 403 в хендлере и сервисе
+- `app/api/platform/logs/leads/route.ts` (новый) — `GET`, только `MARKETER`; `searchCompanyLeads`
+
+**Out of scope (не делалось):** UI `/platform/logs` (фильтры, таблица, «путь лида», пункт сайдбара) — Таск 2; разбор `payload` по типам; экспорт/агрегаты; keyset-пагинация.
+
+**Проверено:** `npm run type-check`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
 ## 2026-07-08 — Phase 11.6, Таск 3: Квалификация лидов — API + события + UI (карточка + список)
 
 **Статус:** ✅ Завершён

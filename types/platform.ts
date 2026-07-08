@@ -1,3 +1,5 @@
+import type { EventType, Prisma } from '@prisma/client';
+
 export type SubscriptionStatus = 'none' | 'ok' | 'expiring' | 'overdue';
 
 export type PlatformAdminListItem = {
@@ -79,4 +81,28 @@ export type AvailableMarketer = {
   id: string;
   name: string;
   email: string;
+};
+
+export type PlatformLogItem = {
+  id: string;
+  type: EventType;
+  label: string;
+  actorLabel: string;
+  createdAt: string;
+  leadId: string | null;
+  payload: Prisma.JsonValue;
+};
+
+export type PlatformLogsResponse = {
+  items: PlatformLogItem[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};
+
+export type PlatformLogLeadSearchResult = {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
 };
