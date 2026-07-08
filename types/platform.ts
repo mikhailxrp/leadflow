@@ -65,4 +65,18 @@ export type PlatformCompanyDetail = {
   pendingInviteEmail: string | null;
   manageable: boolean;
   ownedByMarketer: boolean;
+  grants?: CompanyGrantItem[];
+  availableMarketers?: AvailableMarketer[];
+};
+
+export type CompanyGrantItem = {
+  marketerId: string;
+  name: string;
+  email: string;
+};
+
+export type AvailableMarketer = {
+  id: string;
+  name: string;
+  email: string;
 };

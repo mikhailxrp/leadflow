@@ -70,6 +70,50 @@ async function loadCompanyDetail(
     : undefined;
 
   const subscriptionStatus = getSubscriptionStatus(company.nextPaymentAt);
+  const isPlatform = isPlatformCompany(company, ownerRole);
+
+  let grants: PlatformCompanyDetail['grants'];
+  let availableMarketers: PlatformCompanyDetail['availableMarketers'];
+
+  if (admin.role === 'SUPER_ADMIN' && isPlatform) {
+    const grantRows = await prisma.companyAccessGrant.findMany({
+      where: { companyId },
+      orderBy: { createdAt: 'desc' },
+      select: { platformAdminId: true },
+    });
+    const grantedMarketerIds = grantRows.map((row) => row.platformAdminId);
+
+    const [grantedMarketers, activeMarketers] = await Promise.all([
+      grantedMarketerIds.length > 0
+        ? prisma.platformAdmin.findMany({
+            where: { id: { in: grantedMarketerIds } },
+            select: { id: true, name: true, email: true },
+          })
+        : Promise.resolve([]),
+      prisma.platformAdmin.findMany({
+        where: {
+          role: 'MARKETER',
+          isActive: true,
+          deletedAt: null,
+          id: { notIn: grantedMarketerIds },
+        },
+        select: { id: true, name: true, email: true },
+      }),
+    ]);
+    const grantedMarketerById = new Map(
+      grantedMarketers.map((marketer) => [marketer.id, marketer]),
+    );
+
+    grants = grantedMarketerIds
+      .map((id) => grantedMarketerById.get(id))
+      .filter((marketer): marketer is (typeof grantedMarketers)[number] => marketer !== undefined)
+      .map((marketer) => ({
+        marketerId: marketer.id,
+        name: marketer.name,
+        email: marketer.email,
+      }));
+    availableMarketers = activeMarketers;
+  }
 
   return {
     id: company.id,
@@ -90,7 +134,9 @@ async function loadCompanyDetail(
     })),
     pendingInviteEmail: pendingInvite?.email ?? null,
     manageable: canManageCompany(admin, company, ownerRole),
-    ownedByMarketer: !isPlatformCompany(company, ownerRole),
+    ownedByMarketer: !isPlatform,
+    grants,
+    availableMarketers,
   };
 }
 

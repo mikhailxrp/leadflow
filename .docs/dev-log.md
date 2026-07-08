@@ -36,6 +36,28 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-08 — Phase 11.5, Таск 4: Гранты доступа — API + UI + события
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/platform.ts` — `createGrantSchema` (`{ marketerId: z.string().min(1) }.strict()`), `companyGrantParamsSchema` (`{ companyId, marketerId }`) + `z.infer`-типы `CreateGrantInput`/`CompanyGrantParamsInput`
+- `types/platform.ts` — `CompanyGrantItem` (`marketerId/name/email`), `AvailableMarketer` (`id/name/email`); `PlatformCompanyDetail` += `grants?`, `availableMarketers?`
+- `app/api/platform/companies/[id]/grants/route.ts` (новый) — `GET` список грантов компании (батч `PlatformAdmin` по `platformAdminId`, без FK-relation); `POST` — проверка `isPlatformCompany` (иначе 403), цель — активный `MARKETER` (`isActive`, `deletedAt: null`, иначе 400), `companyAccessGrant.create` (P2002 → 409), `writeEvent` `COMPANY_ACCESS_GRANTED { marketerId, byPlatformAdminId }`
+- `app/api/platform/companies/[id]/grants/[marketerId]/route.ts` (новый) — `DELETE`: `findUnique` по `@@unique([companyId, platformAdminId])` (нет гранта → 404), удаление, `writeEvent` `COMPANY_ACCESS_REVOKED { marketerId, byPlatformAdminId }`
+- `app/(platform)/platform/companies/[id]/page.tsx` (`loadCompanyDetail`) — при `SUPER_ADMIN` + платформенная компания: гранты компании + активные маркетологи без гранта (`id: { notIn: [...] }`); батч-резолв имён/email
+- `components/platform/CompanyGrantsSection.tsx` (новый) — Client Component: список грантов с «Отозвать» (`window.confirm`), селект `availableMarketers` + «Выдать доступ»; локальный optimistic state, inline-ошибки
+- `components/platform/CompanyDetailPageClient.tsx` — `CompanyGrantsSection` только при `viewerRole === 'SUPER_ADMIN' && !company.ownedByMarketer`
+
+**Out of scope (не делалось):** вход маркетолога внутрь компании — Phase 11.6; изменения `companyVisibility.ts` (видимость по грантам уже в Таске 2); `/platform/logs` и метки событий в журнале — Phase 11.7; email-уведомление маркетологу о гранте — не описано в модуле.
+
+**Проверено:** `npm run type-check`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
 ## 2026-07-08 — Phase 11.5, Таск 3: `/platform/marketers` — API + UI + каскадная блокировка + email
 
 **Статус:** ✅ Завершён

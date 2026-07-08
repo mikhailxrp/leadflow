@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, type ChangeEvent, type ReactNode } from 'react';
+import CompanyGrantsSection from '@/components/platform/CompanyGrantsSection';
 import ImpersonateButton from '@/components/platform/ImpersonateButton';
 import Button from '@/components/ui/Button';
 import type { PlatformCompanyDetail, SubscriptionStatus } from '@/types/platform';
@@ -387,6 +388,14 @@ export default function CompanyDetailPageClient({
           ) : null}
         </div>
       </section>
+
+      {viewerRole === 'SUPER_ADMIN' && !company.ownedByMarketer ? (
+        <CompanyGrantsSection
+          companyId={company.id}
+          grants={company.grants ?? []}
+          availableMarketers={company.availableMarketers ?? []}
+        />
+      ) : null}
 
       <section>
         <h2 className="mb-4 text-[20px] font-medium text-[var(--color-text-primary)]">
