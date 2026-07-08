@@ -126,7 +126,7 @@ export default function CompaniesPageClient({
         </section>
       ) : null}
 
-      <CompaniesTable companies={companies} />
+      <CompaniesTable companies={companies} role={role} />
 
       <CreateCompanyModal
         isOpen={isModalOpen}

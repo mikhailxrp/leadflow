@@ -34,8 +34,9 @@ export type BoardData = {
 
 export type BoardQueryOptions = {
   companyId: string;
-  userId: string;
-  role: UserRole;
+  /** Не заданы для actor'а marketer — видимость тогда не ограничивается (как HEAD). */
+  userId?: string;
+  role?: UserRole;
   leadVisibility: CompanySettings['leadVisibility'];
   companySettings: Prisma.JsonValue;
   includeClosed?: boolean;
@@ -52,7 +53,7 @@ function buildLeadWhere(options: BoardQueryOptions): Prisma.LeadWhereInput {
     assignedToId,
   } = options;
 
-  const visibility = visibilityWhere(role, userId, leadVisibility);
+  const visibility = role && userId ? visibilityWhere(role, userId, leadVisibility) : {};
 
   const andConditions: Prisma.LeadWhereInput[] = [{ companyId }];
 
@@ -145,6 +146,7 @@ export async function getBoardData(options: BoardQueryOptions): Promise<BoardDat
         source: true,
         createdAt: true,
         closeType: true,
+        qualification: true,
         stageId: true,
         lossReason: {
           select: { id: true, label: true },
@@ -184,6 +186,7 @@ export async function getBoardData(options: BoardQueryOptions): Promise<BoardDat
     source: lead.source,
     createdAt: lead.createdAt.toISOString(),
     closeType: lead.closeType,
+    qualification: lead.qualification,
     lossReason: lead.lossReason,
     hasDuplicate: lead._count.duplicateFlagsAsLead > 0,
     firstMatchedLeadId: lead.duplicateFlagsAsLead[0]?.matchedLeadId ?? null,

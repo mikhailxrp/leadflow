@@ -13,6 +13,7 @@ interface PipelineColumnProps {
   leads: BoardLeadCard[];
   avgDaysOnStage: number | null;
   onCardClick?: (id: string) => void;
+  readOnly?: boolean;
 }
 
 function PlusIcon(): ReactNode {
@@ -36,6 +37,7 @@ export default function PipelineColumn({
   leads,
   avgDaysOnStage,
   onCardClick,
+  readOnly = false,
 }: PipelineColumnProps): ReactNode {
   const { setNodeRef, isOver } = useDroppable({ id: stageId });
 
@@ -108,6 +110,7 @@ export default function PipelineColumn({
                 risk={lead.risk}
                 closeType={lead.closeType}
                 onClick={onCardClick}
+                readOnly={readOnly}
               />
             ))}
           </SortableContext>

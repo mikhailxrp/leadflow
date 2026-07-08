@@ -7,10 +7,12 @@ import PipelineBoard from '@/components/pipeline/PipelineBoard';
 import IconButton from '@/components/ui/IconButton';
 import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
+import { toCompanyActor } from '@/lib/auth/requireCompanyAccess';
 import { getManagers } from '@/lib/leads/getManagers';
 import { getLeadVisibility } from '@/lib/leads/visibilityFilter';
 import { getBoardData } from '@/lib/pipeline/boardQuery';
 import { prisma } from '@/lib/prisma';
+import type { CompanySession } from '@/types/session';
 
 const PIPELINE_SETTINGS_PATH = '/admin/pipeline-settings';
 
@@ -84,11 +86,12 @@ function SettingsIcon() {
 export default async function PipelinePage() {
   const session = await auth();
 
-  if (!session || session.kind !== 'company' || !session.user) {
+  if (!session || session.kind !== 'company') {
     redirect('/login');
   }
 
-  const { companyId, id: userId, role } = session.user;
+  const actor = toCompanyActor(session as CompanySession);
+  const { companyId } = actor;
 
   const company = await prisma.company.findUnique({
     where: { id: companyId },
@@ -100,13 +103,14 @@ export default async function PipelinePage() {
   }
 
   const leadVisibility = getLeadVisibility(company.settings);
-  const showManagerFilter = hasMinRole(role, 'HEAD') || leadVisibility === 'ALL';
+  // Маркетолог видит все лиды компании (как HEAD) — фильтр по ответственному тоже доступен.
+  const showManagerFilter =
+    actor.actor === 'marketer' || hasMinRole(actor.role, 'HEAD') || leadVisibility === 'ALL';
 
   const [{ columns }, managers] = await Promise.all([
     getBoardData({
       companyId,
-      userId,
-      role,
+      ...(actor.actor === 'user' ? { userId: actor.userId, role: actor.role } : {}),
       leadVisibility,
       companySettings: company.settings,
       includeClosed: false,
@@ -151,6 +155,7 @@ export default async function PipelinePage() {
           initialColumns={columns}
           managers={managers}
           showManagerFilter={showManagerFilter}
+          readOnly={actor.actor !== 'user'}
         />
       </PageContent>
     </>

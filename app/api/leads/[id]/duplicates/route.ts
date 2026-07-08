@@ -1,12 +1,11 @@
 import type { Prisma } from '@prisma/client';
-import { auth } from '@/lib/auth';
 import {
   DEFAULT_COMPANY_SETTINGS,
   type CompanySettings,
 } from '@/constants/defaultCompanyData';
+import { requireCompanyAccess } from '@/lib/auth/requireCompanyAccess';
 import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
-import type { CompanySession } from '@/types/session';
 
 function getLeadVisibility(settings: unknown): CompanySettings['leadVisibility'] {
   if (
@@ -24,15 +23,21 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const session = await auth();
+  const { id } = await params;
 
-  if (!session || session.kind !== 'company' || !session.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  let actor;
+  try {
+    actor = await requireCompanyAccess({
+      minRole: 'MANAGER',
+      method: 'GET',
+      pathname: `/api/leads/${id}/duplicates`,
+    });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
   }
 
-  const { id } = await params;
-  const companySession = session as CompanySession;
-  const { companyId, role, id: userId } = companySession.user;
+  const companyId = actor.companyId;
 
   try {
     const company = await prisma.company.findUniqueOrThrow({
@@ -41,7 +46,8 @@ export async function GET(
     });
 
     const leadVisibility = getLeadVisibility(company.settings);
-    const visibility = visibilityWhere(role, userId, leadVisibility);
+    const visibility =
+      actor.actor === 'user' ? visibilityWhere(actor.role, actor.userId, leadVisibility) : {};
 
     const andConditions: Prisma.LeadWhereInput[] = [{ id }, { companyId }];
     if (Object.keys(visibility).length > 0) {

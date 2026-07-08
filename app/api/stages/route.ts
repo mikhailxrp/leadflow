@@ -1,5 +1,6 @@
 import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
+import { requireCompanyAccess } from '@/lib/auth/requireCompanyAccess';
 import { prisma } from '@/lib/prisma';
 import { createStageSchema } from '@/lib/validations/stages';
 
@@ -28,17 +29,15 @@ function mapStageRow({ _count, ...rest }: StageRow) {
 }
 
 export async function GET(): Promise<Response> {
-  const session = await auth();
-
-  if (!session || session.kind !== 'company' || !session.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  let actor;
+  try {
+    actor = await requireCompanyAccess({ minRole: 'MANAGER', method: 'GET', pathname: '/api/stages' });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
   }
 
-  if (!hasMinRole(session.user.role, 'MANAGER')) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const { companyId } = session.user;
+  const { companyId } = actor;
 
   try {
     const stages = await prisma.pipelineStage.findMany({

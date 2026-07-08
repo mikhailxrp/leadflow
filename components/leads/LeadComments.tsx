@@ -15,6 +15,7 @@ export interface LeadCommentItem {
 interface LeadCommentsProps {
   leadId: string;
   comments: LeadCommentItem[];
+  canComment: boolean;
 }
 
 const MAX_COMMENT_LENGTH = 5000;
@@ -37,7 +38,7 @@ function formatTime(iso: string): string {
   });
 }
 
-export default function LeadComments({ leadId, comments }: LeadCommentsProps) {
+export default function LeadComments({ leadId, comments, canComment }: LeadCommentsProps) {
   const router = useRouter();
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -121,6 +122,7 @@ export default function LeadComments({ leadId, comments }: LeadCommentsProps) {
         </ul>
       )}
 
+      {canComment && (
       <div className="flex flex-col gap-3">
         <textarea
           value={text}
@@ -156,6 +158,7 @@ export default function LeadComments({ leadId, comments }: LeadCommentsProps) {
           </Button>
         </div>
       </div>
+      )}
     </Card>
   );
 }
