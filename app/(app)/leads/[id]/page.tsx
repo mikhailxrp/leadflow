@@ -1,17 +1,26 @@
 import type { Metadata } from 'next';
-import LeadComments from '@/components/leads/LeadComments';
+import { notFound, redirect } from 'next/navigation';
+import { auth } from '@/lib/auth';
+import { hasMinRole } from '@/constants/roles';
+import { getLeadById } from '@/lib/leads/getLeadById';
+import type { CompanySession } from '@/types/session';
+import { PageContent } from '@/components/layout/AppLayout';
+import LeadHeader from '@/components/leads/LeadHeader';
 import LeadContacts from '@/components/leads/LeadContacts';
 import LeadCustomFields from '@/components/leads/LeadCustomFields';
-import LeadHeader from '@/components/leads/LeadHeader';
-import LeadHistory from '@/components/leads/LeadHistory';
 import LeadMarketing from '@/components/leads/LeadMarketing';
+import LeadEditForm from '@/components/leads/LeadEditForm';
+import DeleteLeadModal from '@/components/leads/DeleteLeadModal';
+import DuplicateBlock from '@/components/leads/DuplicateBlock';
+import RiskBadge from '@/components/leads/RiskBadge';
 import LeadSidebar from '@/components/leads/LeadSidebar';
-import LeadYandex from '@/components/leads/LeadYandex';
+import LeadComments from '@/components/leads/LeadComments';
+import LeadHistory from '@/components/leads/LeadHistory';
 import TaskBlock from '@/components/tasks/TaskBlock';
-import { PageContent } from '@/components/layout/AppLayout';
+import type { HistoryEventItem } from '@/constants/eventLabels';
 
 export const metadata: Metadata = {
-  title: 'Иван Петров',
+  title: 'Лид',
 };
 
 interface LeadDetailPageProps {
@@ -23,52 +32,105 @@ export default async function LeadDetailPage({
   params,
   searchParams,
 }: LeadDetailPageProps) {
+  const session = await auth();
+
+  if (!session || session.kind !== 'company') {
+    redirect('/login');
+  }
+
+  const companySession = session as CompanySession;
   const { id } = await params;
   const { taskId } = await searchParams;
 
+  const lead = await getLeadById(id, companySession);
+
+  if (!lead) {
+    notFound();
+  }
+
+  // Serialize dates for client components
+  const serializedComments = lead.comments.map((c) => ({
+    id: c.id,
+    text: c.text,
+    createdAt: c.createdAt.toISOString(),
+    user: c.user,
+  }));
+
+  const serializedEvents: HistoryEventItem[] = lead.events.map((e) => ({
+    id: e.id,
+    type: e.type,
+    createdAt: e.createdAt.toISOString(),
+    userName: e.userName,
+    lossReasonLabel: e.lossReasonLabel,
+  }));
+
+  const takenAtStr = lead.takenAt ? lead.takenAt.toISOString() : null;
+
   return (
     <PageContent>
-      <LeadHeader name="Иван Петров" status="in-progress" />
+      <LeadHeader
+        name={lead.name}
+        stage={lead.stage}
+        closeType={lead.closeType}
+      />
 
       <div className="flex flex-col gap-6 lg:flex-row">
+        {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col gap-6">
+          <div className="flex items-center gap-3">
+            <RiskBadge level={lead.risk.level} reason={lead.risk.reason} />
+            {lead.risk.reason && (
+              <span className="text-[13px] text-[var(--color-text-secondary)]">
+                {lead.risk.reason}
+              </span>
+            )}
+          </div>
+
           <LeadContacts
-            initials="ИП"
-            name="Иван Петров"
-            createdAt="12.05.2024, 14:30"
-            phone="+7 (999) 123-45-67"
-            email="ivan.petrov@example.com"
+            name={lead.name}
+            phone={lead.phone}
+            email={lead.email}
+            createdAt={lead.createdAt.toISOString()}
           />
+
+          <DuplicateBlock duplicates={lead.duplicates} />
+
           <LeadMarketing
-            referrer="https://google.com/search?q=crm"
-            landingPage="/pricing/spring-offer"
-            utm={{
-              source: 'google',
-              medium: 'cpc',
-              campaign: 'spring_sale_2024',
-              term: 'купить_crm_москва',
-            }}
+            source={lead.source}
+            marketing={lead.marketing}
+            utm={lead.utm}
           />
-          <LeadYandex
-            campaign="№ 102938475 (Ретаргетинг)"
-            adGroup="Брошенная корзина - B2B"
-            keyword="«crm система внедрение»"
-            device="Десктоп"
-            region="Москва и область"
+
+          <LeadCustomFields fields={lead.customFields} />
+
+          <LeadEditForm
+            leadId={lead.id}
+            initialName={lead.name}
+            initialPhone={lead.phone}
+            initialEmail={lead.email}
+            initialComment={lead.comment}
           />
-          <LeadCustomFields
-            companySize="50-100 сотрудников"
-            industry="IT & Software"
-            position="Директор по развитию"
-            inn="7701234567"
+
+          <DeleteLeadModal
+            leadId={lead.id}
+            leadName={lead.name}
+            role={companySession.user.role}
           />
         </div>
 
+        {/* Right column */}
         <aside className="flex w-full shrink-0 flex-col gap-6 lg:w-[440px]">
-          <LeadSidebar />
-          <LeadComments />
-          <TaskBlock leadId={id} highlightTaskId={taskId} />
-          <LeadHistory />
+          <LeadSidebar
+            leadId={lead.id}
+            hasTakenInWork={lead.hasTakenInWork}
+            takenAt={takenAtStr}
+            closeType={lead.closeType}
+            assignedTo={lead.assignedTo}
+            canAssign={hasMinRole(companySession.user.role, 'HEAD')}
+          />
+          <LeadComments leadId={lead.id} comments={serializedComments} />
+          <TaskBlock leadId={lead.id} highlightTaskId={taskId} />
+          <LeadHistory events={serializedEvents} />
         </aside>
       </div>
     </PageContent>

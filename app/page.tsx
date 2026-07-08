@@ -11,14 +11,14 @@ export default function Home() {
           >
             <span className="block h-[35px] w-[35px] rounded-full bg-[#10B981] animate-pulse-dot" />
           </span>
-          <h1 className="text-[42px] font-medium leading-[1.3]">LeadFlow</h1>
+          <h1 className="text-[42px] font-medium leading-[1.3]">Лид-Канал</h1>
         </div>
 
         <Link
-          href="/dashboard"
+          href="/login"
           className="flex h-[36px] w-full items-center justify-center rounded-[6px] bg-[#10B981] text-[13px] font-medium text-white transition-all duration-150 hover:bg-[#0E9E6E]"
         >
-          Дашборд
+          Сегодня
         </Link>
       </div>
     </main>

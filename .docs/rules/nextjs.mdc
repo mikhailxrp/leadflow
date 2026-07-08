@@ -8,20 +8,20 @@ globs: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"]
 - Next.js 15+ App Router only — no Pages Router in new code
 - TypeScript strict mode — no `.js` or `.jsx` files
 - Server Components by default — `'use client'` only when necessary
-- Server Actions for mutations — minimize API routes
+- Mutations via REST API Routes (`app/api/`) — **не использовать Server Actions для бизнес-логики**
 
 ## File structure
 
 - `app/` — all routes, layouts, pages
-- `app/(group)/` — route groups for organization (auth, dashboard, etc)
-- `app/api/` — API routes (minimize usage, prefer Server Actions)
-- `components/ui/` — LeadFlow design system (Button, Input, Card, Badge, Avatar, Toast)
+- `app/(group)/` — route groups (отражают минимальный уровень доступа: `(app)`, `(management)`, `(admin)`, `(platform)`, `(public)`)
+- `app/api/` — REST API Routes, основной способ мутаций
+- `components/ui/` — Лид-Канал design system (Button, Input, Card, Badge, Avatar, Toast)
   Import from `@/components/index` — не создавай новые компоненты без необходимости
   Стиль и токены — см. direction.md в корне
 - `components/forms/` — form components with validation
 - `components/layouts/` — reusable layouts (Header, Footer, Sidebar)
 - `lib/` — utilities, DB, auth config, validations
-- `actions/` — Server Actions
+- `constants/` — roles.ts (ROLE_RANK/hasMinRole), eventTypes, leadSources и т.д.
 
 ## Server Components (default)
 
@@ -42,14 +42,36 @@ Use ONLY when you need:
 - Event listeners
 - Third-party libraries that use hooks
 
-## Server Actions
+## API Routes (mutations)
 
-- `'use server'` at top of file or function
-- Always validate input via Zod before any operation
+- Явные REST API Routes в `app/api/`
+- **Не использовать Server Actions** (`'use server'`) для бизнес-логики
+- Всегда валидировать входные данные через Zod
 - Return type: `{ success: boolean; error?: string; data?: T }`
-- Handle errors with try/catch
-- Use `revalidatePath()` or `revalidateTag()` after mutations
-- Can be called from forms or Client Components
+- Каждый route handler повторно проверяет сессию и роль (defense-in-depth)
+
+```typescript
+import { auth } from "@/lib/auth";
+import { hasMinRole } from "@/constants/roles";
+import { z } from "zod";
+
+const schema = z.object({
+  /* ... */
+});
+
+export async function POST(req: Request) {
+  const session = await auth();
+  if (!session || session.kind !== "company")
+    return new Response("Unauthorized", { status: 401 });
+  if (!hasMinRole(session.user.role, "ADMIN"))
+    return new Response("Forbidden", { status: 403 });
+
+  const body = schema.safeParse(await req.json());
+  if (!body.success) return new Response("Bad Request", { status: 400 });
+
+  // бизнес-логика
+}
+```
 
 ## Data Fetching
 
@@ -57,7 +79,7 @@ Use ONLY when you need:
 
 ```typescript
 async function getData() {
-  const data = await prisma.model.findMany()
+  const data = await prisma.model.findMany({ where: { companyId } })
   return data
 }
 
@@ -69,15 +91,57 @@ export default async function Page() {
 
 ### In Client Components:
 
-- Use SWR or React Query
-- Or fetch via Server Action
+- Fetch через `app/api/` routes напрямую (`fetch('/api/...')`)
+- Zustand для глобального client-state (`store/`)
 
 ## Forms
 
-- Server Actions for submission (no need for API routes)
-- Controlled forms via react-hook-form
-- Zod validation on both client and server
-- Optimistic updates via `useOptimistic` hook
+- Submit через `fetch` к `app/api/` route
+- Zod-валидация на клиенте и на сервере
+- **Не использовать react-hook-form** — не входит в стек проекта
+
+## Route Protection (proxy.ts)
+
+Защита роутов — через `proxy.ts`, не через `middleware.ts`:
+
+```typescript
+// proxy.ts
+export const proxy = auth((req) => {
+  const session = req.auth;
+  const { pathname } = req.nextUrl;
+
+  if (pathname.startsWith("/platform")) {
+    if (!session || session.kind !== "platform")
+      return NextResponse.redirect(new URL("/platform/login", req.url));
+    return NextResponse.next();
+  }
+
+  if (!session || session.kind !== "company")
+    return NextResponse.redirect(new URL("/login", req.url));
+
+  if (pathname.startsWith("/control") || pathname.startsWith("/reports")) {
+    if (!hasMinRole(session.user.role, "HEAD"))
+      return NextResponse.redirect(new URL("/today", req.url));
+  }
+
+  if (pathname.startsWith("/admin")) {
+    if (!hasMinRole(session.user.role, "ADMIN"))
+      return NextResponse.redirect(new URL("/today", req.url));
+  }
+
+  return NextResponse.next();
+});
+```
+
+Роли — через `hasMinRole()` из `@/constants/roles`, **никогда явным перечислением**:
+
+```typescript
+// Правильно:
+if (!hasMinRole(session.user.role, 'HEAD')) return forbidden();
+
+// Неправильно:
+if (session.user.role !== 'ADMIN' && session.user.role !== 'HEAD') ...
+```
 
 ## Routing
 
@@ -87,7 +151,7 @@ export default async function Page() {
 - `loading.tsx` — loading UI (Suspense fallback)
 - `error.tsx` — error UI (error boundary)
 - Dynamic routes: `[id]/page.tsx`
-- Route groups: `(auth)/login/page.tsx`
+- Route groups: `(app)/leads/page.tsx`
 
 ## Layouts
 
@@ -96,30 +160,23 @@ export default async function Page() {
 - Layouts wrap children and persist across navigation
 - Use for shared UI (nav, footer, sidebar)
 
-## Middleware
-
-```typescript
-// middleware.ts
-export function middleware(request: NextRequest) {
-  // Auth, redirects, headers
-}
-
-export const config = {
-  matcher: ["/dashboard/:path*"],
-};
-```
-
 ## Database (Prisma)
 
 - All queries via Prisma Client
+- **Всегда фильтровать по `companyId` из сессии** — `where: { companyId }`
 - Use transactions for related operations
-- Soft delete over hard delete (add `deleted_at` field)
 - Index frequently queried fields
+
+## Multitenant security
+
+- `companyId` в каждом запросе к данным — без исключений
+- Не возвращать клиенту: хэши паролей, полные API-ключи, данные чужого `companyId`
+- Платформенная сессия (`kind: 'platform'`) и сессия компании (`kind: 'company'`) **никогда не смешиваются** в одном handler
 
 ## Environment Variables
 
 - Client-side: `NEXT_PUBLIC_*` prefix
-- Server-side: no prefix, access in Server Components/Actions only
+- Server-side: no prefix, access in Server Components / API routes only
 - Never expose secrets to client
 - Store in `.env.local` (gitignored)
 
@@ -133,6 +190,6 @@ export const config = {
 ## Security
 
 - Validate all inputs via Zod (client + server)
-- CSRF protection built-in (Server Actions)
-- Auth via middleware for protected routes
+- Auth via `proxy.ts` for protected routes
+- API route handlers повторно проверяют сессию и роль (не полагаться только на proxy.ts)
 - Never expose DB credentials or API keys to client

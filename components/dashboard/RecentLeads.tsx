@@ -1,58 +1,7 @@
-'use client';
-
+import type { JSX } from 'react';
 import Link from 'next/link';
-import LeadsTable from '@/components/blocks/LeadsTable';
-import { StatusBadge } from '@/components/ui/Badge';
 
-type LeadStatus = 'new' | 'contact' | 'in-progress' | 'warm' | 'deal';
-
-interface RecentLeadRow extends Record<string, unknown> {
-  id: string;
-  name: string;
-  source: string;
-  status: LeadStatus;
-  date: string;
-}
-
-const MOCK_LEADS: RecentLeadRow[] = [
-  {
-    id: '1',
-    name: 'Иван Иванов',
-    source: 'Входящий звонок',
-    status: 'new',
-    date: '07.06.2026',
-  },
-  {
-    id: '2',
-    name: 'ООО «Вектор»',
-    source: 'Сайт',
-    status: 'contact',
-    date: '07.06.2026',
-  },
-  {
-    id: '3',
-    name: 'Анна Смирнова',
-    source: 'Telegram',
-    status: 'in-progress',
-    date: '06.06.2026',
-  },
-  {
-    id: '4',
-    name: 'ИП Петров',
-    source: 'Рекомендация',
-    status: 'warm',
-    date: '06.06.2026',
-  },
-  {
-    id: '5',
-    name: 'ЗАО «Альянс»',
-    source: 'Email',
-    status: 'deal',
-    date: '05.06.2026',
-  },
-];
-
-export default function RecentLeads() {
+export default function RecentLeads(): JSX.Element {
   return (
     <section>
       <div className="mb-4 flex items-center justify-between">
@@ -67,27 +16,9 @@ export default function RecentLeads() {
         </Link>
       </div>
 
-      <LeadsTable<RecentLeadRow>
-        keyField="id"
-        data={MOCK_LEADS}
-        rowClickable
-        columns={[
-          {
-            key: 'name',
-            header: 'Имя',
-            render: (row) => (
-              <span className="font-medium">{row.name}</span>
-            ),
-          },
-          { key: 'source', header: 'Источник' },
-          {
-            key: 'status',
-            header: 'Статус',
-            render: (row) => <StatusBadge status={row.status} />,
-          },
-          { key: 'date', header: 'Дата' },
-        ]}
-      />
+      <div className="rounded-[var(--radius-lg)] border border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] px-6 py-10 text-center">
+        <p className="text-[13px] text-[var(--color-text-secondary)]">Пока нет лидов</p>
+      </div>
     </section>
   );
 }

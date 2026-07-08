@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { type ReactNode } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import type { ManagerOption } from '@/lib/leads/getManagers';
 
 const SOURCE_OPTIONS = [
   { value: '', label: 'Источник' },
@@ -10,21 +12,15 @@ const SOURCE_OPTIONS = [
   { value: 'yandex', label: 'Директ' },
   { value: 'wordpress', label: 'WP' },
   { value: 'api', label: 'API' },
+  { value: 'manual', label: 'Вручную' },
+  { value: 'csv', label: 'Импорт' },
 ];
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Статус' },
-  { value: 'new', label: 'Новый' },
-  { value: 'in-progress', label: 'В работе' },
-  { value: 'success', label: 'Успешно' },
-  { value: 'rejected', label: 'Отказ' },
-];
-
-const MANAGER_OPTIONS = [
-  { value: '', label: 'Менеджер' },
-  { value: 'elena', label: 'Елена В.' },
-  { value: 'ivan', label: 'Иван К.' },
-  { value: 'alexey', label: 'Алексей М.' },
+  { value: 'open', label: 'Открытые' },
+  { value: 'won', label: 'Успешно' },
+  { value: 'lost', label: 'Отказ' },
 ];
 
 const PERIOD_OPTIONS = [
@@ -34,7 +30,7 @@ const PERIOD_OPTIONS = [
   { value: 'month', label: 'За месяц' },
 ];
 
-function SearchIcon() {
+function SearchIcon(): ReactNode {
   return (
     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -42,7 +38,7 @@ function SearchIcon() {
   );
 }
 
-function FilterIcon() {
+function FilterIcon(): ReactNode {
   return (
     <svg className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-text-tertiary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -57,7 +53,7 @@ interface FilterSelectProps {
   id: string;
 }
 
-function FilterSelect({ value, onChange, options, id }: FilterSelectProps) {
+function FilterSelect({ value, onChange, options, id }: FilterSelectProps): ReactNode {
   return (
     <div className="relative min-w-[140px]">
       <select
@@ -84,26 +80,43 @@ function FilterSelect({ value, onChange, options, id }: FilterSelectProps) {
   );
 }
 
-const INITIAL_FILTERS = {
-  search: '',
-  source: '',
-  status: '',
-  manager: '',
-  period: '',
-};
+interface LeadsFiltersProps {
+  managers: ManagerOption[];
+}
 
-export default function LeadsFilters() {
-  const [filters, setFilters] = useState(INITIAL_FILTERS);
+export default function LeadsFilters({ managers }: LeadsFiltersProps): ReactNode {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const hasActiveFilters = Object.values(filters).some((v) => v !== '');
+  const managerOptions = [
+    { value: '', label: 'Менеджер' },
+    ...managers.map((m) => ({ value: m.id, label: m.name })),
+  ];
 
-  function updateFilter(key: keyof typeof filters, value: string): void {
-    setFilters((prev) => ({ ...prev, [key]: value }));
+  function updateParam(key: string, value: string): void {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+    params.set('page', '1');
+    router.push(`/leads?${params.toString()}`);
   }
 
   function handleReset(): void {
-    setFilters(INITIAL_FILTERS);
+    router.push('/leads');
   }
+
+  const search = searchParams.get('search') ?? '';
+  const source = searchParams.get('source') ?? '';
+  const status = searchParams.get('status') ?? '';
+  const assignedToId = searchParams.get('assignedToId') ?? '';
+  const period = searchParams.get('period') ?? '';
+
+  const hasActiveFilters = [search, source, status, assignedToId, period].some(
+    (v) => v !== '',
+  );
 
   return (
     <div
@@ -118,8 +131,8 @@ export default function LeadsFilters() {
         <Input
           placeholder="Имя, телефон, email..."
           icon={<SearchIcon />}
-          value={filters.search}
-          onChange={(e) => updateFilter('search', e.target.value)}
+          value={search}
+          onChange={(e) => updateParam('search', e.target.value)}
           aria-label="Поиск лидов"
         />
       </div>
@@ -127,26 +140,26 @@ export default function LeadsFilters() {
       <div className="flex flex-wrap items-center gap-2">
         <FilterSelect
           id="filter-source"
-          value={filters.source}
-          onChange={(v) => updateFilter('source', v)}
+          value={source}
+          onChange={(v) => updateParam('source', v)}
           options={SOURCE_OPTIONS}
         />
         <FilterSelect
           id="filter-status"
-          value={filters.status}
-          onChange={(v) => updateFilter('status', v)}
+          value={status}
+          onChange={(v) => updateParam('status', v)}
           options={STATUS_OPTIONS}
         />
         <FilterSelect
           id="filter-manager"
-          value={filters.manager}
-          onChange={(v) => updateFilter('manager', v)}
-          options={MANAGER_OPTIONS}
+          value={assignedToId}
+          onChange={(v) => updateParam('assignedToId', v)}
+          options={managerOptions}
         />
         <FilterSelect
           id="filter-period"
-          value={filters.period}
-          onChange={(v) => updateFilter('period', v)}
+          value={period}
+          onChange={(v) => updateParam('period', v)}
           options={PERIOD_OPTIONS}
         />
 

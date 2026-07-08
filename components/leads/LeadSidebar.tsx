@@ -1,76 +1,38 @@
 'use client';
 
-import { useState } from 'react';
-import Button from '@/components/ui/Button';
+import type { CloseType } from '@prisma/client';
 import Card from '@/components/ui/Card';
+import TakeInWorkButton from '@/components/leads/TakeInWorkButton';
+import CloseLeadMenu from '@/components/leads/CloseLeadMenu';
+import AssignManagerSelect from '@/components/leads/AssignManagerSelect';
 
-const INITIAL_STATUS = 'in-progress-2';
-const INITIAL_MANAGER = 'alexey';
+const CLOSE_TYPE_LABELS: Record<CloseType, string> = {
+  WON: 'Сделка',
+  LOST: 'Отказ',
+};
 
-const STATUS_OPTIONS = [
-  { value: 'new', label: 'Новый (Этап 1)' },
-  { value: 'in-progress-2', label: 'В работе (Этап 2)' },
-  { value: 'warm', label: 'Тёплый клиент (Этап 3)' },
-  { value: 'deal', label: 'Сделка (Этап 4)' },
-];
+const CLOSE_TYPE_COLORS: Record<CloseType, string> = {
+  WON: 'bg-[#D1FAE5] text-[#065F46]',
+  LOST: 'bg-[#FEE2E2] text-[#991B1B]',
+};
 
-const MANAGER_OPTIONS = [
-  { value: 'alexey', label: 'Алексей Дмитриев' },
-  { value: 'elena', label: 'Елена Волкова' },
-  { value: 'ivan', label: 'Иван Козлов' },
-];
-
-function FilterSelect({
-  id,
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label
-        htmlFor={id}
-        className="text-[12px] font-normal text-[var(--color-text-secondary)]"
-      >
-        {label}
-      </label>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="
-          h-[36px] w-full appearance-none rounded-[6px]
-          border border-[var(--color-border)] border-[0.5px]
-          bg-[var(--color-bg-surface)] px-3
-          text-[13px] text-[var(--color-text-primary)]
-          outline-none transition-all duration-150
-          focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]
-        "
-      >
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
+interface LeadSidebarProps {
+  leadId: string;
+  hasTakenInWork: boolean;
+  takenAt: string | null;
+  closeType: CloseType | null;
+  assignedTo: { id: string; name: string } | null;
+  canAssign: boolean;
 }
 
-export default function LeadSidebar() {
-  const [status, setStatus] = useState(INITIAL_STATUS);
-  const [manager, setManager] = useState(INITIAL_MANAGER);
-
-  const hasChanges =
-    status !== INITIAL_STATUS || manager !== INITIAL_MANAGER;
-
+export default function LeadSidebar({
+  leadId,
+  hasTakenInWork,
+  takenAt,
+  closeType,
+  assignedTo,
+  canAssign,
+}: LeadSidebarProps) {
   return (
     <Card padding="lg">
       <h2 className="mb-4 text-[14px] font-medium text-[var(--color-text-primary)]">
@@ -78,30 +40,43 @@ export default function LeadSidebar() {
       </h2>
 
       <div className="mb-5 flex flex-col gap-4">
-        <FilterSelect
-          id="lead-status"
-          label="Статус"
-          value={status}
-          onChange={setStatus}
-          options={STATUS_OPTIONS}
-        />
-        <FilterSelect
-          id="lead-manager"
-          label="Ответственный"
-          value={manager}
-          onChange={setManager}
-          options={MANAGER_OPTIONS}
-        />
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[12px] font-normal text-[var(--color-text-secondary)]">
+            Ответственный
+          </span>
+          {canAssign ? (
+            <AssignManagerSelect leadId={leadId} assignedTo={assignedTo} />
+          ) : (
+            <span className="text-[13px] text-[var(--color-text-primary)]">
+              {assignedTo?.name ?? (
+                <span className="text-[var(--color-text-tertiary)]">Не назначен</span>
+              )}
+            </span>
+          )}
+        </div>
+
+        {closeType !== null && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-normal text-[var(--color-text-secondary)]">
+              Статус
+            </span>
+            <span
+              className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium ${CLOSE_TYPE_COLORS[closeType]}`}
+            >
+              {CLOSE_TYPE_LABELS[closeType]}
+            </span>
+          </div>
+        )}
       </div>
 
-      <Button
-        variant="primary"
-        size="md"
-        className="w-full"
-        disabled={!hasChanges}
-      >
-        Сохранить изменения
-      </Button>
+      <div className="flex flex-col gap-2">
+        <TakeInWorkButton
+          leadId={leadId}
+          hasTakenInWork={hasTakenInWork}
+          takenAt={takenAt}
+        />
+        <CloseLeadMenu leadId={leadId} isClosed={closeType !== null} />
+      </div>
     </Card>
   );
 }

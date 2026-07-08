@@ -1,8 +1,14 @@
+import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import LeadsTable, { type CellType, type ManagerCell } from '@/components/blocks/LeadsTable';
-import type { LeadSourceType, ListStatusType } from '@/components/ui/Badge';
+import { auth } from '@/lib/auth';
+import { getLeadsWithRisk } from '@/lib/leads/getLeads';
+import { getManagers } from '@/lib/leads/getManagers';
+import { leadsQuerySchema } from '@/lib/validations/leads';
+import type { CompanySession } from '@/types/session';
 import LeadsFilters from '@/components/leads/LeadsFilters';
+import LeadsTable from '@/components/leads/LeadsTable';
 import LeadsPagination from '@/components/leads/LeadsPagination';
 import { PageContent } from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
@@ -12,114 +18,6 @@ export const metadata: Metadata = {
   title: 'Лиды',
 };
 
-interface LeadRow extends Record<string, unknown> {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  source: LeadSourceType;
-  manager: ManagerCell;
-  status: ListStatusType;
-  date: string;
-}
-
-const MOCK_LEADS: LeadRow[] = [
-  {
-    id: '1',
-    name: 'Александр Смирнов',
-    phone: '+7 (495) 123-45-67',
-    email: 'alex@company.ru',
-    source: 'tilda',
-    manager: { initials: 'Е', name: 'Елена В.' },
-    status: 'new',
-    date: 'Сегодня, 10:42',
-  },
-  {
-    id: '2',
-    name: 'Мария Иванова',
-    phone: '+7 (903) 222-33-44',
-    email: 'maria@mail.ru',
-    source: 'yandex',
-    manager: { initials: 'И', name: 'Иван К.' },
-    status: 'in-progress',
-    date: 'Вчера, 16:30',
-  },
-  {
-    id: '3',
-    name: 'ООО «Вектор»',
-    phone: '+7 (812) 555-66-77',
-    email: 'vector@ooo.ru',
-    source: 'wordpress',
-    manager: { initials: 'А', name: 'Алексей М.' },
-    status: 'new',
-    date: '12 Окт 2023',
-  },
-  {
-    id: '4',
-    name: 'Анна Петрова',
-    phone: '+7 (916) 888-99-00',
-    email: 'anna@test.ru',
-    source: 'api',
-    manager: { initials: 'Е', name: 'Елена В.' },
-    status: 'success',
-    date: '11 Окт 2023',
-  },
-  {
-    id: '5',
-    name: 'Дмитрий Козлов',
-    phone: '+7 (925) 111-22-33',
-    email: 'dmitry@corp.ru',
-    source: 'tilda',
-    manager: { initials: 'И', name: 'Иван К.' },
-    status: 'rejected',
-    date: '10 Окт 2023',
-  },
-  {
-    id: '6',
-    name: 'Екатерина Соколова',
-    phone: '+7 (903) 444-55-66',
-    email: 'kate@design.ru',
-    source: 'yandex',
-    manager: { initials: 'А', name: 'Алексей М.' },
-    status: 'in-progress',
-    date: '09 Окт 2023',
-  },
-  {
-    id: '7',
-    name: 'ИП Сидоров',
-    phone: '+7 (495) 777-88-99',
-    email: 'sidorov@ip.ru',
-    source: 'wordpress',
-    manager: { initials: 'Е', name: 'Елена В.' },
-    status: 'success',
-    date: '08 Окт 2023',
-  },
-  {
-    id: '8',
-    name: 'ЗАО «Прогресс»',
-    phone: '+7 (812) 333-44-55',
-    email: 'progress@zao.ru',
-    source: 'api',
-    manager: { initials: 'И', name: 'Иван К.' },
-    status: 'new',
-    date: '07 Окт 2023',
-  },
-];
-
-const LEADS_COLUMNS: {
-  key: keyof LeadRow;
-  header: string;
-  cellType: CellType;
-}[] = [
-  { key: 'name', header: 'Имя', cellType: 'name' },
-  { key: 'phone', header: 'Телефон', cellType: 'secondary' },
-  { key: 'email', header: 'Email', cellType: 'secondary' },
-  { key: 'source', header: 'Источник', cellType: 'leadSource' },
-  { key: 'manager', header: 'Менеджер', cellType: 'manager' },
-  { key: 'status', header: 'Статус', cellType: 'listStatus' },
-  { key: 'date', header: 'Дата', cellType: 'tertiary' },
-];
-
 function PlusIcon() {
   return (
     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -128,24 +26,37 @@ function PlusIcon() {
   );
 }
 
-export default function LeadsPage() {
+interface LeadsPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function LeadsPage({ searchParams }: LeadsPageProps) {
+  const session = await auth();
+
+  if (!session || session.kind !== 'company') {
+    redirect('/login');
+  }
+
+  const companySession = session as CompanySession;
+  const rawParams = await searchParams;
+
+  const normalized: Record<string, string> = {};
+  for (const [key, val] of Object.entries(rawParams)) {
+    if (typeof val === 'string') normalized[key] = val;
+    else if (Array.isArray(val)) normalized[key] = val[0] ?? '';
+  }
+
+  const params = leadsQuerySchema.parse(normalized);
+
+  const [{ leads, total, page, pageSize }, managers] = await Promise.all([
+    getLeadsWithRisk(params, companySession),
+    getManagers(companySession.user.companyId),
+  ]);
+
   return (
     <>
       <PageHeader
-        title={
-          <span className="flex items-center gap-2">
-            Лиды
-            <span
-              className="
-                rounded-[20px] bg-[var(--color-bg-surface-2)]
-                px-2.5 py-0.5 text-[12px] font-medium
-                text-[var(--color-text-secondary)]
-              "
-            >
-              248
-            </span>
-          </span>
-        }
+        title="Лиды"
         actions={
           <Link href="/leads/new">
             <Button variant="primary" size="md" icon={<PlusIcon />}>
@@ -157,17 +68,27 @@ export default function LeadsPage() {
 
       <PageContent>
         <div className="flex flex-col gap-4">
-          <LeadsFilters />
+          <Suspense
+            fallback={
+              <div className="h-[52px] animate-pulse rounded-[12px] bg-[var(--color-bg-surface-2)]" />
+            }
+          >
+            <LeadsFilters managers={managers} />
+          </Suspense>
 
-          <LeadsTable<LeadRow>
-            keyField="id"
-            data={MOCK_LEADS}
-            columns={LEADS_COLUMNS}
-            uppercaseHeaders
-            rowClickable
-          />
+          {leads.length === 0 ? (
+            <div className="flex items-center justify-center rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] py-16">
+              <p className="text-[14px] text-[var(--color-text-secondary)]">Лиды не найдены</p>
+            </div>
+          ) : (
+            <LeadsTable leads={leads} />
+          )}
 
-          <LeadsPagination />
+          {total > 0 && (
+            <Suspense fallback={<div className="h-7" />}>
+              <LeadsPagination total={total} page={page} pageSize={pageSize} />
+            </Suspense>
+          )}
         </div>
       </PageContent>
     </>

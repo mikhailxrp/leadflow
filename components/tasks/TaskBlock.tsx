@@ -116,30 +116,29 @@ export default function TaskBlock({
   );
 
   const activeCount = activeTasks.length;
+  const highlightedTask = highlightTaskId
+    ? tasks.find((task) => task.id === highlightTaskId)
+    : undefined;
+  const shouldExpandCompletedByHighlight =
+    highlightedTask !== undefined &&
+    INACTIVE_STATUSES.includes(highlightedTask.status);
+  const isCompletedSectionExpanded =
+    isCompletedExpanded || shouldExpandCompletedByHighlight;
 
   useEffect(() => {
-    if (!highlightTaskId) return;
-
-    setSelectedTaskId(highlightTaskId);
     hasScrolledToHighlight.current = false;
   }, [highlightTaskId]);
 
   useEffect(() => {
     if (!highlightTaskId || hasScrolledToHighlight.current) return;
-
-    const highlighted = tasks.find((task) => task.id === highlightTaskId);
-    if (!highlighted) return;
-
-    if (INACTIVE_STATUSES.includes(highlighted.status)) {
-      setIsCompletedExpanded(true);
-    }
+    if (!highlightedTask) return;
 
     const element = document.getElementById(`task-${highlightTaskId}`);
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "nearest" });
       hasScrolledToHighlight.current = true;
     }
-  }, [highlightTaskId, tasks, isCompletedExpanded]);
+  }, [highlightTaskId, highlightedTask]);
 
   function handleStatusCycle(id: string): void {
     setTasks((prev) =>
@@ -207,7 +206,7 @@ export default function TaskBlock({
   }
 
   function isTaskHighlighted(taskId: string): boolean {
-    return selectedTaskId === taskId;
+    return (highlightTaskId ?? selectedTaskId) === taskId;
   }
 
   function handleCreate(data: CreateTaskPayload): void {
@@ -312,12 +311,12 @@ export default function TaskBlock({
                     transition-colors duration-150
                     hover:text-[var(--color-text-primary)]
                   "
-                  aria-expanded={isCompletedExpanded}
+                  aria-expanded={isCompletedSectionExpanded}
                 >
                   <span>Выполненные и отменённые ({inactiveTasks.length})</span>
                   <Icon
                     icon={
-                      isCompletedExpanded
+                      isCompletedSectionExpanded
                         ? "tabler:chevron-up"
                         : "tabler:chevron-down"
                     }
@@ -326,7 +325,7 @@ export default function TaskBlock({
                   />
                 </button>
 
-                {isCompletedExpanded && (
+                {isCompletedSectionExpanded && (
                   <ul className="mt-1 flex flex-col divide-y divide-[var(--color-border)]">
                     {inactiveTasks.map((task) => (
                       <TaskItem

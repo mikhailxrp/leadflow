@@ -98,19 +98,19 @@ export default function ProfileLayout() {
 
           <div className="flex flex-1 flex-col gap-4">
             <PersonalSection
-              resetSignal={resetSignal}
+              key={`personal-${resetSignal}`}
               onDirtyChange={(dirty) => handleDirtyChange('personal', dirty)}
             />
             <ContactsSection
-              resetSignal={resetSignal}
+              key={`contacts-${resetSignal}`}
               onDirtyChange={(dirty) => handleDirtyChange('contacts', dirty)}
             />
             <SecuritySection
-              resetSignal={resetSignal}
+              key={`security-${resetSignal}`}
               onDirtyChange={(dirty) => handleDirtyChange('security', dirty)}
             />
             <ProfileNotifications
-              resetSignal={resetSignal}
+              key={`notifications-${resetSignal}`}
               onDirtyChange={(dirty) => handleDirtyChange('notifications', dirty)}
             />
           </div>

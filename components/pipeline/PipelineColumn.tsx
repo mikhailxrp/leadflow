@@ -4,20 +4,14 @@ import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { type ReactNode } from 'react';
 import PipelineCard from '@/components/pipeline/PipelineCard';
-
-export interface PipelineLead {
-  id: string;
-  name: string;
-  phone: string;
-  tags: string[];
-  manager: string;
-}
+import type { BoardLeadCard } from '@/lib/pipeline/boardQuery';
 
 interface PipelineColumnProps {
   stageId: string;
   title: string;
-  accentClass: string;
-  leads: PipelineLead[];
+  color: string;
+  leads: BoardLeadCard[];
+  avgDaysOnStage: number | null;
   onCardClick?: (id: string) => void;
 }
 
@@ -38,20 +32,24 @@ function PlusIcon(): ReactNode {
 export default function PipelineColumn({
   stageId,
   title,
-  accentClass,
+  color,
   leads,
+  avgDaysOnStage,
   onCardClick,
 }: PipelineColumnProps): ReactNode {
   const { setNodeRef, isOver } = useDroppable({ id: stageId });
 
+  const avgLabel = avgDaysOnStage !== null ? `${Math.round(avgDaysOnStage)} дн.` : '—';
+
   return (
     <section
       className="
-        flex w-[272px] flex-shrink-0 flex-col overflow-hidden rounded-lg
+        flex w-full flex-col overflow-hidden rounded-lg
         bg-[var(--color-bg-surface-2)]
+        md:w-[272px] md:flex-shrink-0
       "
     >
-      <div className={`h-[3px] ${accentClass}`} aria-hidden="true" />
+      <div className="h-[3px]" style={{ backgroundColor: color }} aria-hidden="true" />
 
       <div className="flex min-h-0 flex-1 flex-col p-3">
         <header className="mb-3 flex items-center justify-between gap-2">
@@ -67,6 +65,9 @@ export default function PipelineColumn({
               "
             >
               {leads.length}
+            </span>
+            <span className="text-[11px] text-[var(--color-text-tertiary)]">
+              {avgLabel}
             </span>
           </div>
 
@@ -102,8 +103,10 @@ export default function PipelineColumn({
                 id={lead.id}
                 name={lead.name}
                 phone={lead.phone}
-                tags={lead.tags}
-                manager={lead.manager}
+                source={lead.source}
+                assignedTo={lead.assignedTo}
+                risk={lead.risk}
+                closeType={lead.closeType}
                 onClick={onCardClick}
               />
             ))}

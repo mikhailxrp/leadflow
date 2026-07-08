@@ -1,38 +1,43 @@
 import Card from '@/components/ui/Card';
-
-interface HistoryEvent {
-  id: string;
-  title: string;
-  meta: string;
-}
-
-const MOCK_HISTORY: HistoryEvent[] = [
-  {
-    id: '1',
-    title: 'Статус изменён: Новый → В работе',
-    meta: 'Алексей Д. • 12.05.2024, 14:35',
-  },
-  {
-    id: '2',
-    title: 'Назначен менеджер: Алексей Д.',
-    meta: 'Система • 12.05.2024, 14:30',
-  },
-  {
-    id: '3',
-    title: 'Лид создан из Tilda',
-    meta: 'API интеграция • 12.05.2024, 14:30',
-  },
-];
+import { getEventLabel, type HistoryEventItem } from '@/constants/eventLabels';
 
 function HistoryIcon() {
   return (
-    <svg className="h-4 w-4 text-[var(--color-text-tertiary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    <svg
+      className="h-4 w-4 text-[var(--color-text-tertiary)]"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.75}
+        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
     </svg>
   );
 }
 
-export default function LeadHistory() {
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+interface LeadHistoryProps {
+  events: HistoryEventItem[];
+}
+
+/** ~6–7 строк событий; длинная история прокручивается внутри блока */
+const HISTORY_LIST_MAX_HEIGHT_CLASS = 'max-h-[360px]';
+
+export default function LeadHistory({ events }: LeadHistoryProps) {
   return (
     <Card padding="lg">
       <h2 className="mb-4 flex items-center gap-2 text-[14px] font-medium text-[var(--color-text-primary)]">
@@ -40,37 +45,33 @@ export default function LeadHistory() {
         История изменений
       </h2>
 
-      <ul className="relative flex flex-col">
-        {MOCK_HISTORY.map((event, index) => (
-          <li
-            key={event.id}
-            className="relative flex gap-3 pb-5 last:pb-0"
-          >
-            {index < MOCK_HISTORY.length - 1 && (
-              <span
-                className="absolute left-[5px] top-3 h-full w-px bg-[var(--color-border)]"
-                aria-hidden="true"
-              />
-            )}
-            <span
-              className="
-                relative z-10 mt-1.5 h-[10px] w-[10px] shrink-0
-                rounded-full border-2 border-[var(--color-primary)]
-                bg-[var(--color-bg-surface)]
-              "
-              aria-hidden="true"
-            />
-            <div className="min-w-0 flex-1 pt-0.5">
-              <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                {event.title}
-              </p>
-              <p className="mt-0.5 text-[12px] text-[var(--color-text-tertiary)]">
-                {event.meta}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {events.length === 0 ? (
+        <p className="text-[13px] text-[var(--color-text-secondary)]">Нет событий</p>
+      ) : (
+        <div
+          className={`custom-scrollbar -mr-1 overflow-y-auto pr-1 ${HISTORY_LIST_MAX_HEIGHT_CLASS}`}
+          aria-label="Список событий"
+        >
+          <ul className="flex flex-col gap-3">
+            {events.map((event) => (
+              <li
+                key={event.id}
+                className="flex items-start justify-between gap-3 border-b-[0.5px] border-[var(--color-border)] pb-3 last:border-b-0 last:pb-0"
+              >
+                <span className="text-[13px] text-[var(--color-text-secondary)]">
+                  {getEventLabel(event)}
+                </span>
+                <time
+                  dateTime={event.createdAt}
+                  className="shrink-0 text-[11px] text-[var(--color-text-tertiary)]"
+                >
+                  {formatTime(event.createdAt)}
+                </time>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </Card>
   );
 }

@@ -12,258 +12,125 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { useRouter } from 'next/navigation';
 import { useCallback, useState, type ReactNode } from 'react';
-import PipelineCard, { PipelineCardOverlay } from '@/components/pipeline/PipelineCard';
-import PipelineColumn, { type PipelineLead } from '@/components/pipeline/PipelineColumn';
+import { useRouter } from 'next/navigation';
+import { PipelineCardOverlay } from '@/components/pipeline/PipelineCard';
+import PipelineColumn from '@/components/pipeline/PipelineColumn';
+import Toast from '@/components/ui/Toast';
+import type { ManagerOption } from '@/lib/leads/getManagers';
+import type { BoardColumn, BoardLeadCard } from '@/lib/pipeline/boardQuery';
 
-const LEAD_DETAIL_PATH = '/leads/1';
 const DRAG_ACTIVATION_DISTANCE_PX = 8;
 const DND_CONTEXT_ID = 'pipeline-board';
 
-interface PipelineStage {
-  id: string;
-  title: string;
-  accentClass: string;
-  leads: PipelineLead[];
+interface PipelineBoardProps {
+  initialColumns: BoardColumn[];
+  managers: ManagerOption[];
+  showManagerFilter: boolean;
 }
 
-const INITIAL_STAGES: PipelineStage[] = [
-  {
-    id: 'new',
-    title: 'Новый лид',
-    accentClass: 'bg-[#3b82f6]',
-    leads: [
-      {
-        id: '1',
-        name: 'ООО «Альфа Строй»',
-        phone: '+7 (999) 123-45-67',
-        tags: ['Сайт', 'Горячий'],
-        manager: 'Александр В.',
-      },
-      {
-        id: '2',
-        name: 'ИП Смирнов А.А.',
-        phone: '+7 (903) 987-65-43',
-        tags: ['Telegram'],
-        manager: 'Мария С.',
-      },
-      {
-        id: '3',
-        name: 'Виктор Николаевич',
-        phone: '+7 (916) 444-55-66',
-        tags: ['Звонок', 'Уточнить'],
-        manager: 'Александр В.',
-      },
-      {
-        id: '4',
-        name: 'ЗАО «ТехПром»',
-        phone: '+7 (495) 111-22-33',
-        tags: ['Email'],
-        manager: 'Иван К.',
-      },
-    ],
-  },
-  {
-    id: 'contact',
-    title: 'Первичный контакт',
-    accentClass: 'bg-[#8b5cf6]',
-    leads: [
-      {
-        id: '5',
-        name: 'Сеть «Магнит»',
-        phone: '+7 (800) 555-35-35',
-        tags: ['Выставка'],
-        manager: 'Мария С.',
-      },
-      {
-        id: '6',
-        name: 'Елена (Дизайн)',
-        phone: '+7 (926) 777-88-99',
-        tags: ['VK', 'Перезвонить'],
-        manager: 'Иван К.',
-      },
-      {
-        id: '7',
-        name: 'ГК «Монолит»',
-        phone: '+7 (499) 333-22-11',
-        tags: ['Сайт'],
-        manager: 'Александр В.',
-      },
-    ],
-  },
-  {
-    id: 'in-progress',
-    title: 'В работе',
-    accentClass: 'bg-[#f59e0b]',
-    leads: [
-      {
-        id: '8',
-        name: 'ОАО «РЖД Логистика»',
-        phone: '+7 (495) 262-99-01',
-        tags: ['Тендер', 'КП отправлено'],
-        manager: 'Александр В.',
-      },
-      {
-        id: '9',
-        name: 'ИП Кузнецова',
-        phone: '+7 (905) 112-23-34',
-        tags: ['Telegram'],
-        manager: 'Мария С.',
-      },
-      {
-        id: '10',
-        name: 'Фитнес «Олимп»',
-        phone: '+7 (812) 555-44-33',
-        tags: ['Звонок', 'Встреча'],
-        manager: 'Иван К.',
-      },
-    ],
-  },
-  {
-    id: 'warm',
-    title: 'Тёплый клиент',
-    accentClass: 'bg-[#10b981]',
-    leads: [
-      {
-        id: '11',
-        name: 'Ресторан «Пушкин»',
-        phone: '+7 (495) 739-00-33',
-        tags: ['Партнёры', 'Договор'],
-        manager: 'Мария С.',
-      },
-      {
-        id: '12',
-        name: 'ООО «Веб Интеграция»',
-        phone: '+7 (911) 222-33-44',
-        tags: ['Сайт'],
-        manager: 'Александр В.',
-      },
-      {
-        id: '13',
-        name: 'Алексей (Инвестор)',
-        phone: '+7 (999) 888-77-66',
-        tags: ['Рекомендация'],
-        manager: 'Иван К.',
-      },
-    ],
-  },
-  {
-    id: 'deal',
-    title: 'Сделка',
-    accentClass: 'bg-[#22c55e]',
-    leads: [
-      {
-        id: '14',
-        name: 'Группа «Самолет»',
-        phone: '+7 (495) 567-89-00',
-        tags: ['Тендер', 'Оплачено'],
-        manager: 'Александр В.',
-      },
-      {
-        id: '15',
-        name: 'ИП Васильев',
-        phone: '+7 (960) 333-44-55',
-        tags: ['Звонок'],
-        manager: 'Мария С.',
-      },
-    ],
-  },
-];
-
-function findLead(stages: PipelineStage[], leadId: string): PipelineLead | undefined {
-  return stages.flatMap((stage) => stage.leads).find((lead) => lead.id === leadId);
+function buildBoardUrl(includeClosed: boolean, assignedToId: string | null): string {
+  const params = new URLSearchParams();
+  if (includeClosed) params.set('includeClosed', 'true');
+  if (assignedToId) params.set('assignedToId', assignedToId);
+  const qs = params.toString();
+  return qs ? `/api/pipeline/board?${qs}` : '/api/pipeline/board';
 }
 
-function findStageIdByLeadId(stages: PipelineStage[], leadId: string): string | undefined {
-  return stages.find((stage) => stage.leads.some((lead) => lead.id === leadId))?.id;
+function FilterIcon(): ReactNode {
+  return (
+    <svg
+      className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-text-tertiary)]"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+      />
+    </svg>
+  );
 }
 
-function resolveOverStageId(stages: PipelineStage[], overId: string): string | undefined {
-  const stageByLead = findStageIdByLeadId(stages, overId);
-  if (stageByLead) {
-    return stageByLead;
-  }
+function findLead(columns: BoardColumn[], leadId: string): BoardLeadCard | undefined {
+  return columns.flatMap((col) => col.leads).find((lead) => lead.id === leadId);
+}
 
-  if (stages.some((stage) => stage.id === overId)) {
-    return overId;
-  }
+function findColumnIdByLeadId(columns: BoardColumn[], leadId: string): string | undefined {
+  return columns.find((col) => col.leads.some((lead) => lead.id === leadId))?.id;
+}
 
+function resolveOverColumnId(columns: BoardColumn[], overId: string): string | undefined {
+  const colByLead = findColumnIdByLeadId(columns, overId);
+  if (colByLead) return colByLead;
+  if (columns.some((col) => col.id === overId)) return overId;
   return undefined;
 }
 
 function moveLead(
-  stages: PipelineStage[],
+  columns: BoardColumn[],
   activeId: string,
   overId: string,
-): PipelineStage[] {
-  const activeLead = findLead(stages, activeId);
-  const activeStageId = findStageIdByLeadId(stages, activeId);
-  const overStageId = resolveOverStageId(stages, overId);
+): BoardColumn[] {
+  const activeLead = findLead(columns, activeId);
+  const activeColId = findColumnIdByLeadId(columns, activeId);
+  const overColId = resolveOverColumnId(columns, overId);
 
-  if (!activeLead || !activeStageId || !overStageId) {
-    return stages;
-  }
+  if (!activeLead || !activeColId || !overColId) return columns;
 
-  if (activeStageId === overStageId) {
-    return stages.map((stage) => {
-      if (stage.id !== activeStageId) {
-        return stage;
-      }
-
-      const oldIndex = stage.leads.findIndex((lead) => lead.id === activeId);
-      const newIndex = stage.leads.findIndex((lead) => lead.id === overId);
-
-      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
-        return stage;
-      }
-
-      return {
-        ...stage,
-        leads: arrayMove(stage.leads, oldIndex, newIndex),
-      };
+  if (activeColId === overColId) {
+    return columns.map((col) => {
+      if (col.id !== activeColId) return col;
+      const oldIndex = col.leads.findIndex((l) => l.id === activeId);
+      const newIndex = col.leads.findIndex((l) => l.id === overId);
+      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return col;
+      return { ...col, leads: arrayMove(col.leads, oldIndex, newIndex) };
     });
   }
 
-  return stages.map((stage) => {
-    if (stage.id === activeStageId) {
-      return {
-        ...stage,
-        leads: stage.leads.filter((lead) => lead.id !== activeId),
-      };
+  return columns.map((col) => {
+    if (col.id === activeColId) {
+      return { ...col, leads: col.leads.filter((l) => l.id !== activeId) };
     }
-
-    if (stage.id === overStageId) {
-      const leadsWithoutActive = stage.leads.filter((lead) => lead.id !== activeId);
-      const overIndex = leadsWithoutActive.findIndex((lead) => lead.id === overId);
+    if (col.id === overColId) {
+      const leadsWithoutActive = col.leads.filter((l) => l.id !== activeId);
+      const overIndex = leadsWithoutActive.findIndex((l) => l.id === overId);
       const nextLeads = [...leadsWithoutActive];
-
-      if (overId === overStageId || overIndex < 0) {
+      if (overId === overColId || overIndex < 0) {
         nextLeads.push(activeLead);
       } else {
         nextLeads.splice(overIndex, 0, activeLead);
       }
-
-      return {
-        ...stage,
-        leads: nextLeads,
-      };
+      return { ...col, leads: nextLeads };
     }
-
-    return stage;
+    return col;
   });
 }
 
-export default function PipelineBoard(): ReactNode {
+export default function PipelineBoard({
+  initialColumns,
+  managers,
+  showManagerFilter,
+}: PipelineBoardProps): ReactNode {
   const router = useRouter();
-  const [stages, setStages] = useState<PipelineStage[]>(INITIAL_STAGES);
-  const [activeLead, setActiveLead] = useState<PipelineLead | null>(null);
+  const [columns, setColumns] = useState<BoardColumn[]>(initialColumns);
+  const [activeLead, setActiveLead] = useState<BoardLeadCard | null>(null);
+  const [includeClosed, setIncludeClosed] = useState(false);
+  const [selectedManagerId, setSelectedManagerId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ title: string; message?: string } | null>(null);
+
+  const managerOptions = [
+    { value: '', label: 'Ответственный' },
+    ...managers.map((m) => ({ value: m.id, label: m.name })),
+  ];
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: DRAG_ACTIVATION_DISTANCE_PX,
-      },
+      activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -271,75 +138,180 @@ export default function PipelineBoard(): ReactNode {
   );
 
   const handleDragStart = useCallback((event: DragStartEvent): void => {
-    const lead = findLead(stages, String(event.active.id));
+    const lead = findLead(columns, String(event.active.id));
     setActiveLead(lead ?? null);
-  }, [stages]);
+  }, [columns]);
 
-  const handleDragEnd = useCallback((event: DragEndEvent): void => {
+  const handleDragEnd = useCallback(async (event: DragEndEvent): Promise<void> => {
     const { active, over } = event;
     setActiveLead(null);
 
-    if (!over || active.id === over.id) {
-      return;
-    }
+    if (!over || active.id === over.id) return;
 
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    setStages((currentStages) => {
-      const nextStages = moveLead(currentStages, activeId, overId);
-      const prevStageId = findStageIdByLeadId(currentStages, activeId);
-      const nextStageId = findStageIdByLeadId(nextStages, activeId);
+    const prevColId = findColumnIdByLeadId(columns, activeId);
+    const nextColumns = moveLead(columns, activeId, overId);
+    const nextColId = findColumnIdByLeadId(nextColumns, activeId);
 
-      if (prevStageId && nextStageId && prevStageId !== nextStageId) {
-        // TODO: сохранить новый этап лида через API
-        console.log(`Lead ${activeId}: ${prevStageId} → ${nextStageId}`);
-      }
+    if (!prevColId || !nextColId) return;
 
-      return nextStages;
-    });
-  }, []);
+    if (prevColId === nextColId) {
+      setColumns(nextColumns);
+      return;
+    }
+
+    // Cross-column move: optimistic update then persist
+    const prevColumns = columns;
+    setColumns(nextColumns);
+
+    try {
+      const res = await fetch(`/api/leads/${activeId}/stage`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stageId: nextColId }),
+      });
+
+      if (!res.ok) throw new Error('stage-update-failed');
+    } catch {
+      setColumns(prevColumns);
+      setToast({ title: 'Не удалось переместить лид', message: 'Попробуйте ещё раз' });
+    }
+  }, [columns]);
 
   const handleDragCancel = useCallback((): void => {
     setActiveLead(null);
   }, []);
 
-  const handleCardClick = useCallback((): void => {
-    router.push(LEAD_DETAIL_PATH);
+  const handleCardClick = useCallback((id: string): void => {
+    router.push(`/leads/${id}`);
   }, [router]);
 
+  const refetchBoard = useCallback(async (
+    nextIncludeClosed: boolean,
+    nextManagerId: string | null,
+  ): Promise<void> => {
+    const res = await fetch(buildBoardUrl(nextIncludeClosed, nextManagerId));
+    if (!res.ok) throw new Error('fetch-failed');
+    const data = (await res.json()) as { columns: BoardColumn[] };
+    setColumns(data.columns);
+  }, []);
+
+  const handleToggleClosed = useCallback(async (): Promise<void> => {
+    const next = !includeClosed;
+    setIncludeClosed(next);
+    try {
+      await refetchBoard(next, selectedManagerId);
+    } catch {
+      setIncludeClosed(!next);
+      setToast({ title: 'Не удалось загрузить данные', message: 'Попробуйте ещё раз' });
+    }
+  }, [includeClosed, selectedManagerId, refetchBoard]);
+
+  const handleManagerChange = useCallback(async (managerId: string): Promise<void> => {
+    const nextManagerId = managerId || null;
+    const prevManagerId = selectedManagerId;
+    setSelectedManagerId(nextManagerId);
+    try {
+      await refetchBoard(includeClosed, nextManagerId);
+    } catch {
+      setSelectedManagerId(prevManagerId);
+      setToast({ title: 'Не удалось загрузить данные', message: 'Попробуйте ещё раз' });
+    }
+  }, [includeClosed, selectedManagerId, refetchBoard]);
+
   return (
-    <DndContext
-      id={DND_CONTEXT_ID}
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-    >
-      <div className="custom-scrollbar flex flex-row gap-4 overflow-x-auto pb-2">
-        {stages.map((stage) => (
-          <PipelineColumn
-            key={stage.id}
-            stageId={stage.id}
-            title={stage.title}
-            accentClass={stage.accentClass}
-            leads={stage.leads}
-            onCardClick={handleCardClick}
+    <>
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {showManagerFilter && (
+          <div className="relative min-w-[180px] sm:max-w-[240px]">
+            <label htmlFor="pipeline-manager-filter" className="sr-only">
+              Ответственный
+            </label>
+            <select
+              id="pipeline-manager-filter"
+              value={selectedManagerId ?? ''}
+              onChange={(e) => { void handleManagerChange(e.target.value); }}
+              className="
+                h-[36px] w-full appearance-none
+                rounded-[6px] border border-[var(--color-border)] border-[0.5px]
+                bg-[var(--color-bg-surface)] px-3 pr-8
+                text-[13px] text-[var(--color-text-primary)]
+                outline-none transition-all duration-150
+                focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]
+              "
+            >
+              {managerOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <FilterIcon />
+          </div>
+        )}
+
+        <label className="flex cursor-pointer items-center gap-2 self-end text-[13px] text-[var(--color-text-secondary)] sm:self-auto">
+          <input
+            type="checkbox"
+            checked={includeClosed}
+            onChange={() => { void handleToggleClosed(); }}
+            className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
           />
-        ))}
+          Показать закрытые
+        </label>
       </div>
 
-      <DragOverlay dropAnimation={null}>
-        {activeLead ? (
-          <PipelineCardOverlay
-            name={activeLead.name}
-            phone={activeLead.phone}
-            tags={activeLead.tags}
-            manager={activeLead.manager}
-          />
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+      {columns.length === 0 ? (
+        <div className="flex items-center justify-center rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] py-16">
+          <p className="text-[14px] text-[var(--color-text-secondary)]">Нет этапов воронки</p>
+        </div>
+      ) : (
+        <DndContext
+          id={DND_CONTEXT_ID}
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <div className="custom-scrollbar flex flex-col gap-4 pb-2 md:flex-row md:overflow-x-auto">
+            {columns.map((col) => (
+              <PipelineColumn
+                key={col.id}
+                stageId={col.id}
+                title={col.name}
+                color={col.color}
+                leads={col.leads}
+                avgDaysOnStage={col.avgDaysOnStage}
+                onCardClick={handleCardClick}
+              />
+            ))}
+          </div>
+
+          <DragOverlay dropAnimation={null}>
+            {activeLead ? (
+              <PipelineCardOverlay
+                name={activeLead.name}
+                phone={activeLead.phone}
+                source={activeLead.source}
+                assignedTo={activeLead.assignedTo}
+                risk={activeLead.risk}
+                closeType={activeLead.closeType}
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
+
+      {toast && (
+        <Toast
+          title={toast.title}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
+      )}
+    </>
   );
 }

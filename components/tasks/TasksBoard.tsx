@@ -8,72 +8,7 @@ import TaskGroup from "@/components/tasks/TaskGroup";
 import CreateTaskModal from "@/components/tasks/CreateTaskModal";
 import { type TaskGroupType, type TaskItem } from "@/components/tasks/TaskRow";
 
-const MOCK_LEAD_DETAIL_PATH = "/leads/1";
-
 type TaskTab = "all" | "mine" | "overdue";
-
-const MOCK_TASKS: TaskItem[] = [
-  {
-    id: "1",
-    title: "Перезвонить по вопросу интеграции",
-    lead: { id: "1", name: "Иван Петров", icon: "phone" },
-    assignee: "Алексей Д.",
-    dateLabel: "12 мая",
-    dateIcon: "calendar-event",
-    isOverdueDate: true,
-    status: "IN_PROGRESS",
-    group: "overdue",
-  },
-  {
-    id: "2",
-    title: "Отправить коммерческое предложение",
-    lead: { id: "2", name: "ООО Вектор", icon: "building" },
-    assignee: "Мария С.",
-    dateLabel: "14 мая",
-    dateIcon: "calendar-event",
-    isOverdueDate: true,
-    status: "NEW",
-    group: "overdue",
-  },
-  {
-    id: "3",
-    title: "Провести демо-звонок",
-    lead: { id: "3", name: "ЗАО Альянс", icon: "phone" },
-    assignee: "Иван К.",
-    dateLabel: "15:00",
-    dateIcon: "clock",
-    status: "IN_PROGRESS",
-    group: "today",
-  },
-  {
-    id: "4",
-    title: "Согласовать условия договора",
-    lead: { id: "4", name: "Группа Самолёт", icon: "building" },
-    assignee: "Алексей Д.",
-    dateLabel: "16:30",
-    dateIcon: "clock",
-    status: "NEW",
-    group: "today",
-  },
-  {
-    id: "5",
-    title: "Подготовить техническое задание",
-    lead: { id: "5", name: "РЖД Логистика", icon: "building" },
-    assignee: "Алексей Д.",
-    dateLabel: "20 июня",
-    status: "NEW",
-    group: "upcoming",
-  },
-  {
-    id: "6",
-    title: "Встреча в офисе клиента",
-    lead: { id: "6", name: "Ресторан Пушкин", icon: "user" },
-    assignee: "Мария С.",
-    dateLabel: "22 июня",
-    status: "NEW",
-    group: "upcoming",
-  },
-];
 
 const TABS: { id: TaskTab; label: string }[] = [
   { id: "all", label: "Все" },
@@ -89,9 +24,6 @@ const STATUS_FILTER_OPTIONS = [
 
 const ASSIGNEE_FILTER_OPTIONS = [
   { value: "any", label: "Любой" },
-  { value: "alexey", label: "Алексей Д." },
-  { value: "maria", label: "Мария С." },
-  { value: "ivan", label: "Иван К." },
 ];
 
 const GROUP_ORDER: TaskGroupType[] = ["overdue", "today", "upcoming"];
@@ -149,7 +81,7 @@ function InlineFilterSelect({
 
 export default function TasksBoard(): ReactNode {
   const router = useRouter();
-  const [tasks, setTasks] = useState<TaskItem[]>(MOCK_TASKS);
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [activeTab, setActiveTab] = useState<TaskTab>("overdue");
   const [statusFilter, setStatusFilter] = useState("all");
   const [assigneeFilter, setAssigneeFilter] = useState("any");
@@ -171,29 +103,21 @@ export default function TasksBoard(): ReactNode {
   }
 
   function handleTaskClick(task: TaskItem): void {
-    // TODO: router.push(`/leads/${task.lead.id}?taskId=${task.id}`)
-    router.push(`${MOCK_LEAD_DETAIL_PATH}?taskId=${task.id}`);
+    router.push(`/leads/${task.lead.id}?taskId=${task.id}`);
   }
 
   function filterTasks(task: TaskItem): boolean {
     if (activeTab === "overdue" && task.group !== "overdue") return false;
-    if (activeTab === "mine" && task.assignee !== "Алексей Д.") return false;
 
     if (statusFilter === "new" && task.status !== "NEW") return false;
     if (statusFilter === "in-progress" && task.status !== "IN_PROGRESS")
       return false;
 
-    if (assigneeFilter === "alexey" && task.assignee !== "Алексей Д.")
-      return false;
-    if (assigneeFilter === "maria" && task.assignee !== "Мария С.")
-      return false;
-    if (assigneeFilter === "ivan" && task.assignee !== "Иван К.") return false;
-
     return true;
   }
 
   const visibleTasks = tasks.filter(filterTasks);
-  const totalCount = 12;
+  const totalCount = tasks.length;
 
   return (
     <>
@@ -309,6 +233,8 @@ export default function TasksBoard(): ReactNode {
               (task) => task.group === group,
             );
 
+            if (groupTasks.length === 0) return null;
+
             return (
               <TaskGroup
                 key={group}
@@ -319,6 +245,12 @@ export default function TasksBoard(): ReactNode {
               />
             );
           })}
+
+          {visibleTasks.length === 0 && (
+            <p className="py-8 text-center text-[14px] text-[var(--color-text-secondary)]">
+              Нет задач
+            </p>
+          )}
         </div>
       </main>
 

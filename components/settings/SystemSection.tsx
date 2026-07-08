@@ -1,8 +1,12 @@
-import { Badge } from "@/components/ui/Badge";
 import SettingsCard from "@/components/settings/SettingsCard";
 import SettingsRow from "@/components/settings/SettingsRow";
 
-export default function SystemSection() {
+interface SystemSectionProps {
+  companyName: string;
+  nextPaymentAt: Date | null;
+}
+
+export default function SystemSection({ companyName, nextPaymentAt }: SystemSectionProps) {
   return (
     <SettingsCard icon="tabler:info-circle" title="О системе">
       <SettingsRow label="Версия">
@@ -11,21 +15,15 @@ export default function SystemSection() {
         </span>
       </SettingsRow>
 
-      <SettingsRow label="Лицензия">
-        <Badge bg="#D1FAE5" color="#065F46">
-          Активна
-        </Badge>
-      </SettingsRow>
-
       <SettingsRow label="Действует до">
         <span className="text-[14px] text-[var(--color-text-secondary)]">
-          31.12.2026
+          {nextPaymentAt ? nextPaymentAt.toLocaleDateString('ru-RU') : '—'}
         </span>
       </SettingsRow>
 
       <SettingsRow label="Клиент">
         <span className="text-[14px] text-[var(--color-text-secondary)]">
-          ООО «Пример»
+          {companyName}
         </span>
       </SettingsRow>
     </SettingsCard>

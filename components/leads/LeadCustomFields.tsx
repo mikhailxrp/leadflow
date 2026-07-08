@@ -1,11 +1,4 @@
-import Card from "@/components/ui/Card";
-
-interface LeadCustomFieldsProps {
-  companySize: string;
-  industry: string;
-  position: string;
-  inn: string;
-}
+import Card from '@/components/ui/Card';
 
 function BriefcaseIcon() {
   return (
@@ -26,25 +19,21 @@ function BriefcaseIcon() {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-[var(--color-border)] border-[0.5px] py-3 px-3 last:border-0">
-      <span className="shrink-0 text-[13px] text-[var(--color-text-secondary)]">
-        {label}
-      </span>
-      <span className="text-right text-[13px] text-[var(--color-text-primary)]">
-        {value}
-      </span>
-    </div>
-  );
+function renderValue(v: unknown): string {
+  if (v === null || v === undefined) return '—';
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
 }
 
-export default function LeadCustomFields({
-  companySize,
-  industry,
-  position,
-  inn,
-}: LeadCustomFieldsProps) {
+interface LeadCustomFieldsProps {
+  fields: Record<string, unknown>;
+}
+
+export default function LeadCustomFields({ fields }: LeadCustomFieldsProps) {
+  const entries = Object.entries(fields);
+
+  if (entries.length === 0) return null;
+
   return (
     <Card padding="lg">
       <h2 className="mb-5 flex items-center gap-2 text-[14px] font-medium text-[var(--color-text-primary)]">
@@ -52,10 +41,17 @@ export default function LeadCustomFields({
         Дополнительные поля
       </h2>
 
-      <DetailRow label="Размер компании" value={companySize} />
-      <DetailRow label="Сфера деятельности" value={industry} />
-      <DetailRow label="Должность" value={position} />
-      <DetailRow label="ИНН" value={inn} />
+      {entries.map(([key, value]) => (
+        <div
+          key={key}
+          className="flex items-center justify-between gap-4 border-b border-[0.5px] border-[var(--color-border)] px-3 py-3 last:border-0"
+        >
+          <span className="shrink-0 text-[13px] text-[var(--color-text-secondary)]">{key}</span>
+          <span className="break-all text-right text-[13px] text-[var(--color-text-primary)]">
+            {renderValue(value)}
+          </span>
+        </div>
+      ))}
     </Card>
   );
 }

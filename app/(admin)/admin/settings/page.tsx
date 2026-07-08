@@ -1,8 +1,23 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { PageContent } from '@/components/layout/AppLayout';
 import IconButton from '@/components/ui/IconButton';
 import SettingsSections, { SettingsDirtyProvider } from '@/components/settings/SettingsClientArea';
 import SystemSection from '@/components/settings/SystemSection';
+import LossReasonsSection from '@/components/settings/LossReasonsSection';
+import AssignModeSection from '@/components/settings/AssignModeSection';
+import AssignmentRulesSection from '@/components/settings/AssignmentRulesSection';
+import { hasMinRole } from '@/constants/roles';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+
+function readAssignMode(settings: unknown): 'MANUAL' | 'ROUND_ROBIN' {
+  if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
+    const mode = (settings as Record<string, unknown>).assignMode;
+    if (mode === 'ROUND_ROBIN') return 'ROUND_ROBIN';
+  }
+  return 'MANUAL'; // отсутствующие/битые настройки → MANUAL, не исключение
+}
 
 export const metadata: Metadata = {
   title: 'Настройки',
@@ -27,7 +42,60 @@ function BellIcon() {
   );
 }
 
-export default function AdminSettingsPage() {
+export default async function AdminSettingsPage() {
+  const session = await auth();
+  if (!session || session.kind !== 'company' || !session.user) {
+    redirect('/login');
+  }
+
+  if (!hasMinRole(session.user.role, 'ADMIN')) {
+    redirect('/today');
+  }
+
+  const { companyId } = session.user;
+
+  const ASSIGNEE_SELECT = { id: true, name: true } as const;
+
+  const [company, lossReasonsRaw, assignmentRules, users] = await Promise.all([
+    prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      select: { name: true, nextPaymentAt: true, settings: true },
+    }),
+    prisma.lossReason.findMany({
+      where: { companyId },
+      orderBy: { order: 'asc' },
+      select: {
+        id: true,
+        label: true,
+        order: true,
+        _count: { select: { leads: true } },
+      },
+    }),
+    prisma.assignmentRule.findMany({
+      where: { companyId },
+      orderBy: { priority: 'asc' },
+      select: {
+        id: true,
+        matchSource: true,
+        matchSourceLabel: true,
+        priority: true,
+        isActive: true,
+        assignTo: { select: ASSIGNEE_SELECT },
+        fallbackTo: { select: ASSIGNEE_SELECT },
+      },
+    }),
+    prisma.user.findMany({
+      where: { companyId },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, isBlocked: true },
+    }),
+  ]);
+
+  const lossReasons = lossReasonsRaw.map(({ _count, ...rest }) => ({
+    ...rest,
+    inUse: _count.leads > 0,
+  }));
+
   return (
     <>
       <header
@@ -45,12 +113,15 @@ export default function AdminSettingsPage() {
       </header>
 
       <PageContent>
-        <SettingsDirtyProvider>
-          <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
+          <LossReasonsSection initialReasons={lossReasons} />
+          <AssignModeSection initialAssignMode={readAssignMode(company.settings)} />
+          <AssignmentRulesSection initialRules={assignmentRules} users={users} />
+          <SettingsDirtyProvider>
             <SettingsSections />
-            <SystemSection />
-          </div>
-        </SettingsDirtyProvider>
+            <SystemSection companyName={company.name} nextPaymentAt={company.nextPaymentAt} />
+          </SettingsDirtyProvider>
+        </div>
       </PageContent>
     </>
   );

@@ -2,6 +2,8 @@
 
 > Спецификация платформенного уровня: отдельная от компаний сущность, которая создаёт компании, блокирует/разблокирует их, видит активность и входит внутрь для поддержки через impersonation. Новый модуль — заменяет упразднённый `billing.md`.
 > Связанные файлы: `.docs/database.md` (`PlatformAdmin`, `CompanyInvite`, `Company.isBlocked`, `Event.impersonatedByPlatformAdminId`), `.docs/modules/auth.md` (приём приглашения), `CLAUDE.md` (раздел proxy.ts, разделение сессий).
+>
+> **v4.1:** платформенных ролей стало две — `SUPER_ADMIN` (этот модуль) и `MARKETER` (`.docs/modules/platform-marketer.md`). Всё описанное здесь относится к `SUPER_ADMIN`; в местах, где v4.1 сузила видимость или добавила поведение, стоит пометка **(v4.1)**.
 
 ---
 
@@ -34,6 +36,7 @@
 - Каждый такой вход и каждое действие внутри него — прозрачно зафиксированы
 - Платформенный администратор видит активность компаний (не лиды как рабочий процесс)
 - Может создавать других платформенных администраторов
+- Ведёт дату продления подписки компании (годовой офлайн-договор) и автоматически получает email-напоминания о приближающихся/просроченных сроках
 
 **Не входит в модуль:**
 
@@ -50,11 +53,15 @@
 См. подробное обоснование в `.docs/database.md` → «Платформенный уровень». Здесь — практическое следствие: NextAuth v5 настроен с двумя credentials-провайдерами (или одним с дискриминатором), но в любом случае сессия несёт `kind: "platform"` либо `kind: "company"`, и эти два типа никогда не смешиваются ни в одном route handler.
 
 ```typescript
-// types/next-auth.d.ts — концепт
+// types/next-auth.d.ts — концепт (v4.1: + role в admin, + actor "marketer" в company-сессии,
+// см. .docs/modules/platform-marketer.md)
 type Session =
   | { kind: "company"; user: { id: string; companyId: string; role: UserRole; impersonatedByPlatformAdminId?: string } }
-  | { kind: "platform"; admin: { id: string; email: string } };
+  | { kind: "company"; marketer: { platformAdminId: string; companyId: string } }
+  | { kind: "platform"; admin: { id: string; email: string; role: PlatformRole } };
 ```
+
+**(v4.1)** Внутри `kind: "platform"` две роли — `SUPER_ADMIN` и `MARKETER`. Это **не иерархия** (в отличие от ролей компании): проверка всегда явным списком `requirePlatformSession({ roles: [...] })`, эндпоинт без явного списка ролей считается багом.
 
 ### 2. Платформенный администратор не имеет «суперроли» внутри компаний — он либо вне них, либо временно «является» одним из их пользователей (impersonation)
 
@@ -69,7 +76,7 @@ type Session =
 Одноразовый скрипт, не публичная регистрация:
 
 ```bash
-pnpm bootstrap:platform-admin
+npm run bootstrap:platform-admin
 ```
 
 ```typescript
@@ -119,7 +126,7 @@ POST /api/platform/login { email, password }
 ```
 POST /api/platform/companies { name, adminEmail }
   → транзакция (полный код — .docs/database.md):
-     - Company { isBlocked: false, settings: дефолты }
+     - Company { isBlocked: false, settings: дефолты, createdByPlatformAdminId: из сессии (v4.1) }
      - 5 дефолтных этапов воронки
      - дефолтный набор причин отказа
      - CompanyInvite { email: adminEmail, tokenHash, expiresAt: +7 дней }
@@ -132,6 +139,11 @@ POST /api/platform/companies { name, adminEmail }
 ### Список компаний
 
 `GET /api/platform/companies` — таблица: название, дата создания, статус (активна/заблокирована), число пользователей, дата последнего входа кого-либо из компании (агрегат по `User.lastLoginAt`).
+
+**(v4.1) Скоупинг по владению** (`lib/platform/companyVisibility.ts`, полная матрица — `.docs/modules/platform-marketer.md`):
+
+- **Платформенные компании** (`createdByPlatformAdminId` = null или id суперадмина) — суперадмин видит и управляет полностью, включая гранты маркетологам.
+- **Компании маркетологов** — суперадмин видит в списке как сигнал «живая/мёртвая» (название, статус, активность), но **без `companyId`, без управления и без кнопки impersonation**. Войти как поддержка может только по вручную предоставленному `companyId` (отдельное поле ввода). Скрытие — UX-барьер и граница ответственности, не гарантия безопасности: `companyId` присутствует в URL вебхуков и известен клиенту; каждый вход по-прежнему логируется.
 
 ---
 
@@ -149,6 +161,8 @@ PATCH /api/platform/companies/:id { isBlocked: true }
 
 Разблокировка — симметрично, событие `COMPANY_UNBLOCKED`. Никаких данных не удаляется и не архивируется в обоих направлениях.
 
+**(v4.1)** Блокировать/разблокировать компанию может её владелец: суперадмины — платформенные компании, маркетолог — свои. Ручное действие владельца всегда сбрасывает `blockedByMarketerCascade` (флаг каскадной блокировки при блокировке самого маркетолога — см. `.docs/modules/platform-marketer.md`).
+
 ---
 
 ## Вход от имени компании (impersonation)
@@ -162,7 +176,7 @@ PATCH /api/platform/companies/:id { isBlocked: true }
    → создаётся сессия { kind: "company", user: { id: userId, companyId, role }, impersonatedByPlatformAdminId: platformAdmin.id }
    → событие PLATFORM_IMPERSONATION_STARTED { companyId, userId, platformAdminId }
    → редирект на /today (обычный интерфейс компании)
-4. Постоянный баннер сверху: "Вы вошли как поддержка LeadFlow — {компания}" + кнопка "Выйти из режима поддержки"
+4. Постоянный баннер сверху: "Вы вошли как поддержка Лид-Канал — {компания}" + кнопка "Выйти из режима поддержки"
 5. Любое действие внутри компании пишет обычное событие с userId = выбранный пользователь,
    ДОПОЛНИТЕЛЬНО помеченное impersonatedByPlatformAdminId
 6. POST /api/platform/impersonate/end → завершение, событие PLATFORM_IMPERSONATION_ENDED, редирект на /platform/companies
@@ -170,9 +184,11 @@ PATCH /api/platform/companies/:id { isBlocked: true }
 
 **Пароль клиента не используется и не раскрывается на всех этапах.** Это и есть весь смысл механизма — см. обоснование в `.docs/database.md` → «Вход от имени компании».
 
+**(v4.1)** Impersonation реального `User` — инструмент **только `SUPER_ADMIN`** и только для платформенных компаний (для компании маркетолога — по вручную предоставленному `companyId`). Маркетолог никогда не impersonate'ит пользователей: его вход внутрь компании — отдельный виртуальный actor с allow-list (`.docs/modules/platform-marketer.md`), и это единственное исключение из правила «impersonation создаёт сессию реального `User`».
+
 ### Видимость для самого клиента
 
-Клиент может видеть в истории своих лидов отметку «изменено поддержкой LeadFlow» там, где `impersonatedByPlatformAdminId` заполнен — прозрачность работает в обе стороны, не только для аудита платформы.
+Клиент может видеть в истории своих лидов отметку «изменено поддержкой Лид-Канал» там, где `impersonatedByPlatformAdminId` заполнен — прозрачность работает в обе стороны, не только для аудита платформы.
 
 ---
 
@@ -192,6 +208,47 @@ PATCH /api/platform/companies/:id { isBlocked: true }
 
 **Это не отчёт о лидах** (платформенный администратор не видит конверсию, причины отказа, скорость ответа конкретной компании на этом экране — это её внутреннее дело) — только сигналы «компания живая и работает» или «давно никто не заходил, возможно, стоит написать».
 
+**(v4.1)** Скоуп — по видимости роли: суперадмин видит активность платформенных компаний плюс отдельную вкладку **активности маркетологов** (`PlatformAdmin.lastLoginAt`, число созданных компаний); маркетолог — активность только своих компаний.
+
+---
+
+## Срок подписки компании (продление)
+
+### Поведение
+
+Компания работает по годовому **офлайн-договору**; биллинга внутри продукта нет. Платформенный администратор ведёт **дату следующего платежа** как напоминание о продлении — это не тариф и не оплата, а одно поле даты. Полная семантика — `.docs/database.md` → «Срок подписки компании».
+
+- `Company.nextPaymentAt` (nullable) — дата следующего платежа. При создании компании по умолчанию `+1 год`; платформенный администратор может изменить/сбросить.
+- Статус продления **вычисляется на лету** (`lib/platform/subscription.ts`): `none` / `ok` / `expiring` (≤ 14 дней до даты) / `overdue` (дата прошла).
+- В списке и карточке компании дата видна; `expiring | overdue` подсвечиваются красным. На `/platform/companies` — сводка-баннер «N компаний требуют продления».
+- **Просрочка не блокирует** ни вход, ни приём лидов — заблокировать компанию остаётся отдельным ручным решением.
+- Изменение даты → событие `COMPANY_PAYMENT_UPDATED { nextPaymentAt, byPlatformAdminId }`.
+
+### Установка даты
+
+```
+PATCH /api/platform/companies/:id  { nextPaymentAt: "2027-06-24" | null }
+  → обновляет Company.nextPaymentAt
+  → событие COMPANY_PAYMENT_UPDATED
+```
+
+Тот же роут, что и блокировка; поля независимы — обрабатывается присланное (`isBlocked` или `nextPaymentAt`).
+
+### Автоуведомление о приближении срока
+
+Чтобы с ростом числа компаний не проверять список вручную каждый день, ежедневный дайджест-email уходит всем активным платформенным администраторам.
+
+```
+GET/POST /api/platform/cron/subscription-reminders   (ключ CRON_SECRET в заголовке/параметре, без сессии)
+  → выбирает компании со статусом expiring | overdue (lib/platform/subscriptionReminders.ts)
+  → (v4.1) группирует по владельцу: платформенные компании — каждому активному SUPER_ADMIN,
+    компании маркетолога — только этому маркетологу (грантованные компании в дайджест
+    маркетолога не входят — их продление ведёт владелец)
+  → если таких компаний нет — письмо не отправляется; если SMTP не настроен — graceful skip
+```
+
+Триггерит внешний планировщик (системный crontab на VPS, раз в сутки) — машинный вызов, не платформенная сессия. Канал спроектирован расширяемым: Telegram добавляется позже поверх `sendSubscriptionDigest()` (после `lib/telegram.ts` и `PlatformAdmin.telegramChatId`, Phase 13). **Email — обязательный канал.**
+
 ---
 
 ## Управление платформенными администраторами
@@ -203,21 +260,26 @@ GET/POST /api/platform/admins
   → список существующих, создание нового { email, name, password }
 ```
 
-Без удаления в этой версии (если сотрудник перестал быть платформенным админом — это редкая ручная операция, можно сделать прямым обращением к БД; отдельный UI для удаления не оправдан этим объёмом использования). Без внутренней иерархии — см. `.docs/database.md`.
+Без удаления в этой версии (если сотрудник перестал быть платформенным админом — это редкая ручная операция, можно сделать прямым обращением к БД; отдельный UI для удаления не оправдан этим объёмом использования).
+
+**(v4.1)** `/platform/admins` — только суперадмины (`role: SUPER_ADMIN`); маркетологи создаются и блокируются на отдельной странице `/platform/marketers` (`GET/POST /api/platform/marketers`, `PATCH /api/platform/marketers/:id` — блокировка каскадная). Обе страницы доступны только `SUPER_ADMIN` — маркетолог не управляет платформенными пользователями. См. `.docs/modules/platform-marketer.md`.
 
 ---
 
 ## API-эндпоинты
 
+Auth-колонка — с учётом v4.1: везде `kind: "platform"` + явный список ролей (`requirePlatformSession({ roles })`). Эндпоинты маркетолога (marketers, grants, marketer-access, logs, qualification) — в `.docs/modules/platform-marketer.md`.
+
 | Метод | Путь | Назначение | Auth |
 | --- | --- | --- | --- |
-| POST | `/api/platform/login` | Вход | Public |
-| GET/POST | `/api/platform/companies` | Список / создание | `kind: "platform"` |
-| PATCH | `/api/platform/companies/:id` | Блокировка/разблокировка | `kind: "platform"` |
-| POST | `/api/platform/companies/:id/impersonate/:userId` | Вход от имени компании | `kind: "platform"` |
+| POST | `/api/platform/login` | Вход (обе платформенные роли) | Public |
+| GET/POST | `/api/platform/companies` | Список / создание (скоуп по владению) | SUPER_ADMIN, MARKETER |
+| PATCH | `/api/platform/companies/:id` | Блокировка/разблокировка, дата продления (`nextPaymentAt`) — владелец компании | SUPER_ADMIN, MARKETER (свои) |
+| GET/POST | `/api/platform/cron/subscription-reminders` | Email-дайджест о приближении продления (машинный вызов, группировка по владельцу) | `CRON_SECRET` (без сессии) |
+| POST | `/api/platform/companies/:id/impersonate/:userId` | Вход от имени компании | только SUPER_ADMIN |
 | POST | `/api/platform/impersonate/end` | Завершение impersonation | `kind: "company"` + `impersonatedByPlatformAdminId` заполнен |
-| GET/POST | `/api/platform/admins` | Управление платформенными администраторами | `kind: "platform"` |
-| GET | `/api/platform/activity` | Активность компаний | `kind: "platform"` |
+| GET/POST | `/api/platform/admins` | Управление платформенными администраторами | только SUPER_ADMIN |
+| GET | `/api/platform/activity` | Активность компаний (+ вкладка маркетологов у SUPER_ADMIN) | SUPER_ADMIN, MARKETER (скоуп) |
 
 ### `POST /api/platform/companies`
 
@@ -243,8 +305,10 @@ app/
         ├── companies/
         │   ├── route.ts                          # GET, POST
         │   └── [id]/
-        │       ├── route.ts                        # PATCH (блокировка)
+        │       ├── route.ts                        # PATCH (блокировка + nextPaymentAt)
         │       └── impersonate/[userId]/route.ts
+        ├── cron/
+        │   └── subscription-reminders/route.ts     # дайджест о продлении (CRON_SECRET)
         ├── impersonate/end/route.ts
         ├── admins/route.ts
         └── activity/route.ts
@@ -252,8 +316,11 @@ app/
 lib/
 └── platform/
     ├── auth.ts                # отдельная проверка сессии PlatformAdmin
-    ├── createCompany.ts        # транзакция создания + приглашения
+    ├── createCompany.ts        # транзакция создания + приглашения (nextPaymentAt = +1 год)
     ├── impersonate.ts
+    ├── subscription.ts             # getSubscriptionStatus (none/ok/expiring/overdue)
+    ├── subscriptionReminders.ts    # выборка + sendSubscriptionDigest
+    ├── sendSubscriptionReminderEmail.ts
     └── companyActivity.ts
 
 scripts/
@@ -273,18 +340,21 @@ components/
 
 ## Серверные правила безопасности
 
-1. **`/api/platform/*` (кроме `login`) принимает только сессию `kind: "platform"`.** Сессия компании, даже с ролью ADMIN, отклоняется — это не вопрос роли, а вопрос типа аудитории.
-2. **Impersonation создаёт сессию реального `User`, не виртуальный контекст** — все существующие проверки видимости/прав работают без изменений.
+1. **`/api/platform/*` (кроме `login`) принимает только сессию `kind: "platform"`.** Сессия компании, даже с ролью ADMIN, отклоняется — это не вопрос роли, а вопрос типа аудитории. **(v4.1)** Дополнительно каждый эндпоинт объявляет явный список допустимых платформенных ролей — `SUPER_ADMIN`/`MARKETER` не иерархия, `hasMinRole` к ним неприменим.
+2. **Impersonation создаёт сессию реального `User`, не виртуальный контекст** — все существующие проверки видимости/прав работают без изменений. **(v4.1)** Единственное исключение — маркетолог: его вход внутрь компании — виртуальный actor `marketer` с явным allow-list и deny-by-default (`.docs/modules/platform-marketer.md`); impersonation реального `User` маркетологу недоступен никогда.
 3. **Платформенный администратор никогда не задаёт и не видит реальный пароль пользователя компании.** Сброс пароля клиента (если нужен) — через обычный `forgot-password`, не через платформенный уровень.
 4. **Начало и конец impersonation — обязательные события**, не опциональное логирование.
 5. **Любое прикладное действие во время impersonation помечается `impersonatedByPlatformAdminId`** — это поле выставляется на уровне `lib/events.ts`, не требует ручного указания в каждом месте, где пишется событие (берётся из сессии автоматически).
 6. **Блокировка компании не имеет отдельного guard на каждый мутирующий эндпоинт** — проверяется один раз, в `authorize()`, при входе.
 7. **`CompanyInvite.tokenHash` — одноразовый и с TTL**, как и токен восстановления пароля.
+8. **`Company.nextPaymentAt` — не биллинг:** ручная дата-напоминание о продлении офлайн-договора без процессинга/тарифов/фичагейтов; просрочка не ограничивает доступ автоматически (блокировка — отдельное ручное действие).
+9. **Cron-эндпоинт уведомлений защищён `CRON_SECRET`, не сессией** — единственный платформенный путь без `kind: "platform"`, т.к. вызывается машиной (внешним планировщиком), а не человеком.
 
 ---
 
 ## Связи с другими модулями
 
+- **`.docs/modules/platform-marketer.md`** — роль `MARKETER`: владение компаниями, гранты, каскадная блокировка, вход внутрь компании по allow-list, квалификация лидов, логи. Этот модуль сузил существующие эндпоинты (`roles`) и добавил скоупинг видимости — механика создания компаний, impersonation, даты платежа и дайджеста не менялась.
 - **`.docs/modules/auth.md`** — принимает приглашение, создаёт первого `User` компании с ролью `ADMIN`; общий механизм входа (`authorize()`) проверяет и `User.isBlocked`, и `Company.isBlocked`.
 - **`.docs/database.md`** — модели `PlatformAdmin`, `CompanyInvite`, поле `Event.impersonatedByPlatformAdminId`, транзакции создания компании и блокировки.
 - **`CLAUDE.md`** — `proxy.ts` различает три типа путей (публичные, компания, платформа) по `session.kind`.

@@ -1,4 +1,4 @@
-# Design Direction — LeadFlow
+# Design Direction — Лид-Канал
 
 ## Проект
 CRM для управления лидами и воронкой продаж.

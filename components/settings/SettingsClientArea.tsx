@@ -9,7 +9,6 @@ import {
   type ReactNode,
 } from 'react';
 import Button from '@/components/ui/Button';
-import DistributionSection from '@/components/settings/DistributionSection';
 import NotificationsSection from '@/components/settings/NotificationsSection';
 import RemindersSection from '@/components/settings/RemindersSection';
 import SecuritySection from '@/components/settings/SecuritySection';
@@ -17,7 +16,6 @@ import SecuritySection from '@/components/settings/SecuritySection';
 type DirtyKey =
   | 'notifications'
   | 'reminders'
-  | 'distribution'
   | 'security';
 
 interface SettingsDirtyContextValue {
@@ -34,7 +32,6 @@ export function SettingsDirtyProvider({ children }: SettingsDirtyProviderProps) 
   const [dirtyFlags, setDirtyFlags] = useState<Record<DirtyKey, boolean>>({
     notifications: false,
     reminders: false,
-    distribution: false,
     security: false,
   });
 
@@ -50,7 +47,6 @@ export function SettingsDirtyProvider({ children }: SettingsDirtyProviderProps) 
     setDirtyFlags({
       notifications: false,
       reminders: false,
-      distribution: false,
       security: false,
     });
   }
@@ -91,7 +87,6 @@ export default function SettingsSections() {
     <>
       <NotificationsSection onDirtyChange={(dirty) => onDirtyChange('notifications', dirty)} />
       <RemindersSection onDirtyChange={(dirty) => onDirtyChange('reminders', dirty)} />
-      <DistributionSection onDirtyChange={(dirty) => onDirtyChange('distribution', dirty)} />
       <SecuritySection onDirtyChange={(dirty) => onDirtyChange('security', dirty)} />
     </>
   );

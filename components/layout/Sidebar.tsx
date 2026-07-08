@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon } from '@iconify/react';
 import IconButton from '@/components/ui/IconButton';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 interface NavItem {
   label: string;
@@ -16,8 +17,8 @@ interface NavItem {
 
 interface SidebarProps {
   items: NavItem[];
-  userInitials?: string;
-  userName?: string;
+  userInitials: string;
+  userName: string;
 }
 
 interface SidebarContentProps {
@@ -41,10 +42,6 @@ function SidebarContent({
     return pathname === item.href || pathname.startsWith(`${item.href}/`);
   }
 
-  function isProfileActive(): boolean {
-    return pathname === '/admin/profile' || pathname.startsWith('/admin/profile/');
-  }
-
   const linkClassName = (active: boolean): string => `
     flex items-center gap-3 px-3 py-[7px] rounded-[6px]
     text-[13px] font-medium
@@ -59,7 +56,7 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 px-6 py-6">
         <div className="h-2.5 w-2.5 rounded-full bg-[#10B981]" />
-        <span className="text-base font-medium tracking-wide text-white">LeadFlow</span>
+        <span className="text-base font-medium tracking-wide text-white">Лид-Канал</span>
       </div>
 
       <nav className="mt-2 flex-1 space-y-1 px-3">
@@ -99,34 +96,22 @@ function SidebarContent({
       </nav>
 
       <div className="border-t border-white/5 p-4">
-        <Link
-          href="/admin/profile"
-          onClick={onNavigate}
+        <div
           aria-label="Профиль пользователя"
-          className={`
-            flex items-center gap-3 rounded-[6px] px-2 py-3
-            transition-colors duration-150
-            ${isProfileActive()
-              ? 'bg-[rgba(16,185,129,0.15)]'
-              : 'hover:bg-[rgba(255,255,255,0.06)]'
-            }
-          `}
+          className="flex items-center gap-2 rounded-[6px] px-2 py-3"
         >
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#252B3B] text-[12px] font-medium text-white">
             {userInitials}
           </div>
-          <span className="truncate text-[13px] font-medium text-white">{userName}</span>
-        </Link>
+          <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">{userName}</span>
+          <ThemeToggle className="text-[#94A3B8] hover:bg-white/[0.06] hover:text-white" />
+        </div>
       </div>
     </div>
   );
 }
 
-export default function Sidebar({
-  items,
-  userInitials = 'АД',
-  userName = 'Администратор',
-}: SidebarProps) {
+export default function Sidebar({ items, userInitials, userName }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
@@ -136,7 +121,7 @@ export default function Sidebar({
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-[220px] flex-shrink-0 flex-col bg-[#1A1F2E] lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-[220px] flex-shrink-0 flex-col bg-[var(--color-sidebar-bg)] lg:flex">
         <SidebarContent
           items={items}
           pathname={pathname}
@@ -154,7 +139,7 @@ export default function Sidebar({
 
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 w-[220px] flex-col bg-[#1A1F2E]
+          fixed inset-y-0 left-0 z-50 w-[220px] flex-col bg-[var(--color-sidebar-bg)]
           transform transition-transform duration-300 lg:hidden
           ${mobileOpen ? 'flex translate-x-0' : 'hidden -translate-x-full'}
         `}

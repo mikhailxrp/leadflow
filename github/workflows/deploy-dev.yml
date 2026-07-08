@@ -1,0 +1,29 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Pull latest code
+        working-directory: /apps/leadkanal-dev
+        run: git pull origin dev
+
+      - name: Install dependencies
+        working-directory: /apps/leadkanal-dev
+        run: npm install
+
+      - name: Run migrations
+        working-directory: /apps/leadkanal-dev
+        run: npx prisma migrate deploy
+
+      - name: Build
+        working-directory: /apps/leadkanal-dev
+        run: npm run build
+
+      - name: Restart PM2
+        working-directory: /apps/leadkanal-dev
+        run: pm2 restart leadkanal-dev
