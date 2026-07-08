@@ -18,6 +18,10 @@ jobs:
         working-directory: /apps/leadkanal-dev
         run: npm install
 
+      - name: Generate Prisma Client
+        working-directory: /apps/leadkanal-dev
+        run: npx prisma generate
+
       - name: Run migrations
         working-directory: /apps/leadkanal-dev
         run: npx prisma migrate deploy
