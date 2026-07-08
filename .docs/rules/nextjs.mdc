@@ -15,7 +15,7 @@ globs: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"]
 - `app/` — all routes, layouts, pages
 - `app/(group)/` — route groups (отражают минимальный уровень доступа: `(app)`, `(management)`, `(admin)`, `(platform)`, `(public)`)
 - `app/api/` — REST API Routes, основной способ мутаций
-- `components/ui/` — LeadFlow design system (Button, Input, Card, Badge, Avatar, Toast)
+- `components/ui/` — Лид-Канал design system (Button, Input, Card, Badge, Avatar, Toast)
   Import from `@/components/index` — не создавай новые компоненты без необходимости
   Стиль и токены — см. direction.md в корне
 - `components/forms/` — form components with validation

@@ -54,13 +54,13 @@ export default async function AcceptInvitePage({
               aria-hidden="true"
             />
             <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-              LeadFlow
+              Лид-Канал
             </span>
           </div>
 
           <header className="mb-6">
             <h1 className="mb-1 text-[20px] font-medium text-[var(--color-text-primary)]">
-              Приглашение в LeadFlow
+              Приглашение в Лид-Канал
             </h1>
             <p className="text-[14px] text-[var(--color-text-secondary)]">
               Задайте имя и пароль для первого администратора компании

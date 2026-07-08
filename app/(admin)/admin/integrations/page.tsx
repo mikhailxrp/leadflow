@@ -11,8 +11,8 @@ export const metadata: Metadata = {
   title: 'Интеграции',
 };
 
-const WEBHOOK_TILDA_URL = 'https://leadflow.ru/api/webhooks/tilda';
-const WEBHOOK_WORDPRESS_URL = 'https://leadflow.ru/api/webhooks/wordpress';
+const WEBHOOK_TILDA_URL = 'https://lidkanal.ru/api/webhooks/tilda';
+const WEBHOOK_WORDPRESS_URL = 'https://lidkanal.ru/api/webhooks/wordpress';
 
 function SearchIcon() {
   return (

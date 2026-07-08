@@ -80,7 +80,7 @@ export default function PlatformForgotPasswordForm(): ReactNode {
       <Input
         label="Email"
         type="email"
-        placeholder="admin@leadflow.ru"
+        placeholder="admin@lidkanal.ru"
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         error={fieldErrors.email}

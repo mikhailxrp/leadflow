@@ -23,7 +23,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               aria-hidden="true"
             />
             <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-              LeadFlow
+              Лид-Канал
             </span>
           </div>
 

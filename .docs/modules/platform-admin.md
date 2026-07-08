@@ -176,7 +176,7 @@ PATCH /api/platform/companies/:id { isBlocked: true }
    → создаётся сессия { kind: "company", user: { id: userId, companyId, role }, impersonatedByPlatformAdminId: platformAdmin.id }
    → событие PLATFORM_IMPERSONATION_STARTED { companyId, userId, platformAdminId }
    → редирект на /today (обычный интерфейс компании)
-4. Постоянный баннер сверху: "Вы вошли как поддержка LeadFlow — {компания}" + кнопка "Выйти из режима поддержки"
+4. Постоянный баннер сверху: "Вы вошли как поддержка Лид-Канал — {компания}" + кнопка "Выйти из режима поддержки"
 5. Любое действие внутри компании пишет обычное событие с userId = выбранный пользователь,
    ДОПОЛНИТЕЛЬНО помеченное impersonatedByPlatformAdminId
 6. POST /api/platform/impersonate/end → завершение, событие PLATFORM_IMPERSONATION_ENDED, редирект на /platform/companies
@@ -188,7 +188,7 @@ PATCH /api/platform/companies/:id { isBlocked: true }
 
 ### Видимость для самого клиента
 
-Клиент может видеть в истории своих лидов отметку «изменено поддержкой LeadFlow» там, где `impersonatedByPlatformAdminId` заполнен — прозрачность работает в обе стороны, не только для аудита платформы.
+Клиент может видеть в истории своих лидов отметку «изменено поддержкой Лид-Канал» там, где `impersonatedByPlatformAdminId` заполнен — прозрачность работает в обе стороны, не только для аудита платформы.
 
 ---
 

@@ -848,7 +848,7 @@ POST /api/platform/companies/:companyId/impersonate/:userId
   → создаётся обычная сессия КАК этот User (тот же session.user.id, та же роль) +
     дополнительный признак сессии impersonatedByPlatformAdminId
   → событие PLATFORM_IMPERSONATION_STARTED { companyId, userId, platformAdminId }
-  → редирект в обычный интерфейс компании, постоянный баннер "Вы вошли как поддержка LeadFlow — {компания}"
+  → редирект в обычный интерфейс компании, постоянный баннер "Вы вошли как поддержка Лид-Канал — {компания}"
     с кнопкой "Выйти из режима поддержки"
 
 POST /api/platform/impersonate/end

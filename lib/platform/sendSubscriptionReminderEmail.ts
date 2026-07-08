@@ -67,9 +67,9 @@ export async function sendSubscriptionReminderEmail({
   }
 
   const companyLines = companies.map(buildCompanyLine);
-  const subject = `LeadFlow Platform: ${companies.length} компаний требуют продления`;
+  const subject = `Лид-Канал Platform: ${companies.length} компаний требуют продления`;
   const text =
-    `Ежедневный дайджест о сроках продления подписки компаний LeadFlow.\n\n` +
+    `Ежедневный дайджест о сроках продления подписки компаний Лид-Канал.\n\n` +
     `${companyLines.join('\n')}\n\n` +
     `Откройте платформенную панель, чтобы обновить даты продления.`;
 
@@ -82,7 +82,7 @@ export async function sendSubscriptionReminderEmail({
     .join('');
 
   const html = `
-    <p>Ежедневный дайджест о сроках продления подписки компаний LeadFlow.</p>
+    <p>Ежедневный дайджест о сроках продления подписки компаний Лид-Канал.</p>
     <ul>${htmlItems}</ul>
     <p>Откройте платформенную панель, чтобы обновить даты продления.</p>
   `;
