@@ -36,6 +36,60 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-08 — Phase 11.5, Таск 2: `companyVisibility.ts` + скоупинг компаний/активности/дайджеста + владение в `createCompany`
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/platform/companyVisibility.ts` (новый) — единственный источник правды видимости/управляемости: `visibilityWhere(admin)`, `resolveOwnerRoles(ownerIds)` (батч-резолв ролей владельцев без FK), `isPlatformCompany(company, ownerRole)`, `canManageCompany(admin, company, ownerRole)`
+- `lib/platform/createCompany.ts` — `CreateCompanyInput` += `createdByPlatformAdminId`, пишется в `company.data`
+- `lib/platform/companyActivity.ts` — `getCompanyActivity(periodStart, admin)` скоупится через `visibilityWhere`; для `SUPER_ADMIN` дополнительно возвращает блок активности маркетологов (`lastLoginAt`, число созданных компаний, `isActive`)
+- `lib/platform/subscriptionReminders.ts` — `collectCompaniesNeedingRenewal` возвращает `createdByPlatformAdminId`; `sendSubscriptionDigest` группирует по владению (не по видимости): платформенные → всем активным `SUPER_ADMIN`, marketer-owned → только этому маркетологу (если активен); грантованные не участвуют (дайджест не использует гранты)
+- `app/api/platform/companies/route.ts` — GET скоупится по `visibilityWhere` + классифицирует через `resolveOwnerRoles`; marketer-owned строки для `SUPER_ADMIN` уходят без `id`/`nextPaymentAt`/`subscriptionStatus`, с `ownedByMarketer: true`, `manageable: false`; POST передаёт `session.admin.id` в `createCompany`
+- `app/api/platform/companies/[id]/route.ts` — PATCH проверяет `canManageCompany` до мутации (иначе 403); ручной `isBlocked` дополнительно сбрасывает `blockedByMarketerCascade: false`
+- `app/api/platform/activity/route.ts` — передаёт `session.admin` в `getCompanyActivity`
+- `types/platform.ts` — `PlatformCompanyListItem.id`/`nextPaymentAt`/`subscriptionStatus` стали опциональными, `+ ownedByMarketer?`, `+ manageable`; новый `MarketerActivityItem` + `CompanyActivityResponse`; `PlatformCompanyDetail` += `manageable`, `ownedByMarketer`
+- `app/(platform)/platform/companies/[id]/page.tsx` — guard видимости для `MARKETER` через `visibilityWhere` прямо в `findFirst` (заменяет `findUnique`) → `notFound()` при чужой/неграновой компании; тот же guard в `generateMetadata`
+- `app/(platform)/platform/companies/page.tsx`, `activity/page.tsx` — прокидывают `session.admin.role` в клиентские компоненты
+- `components/platform/CompaniesPageClient.tsx` — поле «Войти в компанию по ID» только для `SUPER_ADMIN`
+- `components/platform/CompaniesTable.tsx` — marketer-owned строки рендерятся без ссылки/действий (синтетический ключ вместо `id`), управление скрывается при `manageable: false`
+- `components/platform/CompanyDetailPageClient.tsx` — блокировка/дата платежа скрываются при `!manageable`; кнопка impersonate — дополнительно только при `viewerRole === 'SUPER_ADMIN'` (маркетолог не impersonate'ит никогда, даже свою компанию)
+- `components/platform/CompanyActivityTable.tsx` — вкладка «Маркетологи» только у `SUPER_ADMIN`
+
+**Out of scope (не делалось):** вход маркетолога внутрь компании, квалификация лидов, `/platform/marketers` + каскадная блокировка, API грантов (используется только их чтение), `/platform/logs`, правки `proxy.ts` company-зоны — как и запланировано (Phase 11.6 / Таск 3 / Таск 4).
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
+## 2026-07-08 — Phase 11.5, Таск 1: Миграция v4.1 + `PlatformRole` в сессии + `requirePlatformSession({ roles })` на всех роутах
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` — enum `PlatformRole`/`LeadQualification`; `PlatformAdmin.role` (`@default(SUPER_ADMIN)`) + `lastLoginAt`; `Company.createdByPlatformAdminId`/`blockedByMarketerCascade`; `Lead.qualification`/`qualifiedAt`; модель `CompanyAccessGrant` (FK только на `Company`, без relation на `PlatformAdmin`); `EventType` += `COMPANY_ACCESS_GRANTED`/`REVOKED`, `MARKETER_ACCESS_STARTED`/`ENDED`, `LEAD_QUALIFIED`/`DISQUALIFIED`
+- Миграция `20260708074727_v4_1_marketer_role` — аддитивная; существующие `PlatformAdmin` → `SUPER_ADMIN`, все `Company.createdByPlatformAdminId = null`, лиды без квалификации
+- `types/session.ts` — `PlatformSession.admin.role: PlatformRole` (`CompanySession` не тронут)
+- `types/next-auth.d.ts` — `Session.admin.role`; `platformRole` в **оба** JWT-augmentation блока (`@auth/core/jwt` + `next-auth/jwt`)
+- `lib/auth.ts` — `PlatformAuthUser` с `platformRole`; `platform-credentials.authorize()` — выбирает `role`, пишет `PlatformAdmin.lastLoginAt`, возвращает `platformRole`; `platform-restore.authorize()` — возвращает `role`, `lastLoginAt` **не** трогает; JWT/session callbacks: `token.platformRole` → `session.admin.role`
+- `lib/platform/auth.ts` — `requirePlatformSession({ roles })`: нет платформенной сессии / чужой `kind` → `Response` 401; валидная сессия с неподходящей ролью → 403
+- Проставлен `{ roles }` во всех существующих call-site'ах платформенной сессии:
+  - `SUPER_ADMIN` + `MARKETER`: `app/api/platform/companies/route.ts` (GET/POST), `companies/[id]/route.ts` (PATCH), `activity/route.ts` (GET); страницы `companies/page.tsx`, `companies/[id]/page.tsx`, `activity/page.tsx`
+  - только `SUPER_ADMIN`: `companies/[id]/impersonate/[userId]/route.ts`, `admins/route.ts` (GET/POST), `admins/[id]/route.ts` (DELETE), `admins/page.tsx`
+- **Не тронуты** (session-less / company-session): `login` (NextAuth-провайдер), `auth/forgot-password`, `auth/reset-password`, `cron/subscription-reminders`, `impersonate/end`
+
+**Out of scope (не делалось):** владелец-скоупинг и `lib/platform/companyVisibility.ts` (таск 2); `/platform/marketers`, каскадная блокировка, email (таск 3); гранты доступа (таск 4); actor `marketer` в company-сессии, allow-list, `proxy.ts` для company-зоны (Phase 11.6); UI/API квалификации лидов (Phase 11.6) — поля заведены миграцией, но не используются; SUPER_ADMIN-гейт `/platform/marketers`/`/platform/admins` в `proxy.ts` и нав (таск 3)
+
+**Проверено:** `npm run type-check`, `npm run build` — без ошибок; нет `any`. Ручная проверка 403 стаб-маркетологом на `/api/platform/admins` **не проводилась** — запись `MARKETER` пока не создаётся (таск 3).
+
+**Definition of Done:** выполнено по коду; пункт ручной проверки 403 отложен до появления маркетолога (таск 3)
+
+---
+
 ## 2026-07-03 — Phase 11, Таск 3: UI — селект ответственного + правила назначения + переключатель режима
 
 **Статус:** ✅ Завершён

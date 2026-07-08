@@ -18,6 +18,7 @@ function defaultNextPaymentAt(from: Date = new Date()): Date {
 export type CreateCompanyInput = {
   name: string;
   adminEmail: string;
+  createdByPlatformAdminId: string;
 };
 
 export type CreateCompanyResult = {
@@ -28,6 +29,7 @@ export type CreateCompanyResult = {
 export async function createCompany({
   name,
   adminEmail,
+  createdByPlatformAdminId,
 }: CreateCompanyInput): Promise<CreateCompanyResult> {
   const inviteToken = generateToken();
 
@@ -37,6 +39,7 @@ export async function createCompany({
         name,
         settings: DEFAULT_COMPANY_SETTINGS,
         nextPaymentAt: defaultNextPaymentAt(),
+        createdByPlatformAdminId,
       },
     });
 

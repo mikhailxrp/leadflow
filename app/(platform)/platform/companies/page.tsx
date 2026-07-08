@@ -31,8 +31,8 @@ async function fetchCompanies(): Promise<PlatformCompanyListItem[]> {
 }
 
 export default async function PlatformCompaniesPage() {
-  await requirePlatformSession();
+  const session = await requirePlatformSession({ roles: ['SUPER_ADMIN', 'MARKETER'] });
   const companies = await fetchCompanies();
 
-  return <CompaniesPageClient companies={companies} />;
+  return <CompaniesPageClient companies={companies} role={session.admin.role} />;
 }

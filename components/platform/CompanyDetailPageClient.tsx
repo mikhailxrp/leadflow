@@ -5,10 +5,11 @@ import { useState, type ChangeEvent, type ReactNode } from 'react';
 import ImpersonateButton from '@/components/platform/ImpersonateButton';
 import Button from '@/components/ui/Button';
 import type { PlatformCompanyDetail, SubscriptionStatus } from '@/types/platform';
-import type { UserRole } from '@prisma/client';
+import type { PlatformRole, UserRole } from '@prisma/client';
 
 interface CompanyDetailPageClientProps {
   company: PlatformCompanyDetail;
+  viewerRole: PlatformRole;
 }
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -126,6 +127,7 @@ function RoleBadge({ role }: { role: UserRole }): ReactNode {
 
 export default function CompanyDetailPageClient({
   company: initialCompany,
+  viewerRole,
 }: CompanyDetailPageClientProps): ReactNode {
   const [company, setCompany] = useState(initialCompany);
   const [isBlockPending, setIsBlockPending] = useState(false);
@@ -225,6 +227,8 @@ export default function CompanyDetailPageClient({
     company.subscriptionStatus === 'expiring' ||
     company.subscriptionStatus === 'overdue';
 
+  const canImpersonate = viewerRole === 'SUPER_ADMIN' && company.manageable;
+
   return (
     <main className="px-6 py-8">
       <Link
@@ -245,27 +249,34 @@ export default function CompanyDetailPageClient({
             {company.name}
           </h1>
           <CompanyStatusBadge isBlocked={company.isBlocked} />
+          {company.ownedByMarketer ? (
+            <span className="inline-flex rounded-[20px] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-text-secondary)]">
+              Компания маркетолога
+            </span>
+          ) : null}
         </div>
 
-        {company.isBlocked ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={isBlockPending}
-            onClick={handleToggleBlock}
-          >
-            Разблокировать компанию
-          </Button>
-        ) : (
-          <Button
-            variant="danger"
-            size="sm"
-            disabled={isBlockPending}
-            onClick={handleToggleBlock}
-          >
-            Заблокировать компанию
-          </Button>
-        )}
+        {company.manageable ? (
+          company.isBlocked ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={isBlockPending}
+              onClick={handleToggleBlock}
+            >
+              Разблокировать компанию
+            </Button>
+          ) : (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={isBlockPending}
+              onClick={handleToggleBlock}
+            >
+              Заблокировать компанию
+            </Button>
+          )
+        ) : null}
       </div>
 
       <section
@@ -334,44 +345,46 @@ export default function CompanyDetailPageClient({
             </p>
           </div>
 
-          <div>
-            <label
-              htmlFor="next-payment-at"
-              className="mb-1 block text-[11px] font-medium text-[var(--color-text-secondary)]"
-            >
-              Установить или изменить дату
-            </label>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                id="next-payment-at"
-                type="date"
-                value={paymentDateInput}
-                disabled={isPaymentPending}
-                onChange={handlePaymentDateChange}
-                className="
-                  h-[36px] rounded-[6px] border border-[0.5px]
-                  border-[var(--color-border)] bg-[var(--color-bg-surface)]
-                  px-3 text-[13px] text-[var(--color-text-primary)]
-                  disabled:opacity-60
-                "
-              />
-              {company.nextPaymentAt ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
+          {company.manageable ? (
+            <div>
+              <label
+                htmlFor="next-payment-at"
+                className="mb-1 block text-[11px] font-medium text-[var(--color-text-secondary)]"
+              >
+                Установить или изменить дату
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  id="next-payment-at"
+                  type="date"
+                  value={paymentDateInput}
                   disabled={isPaymentPending}
-                  onClick={handleClearPaymentDate}
-                >
-                  Сбросить
-                </Button>
+                  onChange={handlePaymentDateChange}
+                  className="
+                    h-[36px] rounded-[6px] border border-[0.5px]
+                    border-[var(--color-border)] bg-[var(--color-bg-surface)]
+                    px-3 text-[13px] text-[var(--color-text-primary)]
+                    disabled:opacity-60
+                  "
+                />
+                {company.nextPaymentAt ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={isPaymentPending}
+                    onClick={handleClearPaymentDate}
+                  >
+                    Сбросить
+                  </Button>
+                ) : null}
+              </div>
+              {paymentError ? (
+                <p className="mt-2 text-[12px] text-[#DC2626]" role="alert">
+                  {paymentError}
+                </p>
               ) : null}
             </div>
-            {paymentError ? (
-              <p className="mt-2 text-[12px] text-[#DC2626]" role="alert">
-                {paymentError}
-              </p>
-            ) : null}
-          </div>
+          ) : null}
         </div>
       </section>
 
@@ -417,7 +430,10 @@ export default function CompanyDetailPageClient({
             <table className="w-full min-w-[800px] text-left">
               <thead>
                 <tr className="border-b border-[0.5px] border-[var(--color-border)]">
-                  {['Имя', 'Email', 'Роль', 'Статус', 'Действия'].map(
+                  {(canImpersonate
+                    ? ['Имя', 'Email', 'Роль', 'Статус', 'Действия']
+                    : ['Имя', 'Email', 'Роль', 'Статус']
+                  ).map(
                     (header) => (
                       <th
                         key={header}
@@ -454,12 +470,14 @@ export default function CompanyDetailPageClient({
                     <td className="px-4 py-3">
                       <UserStatusBadge isBlocked={user.isBlocked} />
                     </td>
-                    <td className="px-4 py-3">
-                      <ImpersonateButton
-                        companyId={company.id}
-                        userId={user.id}
-                      />
-                    </td>
+                    {canImpersonate ? (
+                      <td className="px-4 py-3">
+                        <ImpersonateButton
+                          companyId={company.id}
+                          userId={user.id}
+                        />
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -467,9 +485,11 @@ export default function CompanyDetailPageClient({
           </div>
         )}
 
-        <p className="mt-3 text-[12px] text-[var(--color-text-secondary)]">
-          Вход от имени пользователя логируется.
-        </p>
+        {canImpersonate ? (
+          <p className="mt-3 text-[12px] text-[var(--color-text-secondary)]">
+            Вход от имени пользователя логируется.
+          </p>
+        ) : null}
       </section>
     </main>
   );

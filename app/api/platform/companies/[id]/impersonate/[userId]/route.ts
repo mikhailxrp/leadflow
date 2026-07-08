@@ -17,7 +17,7 @@ export async function POST(
 ): Promise<Response> {
   let session;
   try {
-    session = await requirePlatformSession();
+    session = await requirePlatformSession({ roles: ['SUPER_ADMIN'] });
   } catch (error) {
     const response = unauthorizedResponse(error);
     if (response) {

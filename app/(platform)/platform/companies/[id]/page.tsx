@@ -2,6 +2,13 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import CompanyDetailPageClient from '@/components/platform/CompanyDetailPageClient';
 import { requirePlatformSession } from '@/lib/platform/auth';
+import {
+  canManageCompany,
+  isPlatformCompany,
+  resolveOwnerRoles,
+  visibilityWhere,
+  type PlatformAdminIdentity,
+} from '@/lib/platform/companyVisibility';
 import { getSubscriptionStatus } from '@/lib/platform/subscription';
 import { prisma } from '@/lib/prisma';
 import type { PlatformCompanyDetail } from '@/types/platform';
@@ -12,16 +19,18 @@ interface CompanyDetailPageProps {
 
 async function loadCompanyDetail(
   companyId: string,
+  admin: PlatformAdminIdentity,
 ): Promise<PlatformCompanyDetail | null> {
   const [company, lastLoginAggregate, pendingInvite] = await Promise.all([
-    prisma.company.findUnique({
-      where: { id: companyId },
+    prisma.company.findFirst({
+      where: { id: companyId, ...visibilityWhere(admin) },
       select: {
         id: true,
         name: true,
         isBlocked: true,
         nextPaymentAt: true,
         createdAt: true,
+        createdByPlatformAdminId: true,
         _count: { select: { leads: true } },
         users: {
           orderBy: [{ role: 'desc' }, { name: 'asc' }],
@@ -55,6 +64,11 @@ async function loadCompanyDetail(
     return null;
   }
 
+  const ownerRoles = await resolveOwnerRoles([company.createdByPlatformAdminId]);
+  const ownerRole = company.createdByPlatformAdminId
+    ? ownerRoles.get(company.createdByPlatformAdminId)
+    : undefined;
+
   const subscriptionStatus = getSubscriptionStatus(company.nextPaymentAt);
 
   return {
@@ -75,15 +89,20 @@ async function loadCompanyDetail(
       lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     })),
     pendingInviteEmail: pendingInvite?.email ?? null,
+    manageable: canManageCompany(admin, company, ownerRole),
+    ownedByMarketer: !isPlatformCompany(company, ownerRole),
   };
 }
 
 export async function generateMetadata({
   params,
 }: CompanyDetailPageProps): Promise<Metadata> {
+  const session = await requirePlatformSession({
+    roles: ['SUPER_ADMIN', 'MARKETER'],
+  });
   const { id } = await params;
-  const company = await prisma.company.findUnique({
-    where: { id },
+  const company = await prisma.company.findFirst({
+    where: { id, ...visibilityWhere(session.admin) },
     select: { name: true },
   });
 
@@ -95,13 +114,17 @@ export async function generateMetadata({
 export default async function CompanyDetailPage({
   params,
 }: CompanyDetailPageProps) {
-  await requirePlatformSession();
+  const session = await requirePlatformSession({
+    roles: ['SUPER_ADMIN', 'MARKETER'],
+  });
   const { id } = await params;
-  const company = await loadCompanyDetail(id);
+  const company = await loadCompanyDetail(id, session.admin);
 
   if (!company) {
     notFound();
   }
 
-  return <CompanyDetailPageClient company={company} />;
+  return (
+    <CompanyDetailPageClient company={company} viewerRole={session.admin.role} />
+  );
 }

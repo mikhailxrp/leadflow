@@ -16,15 +16,31 @@ export type CompanyActivityItem = {
   createdAt: string;
 };
 
-export type PlatformCompanyListItem = {
+export type MarketerActivityItem = {
   id: string;
+  name: string;
+  email: string;
+  isActive: boolean;
+  lastLoginAt: string | null;
+  companiesCreated: number;
+};
+
+export type CompanyActivityResponse = {
+  companies: CompanyActivityItem[];
+  marketers?: MarketerActivityItem[];
+};
+
+export type PlatformCompanyListItem = {
+  id?: string;
   name: string;
   isBlocked: boolean;
   createdAt: string;
   userCount: number;
   lastLoginAt: string | null;
-  nextPaymentAt: string | null;
-  subscriptionStatus: SubscriptionStatus;
+  nextPaymentAt?: string | null;
+  subscriptionStatus?: SubscriptionStatus;
+  ownedByMarketer?: boolean;
+  manageable: boolean;
 };
 
 export type PlatformCompanyUser = {
@@ -47,4 +63,6 @@ export type PlatformCompanyDetail = {
   subscriptionStatus: SubscriptionStatus;
   users: PlatformCompanyUser[];
   pendingInviteEmail: string | null;
+  manageable: boolean;
+  ownedByMarketer: boolean;
 };

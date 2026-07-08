@@ -1,6 +1,6 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import type { UserRole } from '@prisma/client';
+import type { PlatformRole, UserRole } from '@prisma/client';
 import { BlockedCompanyError, BlockedUserError } from '@/lib/auth/authErrors';
 import { writeEvent } from '@/lib/events';
 import { comparePassword } from '@/lib/password';
@@ -24,6 +24,7 @@ type PlatformAuthUser = {
   kind: 'platform';
   id: string;
   email: string;
+  platformRole: PlatformRole;
 };
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
@@ -108,10 +109,16 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           return null;
         }
 
+        await prisma.platformAdmin.update({
+          where: { id: admin.id },
+          data: { lastLoginAt: new Date() },
+        });
+
         return {
           kind: 'platform' as const,
           id: admin.id,
           email: admin.email,
+          platformRole: admin.role,
         };
       },
     }),
@@ -190,6 +197,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           kind: 'platform' as const,
           id: admin.id,
           email: admin.email,
+          platformRole: admin.role,
         };
       },
     }),
@@ -217,6 +225,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       } else {
         token.adminId = authUser.id;
         token.email = authUser.email;
+        token.platformRole = authUser.platformRole;
       }
 
       return token;
@@ -228,6 +237,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         adminId,
         companyId,
         role,
+        platformRole,
         email,
         impersonatedByPlatformAdminId,
       } = token;
@@ -243,11 +253,12 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             ? { impersonatedByPlatformAdminId }
             : {}),
         };
-      } else if (kind === 'platform' && adminId && email) {
+      } else if (kind === 'platform' && adminId && email && platformRole) {
         session.kind = 'platform';
         session.admin = {
           id: adminId,
           email,
+          role: platformRole,
         };
       }
 

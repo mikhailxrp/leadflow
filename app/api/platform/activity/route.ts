@@ -13,8 +13,9 @@ function unauthorizedResponse(error: unknown): Response | null {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  let session;
   try {
-    await requirePlatformSession();
+    session = await requirePlatformSession({ roles: ['SUPER_ADMIN', 'MARKETER'] });
   } catch (error) {
     const response = unauthorizedResponse(error);
     if (response) {
@@ -41,7 +42,7 @@ export async function GET(request: Request): Promise<Response> {
   const periodStart = new Date(Date.now() - periodDays * MS_PER_DAY);
 
   try {
-    const activity = await getCompanyActivity(periodStart);
+    const activity = await getCompanyActivity(periodStart, session.admin);
     return Response.json(activity);
   } catch (error) {
     console.error('Failed to fetch company activity:', error);
