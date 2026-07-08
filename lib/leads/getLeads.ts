@@ -1,4 +1,4 @@
-import type { CloseType, Prisma } from '@prisma/client';
+import type { CloseType, LeadQualification, Prisma } from '@prisma/client';
 import {
   DEFAULT_COMPANY_SETTINGS,
   type CompanySettings,
@@ -23,6 +23,7 @@ export type LeadListItem = {
   source: string;
   createdAt: string;
   closeType: CloseType | null;
+  qualification: LeadQualification | null;
   lossReason: { id: string; label: string } | null;
   hasDuplicate: boolean;
   firstMatchedLeadId: string | null;
@@ -195,6 +196,7 @@ export async function getLeads(
         source: true,
         createdAt: true,
         closeType: true,
+        qualification: true,
         lossReason: {
           select: { id: true, label: true },
         },
@@ -234,6 +236,7 @@ export async function getLeads(
     source: lead.source,
     createdAt: lead.createdAt.toISOString(),
     closeType: lead.closeType,
+    qualification: lead.qualification,
     lossReason: lead.lossReason,
     hasDuplicate: lead._count.duplicateFlagsAsLead > 0,
     firstMatchedLeadId: lead.duplicateFlagsAsLead[0]?.matchedLeadId ?? null,

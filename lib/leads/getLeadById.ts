@@ -1,4 +1,4 @@
-import type { CloseType, EventType, Prisma } from '@prisma/client';
+import type { CloseType, EventType, LeadQualification, Prisma } from '@prisma/client';
 import { getLeadVisibility, visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
 import { computeRiskBatch } from '@/lib/risk/computeRiskBatch';
@@ -29,6 +29,8 @@ export interface LeadDetail {
   createdAt: Date;
   closeType: CloseType | null;
   closedAt: Date | null;
+  qualification: LeadQualification | null;
+  qualifiedAt: Date | null;
   lossReason: { id: string; label: string } | null;
   assignedTo: { id: string; name: string } | null;
   stage: { id: string; name: string; color: string; stageTimeLimitDays: number | null };
@@ -98,6 +100,8 @@ export async function getLeadById(
         createdAt: true,
         closeType: true,
         closedAt: true,
+        qualification: true,
+        qualifiedAt: true,
         utm: true,
         marketing: true,
         customFields: true,
@@ -191,6 +195,7 @@ export async function getLeadById(
           source: lead.source,
           createdAt: lead.createdAt.toISOString(),
           closeType: lead.closeType,
+          qualification: lead.qualification,
           lossReason: lead.lossReason,
           hasDuplicate,
           firstMatchedLeadId: null,
@@ -257,6 +262,8 @@ export async function getLeadById(
     createdAt: lead.createdAt,
     closeType: lead.closeType,
     closedAt: lead.closedAt,
+    qualification: lead.qualification,
+    qualifiedAt: lead.qualifiedAt,
     lossReason: lead.lossReason,
     assignedTo: lead.assignedTo,
     stage: lead.stage,

@@ -24,6 +24,8 @@ const LEAD_CARD_SELECT = {
   closeType: true,
   closedAt: true,
   createdAt: true,
+  qualification: true,
+  qualifiedAt: true,
   assignedTo: {
     select: {
       id: true,
@@ -119,6 +121,7 @@ function toLeadListItem(lead: LeadCardRecord): LeadListItem {
     source: lead.source,
     createdAt: lead.createdAt.toISOString(),
     closeType: lead.closeType,
+    qualification: lead.qualification,
     lossReason: lead.lossReason,
     hasDuplicate: lead._count.duplicateFlagsAsLead > 0,
     firstMatchedLeadId: null,
@@ -144,6 +147,8 @@ function formatLeadCardResponse(
     closeType: lead.closeType,
     closedAt: lead.closedAt?.toISOString() ?? null,
     createdAt: lead.createdAt.toISOString(),
+    qualification: lead.qualification,
+    qualifiedAt: lead.qualifiedAt?.toISOString() ?? null,
     stage: lead.stage,
     assignedTo: lead.assignedTo,
     lossReason: lead.lossReason,

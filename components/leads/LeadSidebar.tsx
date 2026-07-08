@@ -1,10 +1,12 @@
 'use client';
 
-import type { CloseType } from '@prisma/client';
+import type { CloseType, LeadQualification } from '@prisma/client';
 import Card from '@/components/ui/Card';
 import TakeInWorkButton from '@/components/leads/TakeInWorkButton';
 import CloseLeadMenu from '@/components/leads/CloseLeadMenu';
 import AssignManagerSelect from '@/components/leads/AssignManagerSelect';
+import QualificationBadge from '@/components/leads/QualificationBadge';
+import QualificationControl from '@/components/leads/QualificationControl';
 
 const CLOSE_TYPE_LABELS: Record<CloseType, string> = {
   WON: 'Сделка',
@@ -24,6 +26,8 @@ interface LeadSidebarProps {
   assignedTo: { id: string; name: string } | null;
   canAssign: boolean;
   canManage: boolean;
+  qualification: LeadQualification | null;
+  canQualify: boolean;
 }
 
 export default function LeadSidebar({
@@ -34,6 +38,8 @@ export default function LeadSidebar({
   assignedTo,
   canAssign,
   canManage,
+  qualification,
+  canQualify,
 }: LeadSidebarProps) {
   return (
     <Card padding="lg">
@@ -69,6 +75,17 @@ export default function LeadSidebar({
             </span>
           </div>
         )}
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[12px] font-normal text-[var(--color-text-secondary)]">
+            Квалификация
+          </span>
+          {canQualify ? (
+            <QualificationControl leadId={leadId} qualification={qualification} />
+          ) : (
+            <QualificationBadge qualification={qualification} />
+          )}
+        </div>
       </div>
 
       {canManage && (

@@ -36,6 +36,33 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-08 — Phase 11.6, Таск 3: Квалификация лидов — API + события + UI (карточка + список)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/leads.ts` — `qualificationSchema` (`qualification: z.enum(['QUALIFIED','DISQUALIFIED']).nullable()`) + `QualificationInput`
+- `app/api/leads/[id]/qualification/route.ts` (новый) — `PATCH`, `requireCompanyAccess({ minRole: 'HEAD', method: 'PATCH', pathname })`; `where: { id, companyId }`; обновляет `qualification` + `qualifiedAt` (`now()` при установке, `null` при сбросе); события: `LEAD_QUALIFIED`/`LEAD_DISQUALIFIED` при установке, `LEAD_UPDATED { qualification: null }` при сбросе; `userId` в `writeEvent` только из ветки `actor.actor === 'user'`
+- `constants/marketerAccess.ts` — в `MARKETER_ALLOWED_API` добавлено `PATCH /api/leads/:id/qualification`
+- `lib/leads/getLeads.ts` — `qualification` в `LeadListItem`, Prisma `select` и маппинг
+- `lib/leads/getLeadById.ts` — `qualification` в `LeadDetail`, `select` и возвращаемый объект
+- `app/api/leads/[id]/route.ts` — `qualification` + `qualifiedAt` в `LEAD_CARD_SELECT`, типы и `formatLeadCardResponse`
+- `constants/eventLabels.ts` — подписи `LEAD_QUALIFIED` («Лид помечен целевым»), `LEAD_DISQUALIFIED` («Лид помечен нецелевым»)
+- `components/leads/QualificationBadge.tsx` (новый) — «Целевой» / «Нецелевой» / «Не оценён»
+- `components/leads/QualificationControl.tsx` (новый) — переключатель → `PATCH .../qualification` + `router.refresh()`
+- `app/(app)/leads/[id]/page.tsx` — `canQualify = marketer || HEAD+`; пропсы `qualification` + `canQualify` в `LeadSidebar`
+- `components/leads/LeadSidebar.tsx` — блок квалификации: `QualificationControl` при `canQualify`, иначе `QualificationBadge`
+- `components/leads/LeadsTable.tsx` — колонка «Квалификация» с `QualificationBadge`
+
+**Out of scope (не делалось):** экспорт в Яндекс Метрику (Phase 22.5); фильтр списка по квалификации; batch-квалификация; `/platform/logs` (Phase 11.7); влияние на риск/воронку/назначение — намеренно отсутствует.
+
+**Проверено:** `npm run type-check`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
 ## 2026-07-08 — Phase 11.6, Таск 2: `marketerAccess.ts` (allow-list) + `requireCompanyAccess.ts` + `proxy.ts` + read-only доска
 
 **Статус:** ✅ Завершён

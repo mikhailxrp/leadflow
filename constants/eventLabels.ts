@@ -32,6 +32,10 @@ export function getEventLabel(
       return 'Лид удалён';
     case 'COMMENTED':
       return `${event.userName ?? 'Пользователь'} добавил комментарий`;
+    case 'LEAD_QUALIFIED':
+      return 'Лид помечен целевым';
+    case 'LEAD_DISQUALIFIED':
+      return 'Лид помечен нецелевым';
     default:
       return 'Событие в журнале';
   }

@@ -15,6 +15,7 @@ const MARKETER_ALLOWED_API: MarketerAllowedApiRule[] = [
   { pattern: /^\/api\/leads\/[^/]+$/, methods: ['GET'] },
   { pattern: /^\/api\/leads\/[^/]+\/duplicates$/, methods: ['GET'] },
   { pattern: /^\/api\/leads\/[^/]+\/events$/, methods: ['GET'] },
+  { pattern: /^\/api\/leads\/[^/]+\/qualification$/, methods: ['PATCH'] },
   { pattern: /^\/api\/pipeline\/board$/, methods: ['GET'] },
   { pattern: /^\/api\/stages$/, methods: ['GET'] },
   { pattern: /^\/api\/loss-reasons$/, methods: ['GET'] },

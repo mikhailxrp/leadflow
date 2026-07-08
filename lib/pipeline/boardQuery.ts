@@ -146,6 +146,7 @@ export async function getBoardData(options: BoardQueryOptions): Promise<BoardDat
         source: true,
         createdAt: true,
         closeType: true,
+        qualification: true,
         stageId: true,
         lossReason: {
           select: { id: true, label: true },
@@ -185,6 +186,7 @@ export async function getBoardData(options: BoardQueryOptions): Promise<BoardDat
     source: lead.source,
     createdAt: lead.createdAt.toISOString(),
     closeType: lead.closeType,
+    qualification: lead.qualification,
     lossReason: lead.lossReason,
     hasDuplicate: lead._count.duplicateFlagsAsLead > 0,
     firstMatchedLeadId: lead.duplicateFlagsAsLead[0]?.matchedLeadId ?? null,
