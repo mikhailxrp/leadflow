@@ -34,6 +34,11 @@ const NAV_ITEMS = [
     href: '/platform/activity',
     icon: 'tabler:activity',
   },
+  {
+    label: 'Логи',
+    href: '/platform/logs',
+    icon: 'tabler:list-details',
+  },
 ] as const;
 
 function linkClassName(active: boolean): string {
