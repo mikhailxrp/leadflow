@@ -36,6 +36,33 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-08 — Phase 11.6, Таск 1: Actor `marketer` в сессии + провайдер + вход/выход + баннер + оболочка + `writeEvent`
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `types/session.ts` — `CompanySession` стал объединением двух вариантов actor'а: `{ user: {...}; marketer?: never }` | `{ marketer: {platformAdminId, companyId}; user?: never }`
+- `types/next-auth.d.ts` — `Session.marketer?: {platformAdminId, companyId}`; `marketerPlatformAdminId?: string` в оба JWT-augmentation блока (`@auth/core/jwt` + `next-auth/jwt`)
+- `lib/platform/marketerAccess.ts` (новый) — `createMarketerAccessToken`/`consumeMarketerAccessToken`, in-memory `Map`, одноразовый, TTL 60 сек (по образцу `impersonate.ts`)
+- `lib/auth.ts` — провайдер `Credentials({ id: 'marketer-access' })`: обменивает токен на `{kind:'company', companyId, marketerPlatformAdminId}` без `prisma.user.findFirst`; `jwt`/`session` callbacks различают marketer- и user-ветки company-сессии по наличию поля `marketerPlatformAdminId` на auth-user
+- `lib/events.ts` — `writeEvent`: при `session.kind==='company' && session.marketer` жёстко `userId=null` + `impersonatedByPlatformAdminId=session.marketer.platformAdminId` (перекрывает `opts.userId`); обычная сессия не затронута
+- `app/api/platform/companies/[id]/marketer-access/route.ts` (новый) — `POST`, `requirePlatformSession({roles:['MARKETER']})`, видимость через `visibilityWhere` (не `canManageCompany` — грант тоже пускает), `MARKETER_ACCESS_STARTED`, ответ `{token}`
+- `app/api/platform/marketer-access/end/route.ts` (новый) — `POST`, guard `kind==='company' && session.marketer`, `MARKETER_ACCESS_ENDED`, `createRestoreToken` (переиспользован из `impersonate.ts`)
+- `components/platform/MarketerAccessButton.tsx` (новый), `MarketerBanner.tsx` (новый) — по образцу `ImpersonateButton`/`ImpersonationBanner`
+- `components/platform/CompaniesTable.tsx` — колонка «Действия»: кнопка входа при `role==='MARKETER'` независимо от `manageable`; `CompaniesPageClient.tsx` прокидывает `role`
+- `constants/navItems.ts` — `getMarketerNavItems()` возвращает узкий `MarketerNavItem[]` (Лиды, Воронка), не переиспользует `SidebarNavItem.minRole`
+- `components/layout/AppShell.tsx` — ветка `session.marketer`: подгружает `Company.name`, рендерит сайдбар маркетолога + `MarketerBanner`
+- Ripple-фикс компиляции после смены `CompanySession` на union: `proxy.ts`, `app/(app)/leads/page.tsx`, `app/(app)/leads/[id]/page.tsx`, `app/api/leads/[id]/route.ts`, `.../events/route.ts`, `.../duplicates/route.ts` — добавлен `!session.user` в guard; `lib/leads/getLeads.ts`, `lib/leads/getLeadById.ts` — заглушка `if (!session.user) throw`. Там, где типизированные хелперы (`getLeadsWithRisk`, `getLeadById`, `getCompanyLeadContext`) принимают `session: CompanySession`, а вызывающий код передаёт уже сужённую (`!session.user` проверена) сессию next-auth — точечный `session as CompanySession` в месте вызова остаётся: `Session.marketer` типизирован как `{...}|undefined` у **обоих** вариантов сессии одновременно (next-auth `Session` — плоский интерфейс, не union), поэтому TS не может структурно сузить его до `marketer?: never`/`user?: never` только через `!session.user`
+
+**Out of scope (не делалось):** allow-list (`constants/marketerAccess.ts`), `requireCompanyAccess.ts`, ветка `proxy.ts` для `/leads`/`/pipeline` под marketer — Таск 2 (в текущем виде marketer после входа будет редиректиться на `/login`, это ожидаемо); квалификация лидов — Таск 3; `/reports`, `/admin/integrations`, `/platform/logs` — другие фазы.
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
 ## 2026-07-08 — Phase 11.5, Таск 4: Гранты доступа — API + UI + события
 
 **Статус:** ✅ Завершён

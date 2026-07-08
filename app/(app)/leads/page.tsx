@@ -33,11 +33,10 @@ interface LeadsPageProps {
 export default async function LeadsPage({ searchParams }: LeadsPageProps) {
   const session = await auth();
 
-  if (!session || session.kind !== 'company') {
+  if (!session || session.kind !== 'company' || !session.user) {
     redirect('/login');
   }
 
-  const companySession = session as CompanySession;
   const rawParams = await searchParams;
 
   const normalized: Record<string, string> = {};
@@ -49,8 +48,8 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
   const params = leadsQuerySchema.parse(normalized);
 
   const [{ leads, total, page, pageSize }, managers] = await Promise.all([
-    getLeadsWithRisk(params, companySession),
-    getManagers(companySession.user.companyId),
+    getLeadsWithRisk(params, session as CompanySession),
+    getManagers(session.user.companyId),
   ]);
 
   return (

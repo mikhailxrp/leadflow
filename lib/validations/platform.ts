@@ -71,6 +71,12 @@ export const companyGrantParamsSchema = z.object({
   marketerId: z.string().min(1),
 });
 
+export const marketerAccessParamsSchema = z.object({
+  companyId: z.string().min(1),
+});
+
+export const endMarketerAccessBodySchema = z.object({}).strict();
+
 export const activityPeriodSchema = z.coerce
   .number()
   .int()
@@ -113,6 +119,12 @@ export type UpdateMarketerInput = z.infer<typeof updateMarketerSchema>;
 export type MarketerParamsInput = z.infer<typeof marketerParamsSchema>;
 export type CreateGrantInput = z.infer<typeof createGrantSchema>;
 export type CompanyGrantParamsInput = z.infer<typeof companyGrantParamsSchema>;
+export type MarketerAccessParamsInput = z.infer<
+  typeof marketerAccessParamsSchema
+>;
+export type EndMarketerAccessBodyInput = z.infer<
+  typeof endMarketerAccessBodySchema
+>;
 export type PlatformForgotPasswordInput = z.infer<
   typeof platformForgotPasswordSchema
 >;

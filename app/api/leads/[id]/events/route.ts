@@ -6,7 +6,6 @@ import {
 } from '@/constants/defaultCompanyData';
 import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
-import type { CompanySession } from '@/types/session';
 
 function getLeadVisibility(settings: unknown): CompanySettings['leadVisibility'] {
   if (
@@ -44,8 +43,7 @@ export async function GET(
   }
 
   const { id } = await params;
-  const companySession = session as CompanySession;
-  const { companyId, role, id: userId } = companySession.user;
+  const { companyId, role, id: userId } = session.user;
 
   try {
     const company = await prisma.company.findUniqueOrThrow({

@@ -180,6 +180,10 @@ async function getCompanyLeadContext(session: CompanySession): Promise<{
   leadVisibility: CompanySettings['leadVisibility'];
   companySettings: Prisma.JsonValue;
 }> {
+  if (!session.user) {
+    throw new Error('getCompanyLeadContext requires a user session');
+  }
+
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: session.user.companyId },
     select: { settings: true },
@@ -219,17 +223,16 @@ export async function GET(
   }
 
   const { id } = await params;
-  const companySession = session as CompanySession;
 
   try {
     const { companyId, leadVisibility, companySettings } =
-      await getCompanyLeadContext(companySession);
+      await getCompanyLeadContext(session as CompanySession);
 
     const where = buildLeadAccessWhere(
       id,
       companyId,
-      companySession.user.role,
-      companySession.user.id,
+      session.user.role,
+      session.user.id,
       leadVisibility,
     );
 
@@ -249,7 +252,7 @@ export async function GET(
     );
 
     try {
-      await recordLeadOpenedOnce(companyId, lead.id, companySession.user.id);
+      await recordLeadOpenedOnce(companyId, lead.id, session.user.id);
     } catch (error) {
       console.error('[GET /api/leads/:id] recordLeadOpenedOnce failed:', error);
     }
@@ -276,7 +279,6 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const companySession = session as CompanySession;
 
   let body: unknown;
   try {
@@ -296,13 +298,15 @@ export async function PATCH(
   }
 
   try {
-    const { companyId, leadVisibility } = await getCompanyLeadContext(companySession);
+    const { companyId, leadVisibility } = await getCompanyLeadContext(
+      session as CompanySession,
+    );
 
     const where = buildLeadAccessWhere(
       id,
       companyId,
-      companySession.user.role,
-      companySession.user.id,
+      session.user.role,
+      session.user.id,
       leadVisibility,
     );
 
@@ -317,7 +321,7 @@ export async function PATCH(
 
     await writeEvent(companyId, 'LEAD_UPDATED', {
       leadId: id,
-      userId: companySession.user.id,
+      userId: session.user.id,
     });
 
     return Response.json({ success: true });

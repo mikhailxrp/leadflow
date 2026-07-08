@@ -5,7 +5,8 @@ import ThemeProvider from '@/components/providers/ThemeProvider';
 import AppLayout from '@/components/layout/AppLayout';
 import Sidebar from '@/components/layout/Sidebar';
 import ImpersonationBanner from '@/components/platform/ImpersonationBanner';
-import { getNavItemsForRole } from '@/constants/navItems';
+import MarketerBanner from '@/components/platform/MarketerBanner';
+import { getMarketerNavItems, getNavItemsForRole } from '@/constants/navItems';
 
 function computeInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -21,7 +22,35 @@ interface AppShellProps {
 export default async function AppShell({ children }: AppShellProps): Promise<ReactNode> {
   const session = await auth();
 
-  if (!session || session.kind !== 'company' || !session.user) {
+  if (!session || session.kind !== 'company') {
+    return <>{children}</>;
+  }
+
+  if (session.marketer) {
+    const company = await prisma.company.findUnique({
+      where: { id: session.marketer.companyId },
+      select: { name: true },
+    });
+
+    return (
+      <ThemeProvider storageKey={`theme_marketer_${session.marketer.platformAdminId}`}>
+        <AppLayout
+          sidebar={
+            <Sidebar
+              items={getMarketerNavItems()}
+              userName="Маркетолог"
+              userInitials="М"
+            />
+          }
+        >
+          <MarketerBanner companyName={company?.name ?? ''} />
+          {children}
+        </AppLayout>
+      </ThemeProvider>
+    );
+  }
+
+  if (!session.user) {
     return <>{children}</>;
   }
 

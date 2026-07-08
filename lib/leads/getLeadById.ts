@@ -68,6 +68,10 @@ export async function getLeadById(
   id: string,
   session: CompanySession,
 ): Promise<LeadDetail | null> {
+  if (!session.user) {
+    throw new Error('getLeadById requires a user session');
+  }
+
   const { companyId, role, id: userId } = session.user;
 
   const company = await prisma.company.findUniqueOrThrow({

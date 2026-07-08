@@ -35,7 +35,7 @@ export const proxy = auth((req) => {
     return NextResponse.next();
   }
 
-  if (!session || session.kind !== 'company') {
+  if (!session || session.kind !== 'company' || !session.user) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 

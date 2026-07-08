@@ -129,6 +129,10 @@ function buildWhere(
   session: CompanySession,
   leadVisibility: CompanySettings['leadVisibility'],
 ): Prisma.LeadWhereInput {
+  if (!session.user) {
+    throw new Error('buildWhere requires a user session');
+  }
+
   const visibility = visibilityWhere(
     session.user.role,
     session.user.id,
@@ -172,6 +176,10 @@ export async function getLeads(
   params: LeadsQueryInput,
   session: CompanySession,
 ): Promise<GetLeadsResult> {
+  if (!session.user) {
+    throw new Error('getLeads requires a user session');
+  }
+
   const companyId = session.user.companyId;
 
   const company = await prisma.company.findUniqueOrThrow({

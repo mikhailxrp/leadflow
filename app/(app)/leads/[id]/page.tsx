@@ -34,15 +34,14 @@ export default async function LeadDetailPage({
 }: LeadDetailPageProps) {
   const session = await auth();
 
-  if (!session || session.kind !== 'company') {
+  if (!session || session.kind !== 'company' || !session.user) {
     redirect('/login');
   }
 
-  const companySession = session as CompanySession;
   const { id } = await params;
   const { taskId } = await searchParams;
 
-  const lead = await getLeadById(id, companySession);
+  const lead = await getLeadById(id, session as CompanySession);
 
   if (!lead) {
     notFound();
@@ -114,7 +113,7 @@ export default async function LeadDetailPage({
           <DeleteLeadModal
             leadId={lead.id}
             leadName={lead.name}
-            role={companySession.user.role}
+            role={session.user.role}
           />
         </div>
 
@@ -126,7 +125,7 @@ export default async function LeadDetailPage({
             takenAt={takenAtStr}
             closeType={lead.closeType}
             assignedTo={lead.assignedTo}
-            canAssign={hasMinRole(companySession.user.role, 'HEAD')}
+            canAssign={hasMinRole(session.user.role, 'HEAD')}
           />
           <LeadComments leadId={lead.id} comments={serializedComments} />
           <TaskBlock leadId={lead.id} highlightTaskId={taskId} />
