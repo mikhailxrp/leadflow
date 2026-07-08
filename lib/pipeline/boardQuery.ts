@@ -34,8 +34,9 @@ export type BoardData = {
 
 export type BoardQueryOptions = {
   companyId: string;
-  userId: string;
-  role: UserRole;
+  /** Не заданы для actor'а marketer — видимость тогда не ограничивается (как HEAD). */
+  userId?: string;
+  role?: UserRole;
   leadVisibility: CompanySettings['leadVisibility'];
   companySettings: Prisma.JsonValue;
   includeClosed?: boolean;
@@ -52,7 +53,7 @@ function buildLeadWhere(options: BoardQueryOptions): Prisma.LeadWhereInput {
     assignedToId,
   } = options;
 
-  const visibility = visibilityWhere(role, userId, leadVisibility);
+  const visibility = role && userId ? visibilityWhere(role, userId, leadVisibility) : {};
 
   const andConditions: Prisma.LeadWhereInput[] = [{ companyId }];
 

@@ -9,7 +9,7 @@ import { computeRiskBatch } from '@/lib/risk/computeRiskBatch';
 import type { RiskResult } from '@/lib/risk/computeRisk';
 import { prisma } from '@/lib/prisma';
 import type { LeadsQueryInput } from '@/lib/validations/leads';
-import type { CompanySession } from '@/types/session';
+import type { CompanyActor } from '@/lib/auth/requireCompanyAccess';
 
 const MS_PER_DAY = 86_400_000;
 const PERIOD_WEEK_DAYS = 7;
@@ -126,18 +126,12 @@ function buildSearchFilter(search: string): Prisma.LeadWhereInput | null {
 function buildWhere(
   companyId: string,
   params: LeadsQueryInput,
-  session: CompanySession,
+  actor: CompanyActor,
   leadVisibility: CompanySettings['leadVisibility'],
 ): Prisma.LeadWhereInput {
-  if (!session.user) {
-    throw new Error('buildWhere requires a user session');
-  }
-
-  const visibility = visibilityWhere(
-    session.user.role,
-    session.user.id,
-    leadVisibility,
-  );
+  // Маркетолог видит все лиды компании (как HEAD) — visibilityWhere/leadVisibility к нему не применяются.
+  const visibility =
+    actor.actor === 'user' ? visibilityWhere(actor.role, actor.userId, leadVisibility) : {};
 
   const andConditions: Prisma.LeadWhereInput[] = [{ companyId }];
 
@@ -174,13 +168,9 @@ function buildWhere(
 
 export async function getLeads(
   params: LeadsQueryInput,
-  session: CompanySession,
+  actor: CompanyActor,
 ): Promise<GetLeadsResult> {
-  if (!session.user) {
-    throw new Error('getLeads requires a user session');
-  }
-
-  const companyId = session.user.companyId;
+  const companyId = actor.companyId;
 
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
@@ -188,7 +178,7 @@ export async function getLeads(
   });
 
   const leadVisibility = getLeadVisibility(company.settings);
-  const where = buildWhere(companyId, params, session, leadVisibility);
+  const where = buildWhere(companyId, params, actor, leadVisibility);
   const skip = (params.page - 1) * params.pageSize;
 
   const [leads, total] = await Promise.all([
@@ -262,9 +252,9 @@ export async function getLeads(
 
 export async function getLeadsWithRisk(
   params: LeadsQueryInput,
-  session: CompanySession,
+  actor: CompanyActor,
 ): Promise<GetLeadsWithRiskResult> {
-  const { leads, total, page, pageSize, companySettings } = await getLeads(params, session);
+  const { leads, total, page, pageSize, companySettings } = await getLeads(params, actor);
 
   const leadsWithRisk = await computeRiskBatch(leads, companySettings, prisma);
 

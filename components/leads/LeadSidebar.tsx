@@ -23,6 +23,7 @@ interface LeadSidebarProps {
   closeType: CloseType | null;
   assignedTo: { id: string; name: string } | null;
   canAssign: boolean;
+  canManage: boolean;
 }
 
 export default function LeadSidebar({
@@ -32,6 +33,7 @@ export default function LeadSidebar({
   closeType,
   assignedTo,
   canAssign,
+  canManage,
 }: LeadSidebarProps) {
   return (
     <Card padding="lg">
@@ -69,14 +71,16 @@ export default function LeadSidebar({
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <TakeInWorkButton
-          leadId={leadId}
-          hasTakenInWork={hasTakenInWork}
-          takenAt={takenAt}
-        />
-        <CloseLeadMenu leadId={leadId} isClosed={closeType !== null} />
-      </div>
+      {canManage && (
+        <div className="flex flex-col gap-2">
+          <TakeInWorkButton
+            leadId={leadId}
+            hasTakenInWork={hasTakenInWork}
+            takenAt={takenAt}
+          />
+          <CloseLeadMenu leadId={leadId} isClosed={closeType !== null} />
+        </div>
+      )}
     </Card>
   );
 }

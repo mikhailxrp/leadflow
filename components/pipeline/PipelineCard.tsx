@@ -138,6 +138,7 @@ interface PipelineCardProps {
   risk: { level: RiskLevel; reason: string | null };
   closeType: CloseType | null;
   onClick?: (id: string) => void;
+  readOnly?: boolean;
 }
 
 export default function PipelineCard({
@@ -149,8 +150,10 @@ export default function PipelineCard({
   risk,
   closeType,
   onClick,
+  readOnly = false,
 }: PipelineCardProps): ReactNode {
   const isClosed = closeType !== null;
+  const isDragDisabled = isClosed || readOnly;
 
   const {
     attributes,
@@ -159,7 +162,7 @@ export default function PipelineCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id, disabled: isClosed });
+  } = useSortable({ id, disabled: isDragDisabled });
 
   const dragStyle: CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -175,12 +178,14 @@ export default function PipelineCard({
         assignedTo={assignedTo}
         risk={risk}
         closeType={closeType}
-        dragHandleProps={isClosed ? undefined : { ...attributes, ...listeners }}
+        dragHandleProps={isDragDisabled ? undefined : { ...attributes, ...listeners }}
         onClick={() => onClick?.(id)}
         className={`
           ${isClosed
             ? 'cursor-default opacity-60'
-            : 'cursor-grab hover:border-[var(--color-primary)]'
+            : readOnly
+              ? 'cursor-default'
+              : 'cursor-grab hover:border-[var(--color-primary)]'
           }
           ${isDragging ? 'opacity-50' : ''}
         `}

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
+import { toCompanyActor } from '@/lib/auth/requireCompanyAccess';
 import { getLeadsWithRisk } from '@/lib/leads/getLeads';
 import { getManagers } from '@/lib/leads/getManagers';
 import { leadsQuerySchema } from '@/lib/validations/leads';
@@ -33,9 +34,11 @@ interface LeadsPageProps {
 export default async function LeadsPage({ searchParams }: LeadsPageProps) {
   const session = await auth();
 
-  if (!session || session.kind !== 'company' || !session.user) {
+  if (!session || session.kind !== 'company') {
     redirect('/login');
   }
+
+  const actor = toCompanyActor(session as CompanySession);
 
   const rawParams = await searchParams;
 
@@ -48,8 +51,8 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
   const params = leadsQuerySchema.parse(normalized);
 
   const [{ leads, total, page, pageSize }, managers] = await Promise.all([
-    getLeadsWithRisk(params, session as CompanySession),
-    getManagers(session.user.companyId),
+    getLeadsWithRisk(params, actor),
+    getManagers(actor.companyId),
   ]);
 
   return (
@@ -57,11 +60,13 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
       <PageHeader
         title="Лиды"
         actions={
-          <Link href="/leads/new">
-            <Button variant="primary" size="md" icon={<PlusIcon />}>
-              Добавить лид
-            </Button>
-          </Link>
+          actor.actor === 'user' ? (
+            <Link href="/leads/new">
+              <Button variant="primary" size="md" icon={<PlusIcon />}>
+                Добавить лид
+              </Button>
+            </Link>
+          ) : undefined
         }
       />
 

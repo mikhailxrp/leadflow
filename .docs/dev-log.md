@@ -36,6 +36,32 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-08 — Phase 11.6, Таск 2: `marketerAccess.ts` (allow-list) + `requireCompanyAccess.ts` + `proxy.ts` + read-only доска
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `constants/marketerAccess.ts` (новый) — единственный источник правды: `MARKETER_ALLOWED_PAGES` (`/leads`, `/pipeline`); `MARKETER_ALLOWED_API` — сверка по RegExp **и** методу (`GET /api/leads`, `GET /api/leads/:id`, `.../duplicates`, `.../events`, `GET /api/pipeline/board`, `GET /api/stages`, `GET /api/loss-reasons`); хелперы `isMarketerAllowedPage`, `isMarketerAllowedApi`
+- `lib/auth/requireCompanyAccess.ts` (новый) — `requireCompanyUser({ minRole })`: 401 без company-сессии, **403** для `session.marketer` или недостаточной роли; `requireCompanyAccess({ minRole, method, pathname })`: для `user` — `hasMinRole`, для `marketer` — allow-list; возвращает discriminated union `CompanyActor`; `toCompanyActor(session)` — для Server Components
+- `proxy.ts` — ветка `session.marketer` **до** чтения `session.user.role`: `isMarketerAllowedPage(pathname) ? next() : redirect('/leads')`
+- API чтения переведены на `requireCompanyAccess`: `GET /api/leads`, `GET /api/leads/:id`, `.../duplicates`, `.../events`, `GET /api/pipeline/board`, `GET /api/stages`, `GET /api/loss-reasons`
+- API мутаций переведены на `requireCompanyUser`: `POST /api/leads`, `PATCH/DELETE /api/leads/:id`, `take`, `assign`, `close`, `stage`, `POST comments` — маркетолог получает **403**, не 401
+- `lib/leads/getLeads.ts`, `lib/leads/getLeadById.ts` — принимают `CompanyActor`; для `actor === 'marketer'` — все лиды компании, без `visibilityWhere`/`leadVisibility`
+- `lib/pipeline/boardQuery.ts` — `userId`/`role` опциональны; без них видимость не ограничивается (как HEAD)
+- `app/api/leads/[id]/route.ts` (GET) — `recordLeadOpenedOnce` только при `actor.actor === 'user'`
+- Страницы: `leads/page.tsx`, `leads/[id]/page.tsx`, `pipeline/page.tsx` — `toCompanyActor(session)` вместо guard `!session.user`; скрыты «Добавить лид», редактирование/удаление, форма комментария, блок «Взять в работу»/закрытие (`canManage`/`canComment`)
+- `components/pipeline/PipelineBoard.tsx` (+ `PipelineColumn`, `PipelineCard`) — проп `readOnly`: без `DndContext`/drag при `true`
+- `components/leads/LeadSidebar.tsx` — проп `canManage` скрывает `TakeInWorkButton` + `CloseLeadMenu`; `LeadComments.tsx` — `canComment` скрывает форму отправки
+
+**Out of scope (не делалось):** квалификация лидов (`PATCH /api/leads/:id/qualification`, бейдж, переключатель) — Таск 3; `/reports`, `/admin/integrations` в allow-list — Phase 21/18; блокировка прямого захода на `/leads/new` по URL — только скрыта кнопка «Добавить лид»; `TaskBlock` на моках — не трогался.
+
+**Проверено:** `npm run type-check`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
 ## 2026-07-08 — Phase 11.6, Таск 1: Actor `marketer` в сессии + провайдер + вход/выход + баннер + оболочка + `writeEvent`
 
 **Статус:** ✅ Завершён

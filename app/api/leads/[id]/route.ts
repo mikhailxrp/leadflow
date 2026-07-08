@@ -3,15 +3,13 @@ import {
   DEFAULT_COMPANY_SETTINGS,
   type CompanySettings,
 } from '@/constants/defaultCompanyData';
-import { hasMinRole } from '@/constants/roles';
-import { auth } from '@/lib/auth';
+import { requireCompanyAccess, requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { writeEvent } from '@/lib/events';
 import type { LeadListItem } from '@/lib/leads/getLeads';
 import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
 import { computeRiskBatch } from '@/lib/risk/computeRiskBatch';
 import { updateLeadSchema, type UpdateLeadInput } from '@/lib/validations/leads';
-import type { CompanySession } from '@/types/session';
 
 const LEAD_CARD_SELECT = {
   id: true,
@@ -175,33 +173,19 @@ async function recordLeadOpenedOnce(
   await writeEvent(companyId, 'LEAD_OPENED', { leadId, userId });
 }
 
-async function getCompanyLeadContext(session: CompanySession): Promise<{
-  companyId: string;
+async function getCompanyLeadContext(companyId: string): Promise<{
   leadVisibility: CompanySettings['leadVisibility'];
   companySettings: Prisma.JsonValue;
 }> {
-  if (!session.user) {
-    throw new Error('getCompanyLeadContext requires a user session');
-  }
-
   const company = await prisma.company.findUniqueOrThrow({
-    where: { id: session.user.companyId },
+    where: { id: companyId },
     select: { settings: true },
   });
 
   return {
-    companyId: session.user.companyId,
     leadVisibility: getLeadVisibility(company.settings),
     companySettings: company.settings,
   };
-}
-
-function unauthorizedResponse(): Response {
-  return Response.json({ error: 'Unauthorized' }, { status: 401 });
-}
-
-function forbiddenResponse(): Response {
-  return Response.json({ error: 'Forbidden' }, { status: 403 });
 }
 
 function notFoundResponse(): Response {
@@ -212,29 +196,27 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const session = await auth();
-
-  if (!session || session.kind !== 'company' || !session.user) {
-    return unauthorizedResponse();
-  }
-
-  if (!hasMinRole(session.user.role, 'MANAGER')) {
-    return forbiddenResponse();
-  }
-
   const { id } = await params;
 
+  let actor;
   try {
-    const { companyId, leadVisibility, companySettings } =
-      await getCompanyLeadContext(session as CompanySession);
+    actor = await requireCompanyAccess({
+      minRole: 'MANAGER',
+      method: 'GET',
+      pathname: `/api/leads/${id}`,
+    });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
+  }
 
-    const where = buildLeadAccessWhere(
-      id,
-      companyId,
-      session.user.role,
-      session.user.id,
-      leadVisibility,
-    );
+  try {
+    const { leadVisibility, companySettings } = await getCompanyLeadContext(actor.companyId);
+
+    const where =
+      actor.actor === 'user'
+        ? buildLeadAccessWhere(id, actor.companyId, actor.role, actor.userId, leadVisibility)
+        : { AND: [{ id }, { companyId: actor.companyId }] };
 
     const lead = await prisma.lead.findFirst({
       where,
@@ -251,10 +233,12 @@ export async function GET(
       prisma,
     );
 
-    try {
-      await recordLeadOpenedOnce(companyId, lead.id, session.user.id);
-    } catch (error) {
-      console.error('[GET /api/leads/:id] recordLeadOpenedOnce failed:', error);
+    if (actor.actor === 'user') {
+      try {
+        await recordLeadOpenedOnce(actor.companyId, lead.id, actor.userId);
+      } catch (error) {
+        console.error('[GET /api/leads/:id] recordLeadOpenedOnce failed:', error);
+      }
     }
 
     return Response.json(formatLeadCardResponse(lead, leadWithRisk.risk));
@@ -268,17 +252,15 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const session = await auth();
-
-  if (!session || session.kind !== 'company' || !session.user) {
-    return unauthorizedResponse();
-  }
-
-  if (!hasMinRole(session.user.role, 'MANAGER')) {
-    return forbiddenResponse();
-  }
-
   const { id } = await params;
+
+  let user;
+  try {
+    user = await requireCompanyUser({ minRole: 'MANAGER' });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
+  }
 
   let body: unknown;
   try {
@@ -298,17 +280,9 @@ export async function PATCH(
   }
 
   try {
-    const { companyId, leadVisibility } = await getCompanyLeadContext(
-      session as CompanySession,
-    );
+    const { leadVisibility } = await getCompanyLeadContext(user.companyId);
 
-    const where = buildLeadAccessWhere(
-      id,
-      companyId,
-      session.user.role,
-      session.user.id,
-      leadVisibility,
-    );
+    const where = buildLeadAccessWhere(id, user.companyId, user.role, user.userId, leadVisibility);
 
     const result = await prisma.lead.updateMany({
       where,
@@ -319,9 +293,9 @@ export async function PATCH(
       return notFoundResponse();
     }
 
-    await writeEvent(companyId, 'LEAD_UPDATED', {
+    await writeEvent(user.companyId, 'LEAD_UPDATED', {
       leadId: id,
-      userId: session.user.id,
+      userId: user.userId,
     });
 
     return Response.json({ success: true });
@@ -335,18 +309,17 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const session = await auth();
-
-  if (!session || session.kind !== 'company' || !session.user) {
-    return unauthorizedResponse();
-  }
-
-  if (!hasMinRole(session.user.role, 'ADMIN')) {
-    return forbiddenResponse();
-  }
-
   const { id } = await params;
-  const companyId = session.user.companyId;
+
+  let user;
+  try {
+    user = await requireCompanyUser({ minRole: 'ADMIN' });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
+  }
+
+  const companyId = user.companyId;
 
   try {
     const lead = await prisma.lead.findFirst({
@@ -364,7 +337,7 @@ export async function DELETE(
 
     await writeEvent(companyId, 'LEAD_DELETED', {
       leadId: null,
-      userId: session.user.id,
+      userId: user.userId,
       payload: {
         deletedLeadId: lead.id,
         name: lead.name,

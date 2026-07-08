@@ -27,6 +27,7 @@ interface PipelineBoardProps {
   initialColumns: BoardColumn[];
   managers: ManagerOption[];
   showManagerFilter: boolean;
+  readOnly?: boolean;
 }
 
 function buildBoardUrl(includeClosed: boolean, assignedToId: string | null): string {
@@ -115,6 +116,7 @@ export default function PipelineBoard({
   initialColumns,
   managers,
   showManagerFilter,
+  readOnly = false,
 }: PipelineBoardProps): ReactNode {
   const router = useRouter();
   const [columns, setColumns] = useState<BoardColumn[]>(initialColumns);
@@ -138,11 +140,13 @@ export default function PipelineBoard({
   );
 
   const handleDragStart = useCallback((event: DragStartEvent): void => {
+    if (readOnly) return;
     const lead = findLead(columns, String(event.active.id));
     setActiveLead(lead ?? null);
-  }, [columns]);
+  }, [columns, readOnly]);
 
   const handleDragEnd = useCallback(async (event: DragEndEvent): Promise<void> => {
+    if (readOnly) return;
     const { active, over } = event;
     setActiveLead(null);
 
@@ -178,7 +182,7 @@ export default function PipelineBoard({
       setColumns(prevColumns);
       setToast({ title: 'Не удалось переместить лид', message: 'Попробуйте ещё раз' });
     }
-  }, [columns]);
+  }, [columns, readOnly]);
 
   const handleDragCancel = useCallback((): void => {
     setActiveLead(null);
@@ -286,6 +290,7 @@ export default function PipelineBoard({
                 leads={col.leads}
                 avgDaysOnStage={col.avgDaysOnStage}
                 onCardClick={handleCardClick}
+                readOnly={readOnly}
               />
             ))}
           </div>

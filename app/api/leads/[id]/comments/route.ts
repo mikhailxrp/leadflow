@@ -1,6 +1,7 @@
 import type { Prisma, UserRole } from '@prisma/client';
 import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
+import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { writeEvent } from '@/lib/events';
 import { COMMENT_SELECT, serializeComment } from '@/lib/leads/commentSelect';
 import { getLeadVisibility, visibilityWhere } from '@/lib/leads/visibilityFilter';
@@ -76,18 +77,16 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const session = await auth();
-
-  if (!session || session.kind !== 'company' || !session.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!hasMinRole(session.user.role, 'MANAGER')) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  let user;
+  try {
+    user = await requireCompanyUser({ minRole: 'MANAGER' });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
   }
 
   const { id } = await params;
-  const { companyId, id: userId, role } = session.user;
+  const { companyId, userId, role } = user;
 
   let body: unknown;
   try {

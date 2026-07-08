@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { hasMinRole } from '@/constants/roles';
+import { toCompanyActor } from '@/lib/auth/requireCompanyAccess';
 import { getLeadById } from '@/lib/leads/getLeadById';
 import type { CompanySession } from '@/types/session';
 import { PageContent } from '@/components/layout/AppLayout';
@@ -34,14 +35,16 @@ export default async function LeadDetailPage({
 }: LeadDetailPageProps) {
   const session = await auth();
 
-  if (!session || session.kind !== 'company' || !session.user) {
+  if (!session || session.kind !== 'company') {
     redirect('/login');
   }
+
+  const actor = toCompanyActor(session as CompanySession);
 
   const { id } = await params;
   const { taskId } = await searchParams;
 
-  const lead = await getLeadById(id, session as CompanySession);
+  const lead = await getLeadById(id, actor);
 
   if (!lead) {
     notFound();
@@ -102,19 +105,23 @@ export default async function LeadDetailPage({
 
           <LeadCustomFields fields={lead.customFields} />
 
-          <LeadEditForm
-            leadId={lead.id}
-            initialName={lead.name}
-            initialPhone={lead.phone}
-            initialEmail={lead.email}
-            initialComment={lead.comment}
-          />
+          {actor.actor === 'user' && (
+            <LeadEditForm
+              leadId={lead.id}
+              initialName={lead.name}
+              initialPhone={lead.phone}
+              initialEmail={lead.email}
+              initialComment={lead.comment}
+            />
+          )}
 
-          <DeleteLeadModal
-            leadId={lead.id}
-            leadName={lead.name}
-            role={session.user.role}
-          />
+          {actor.actor === 'user' && (
+            <DeleteLeadModal
+              leadId={lead.id}
+              leadName={lead.name}
+              role={actor.role}
+            />
+          )}
         </div>
 
         {/* Right column */}
@@ -125,9 +132,14 @@ export default async function LeadDetailPage({
             takenAt={takenAtStr}
             closeType={lead.closeType}
             assignedTo={lead.assignedTo}
-            canAssign={hasMinRole(session.user.role, 'HEAD')}
+            canAssign={actor.actor === 'user' && hasMinRole(actor.role, 'HEAD')}
+            canManage={actor.actor === 'user'}
           />
-          <LeadComments leadId={lead.id} comments={serializedComments} />
+          <LeadComments
+            leadId={lead.id}
+            comments={serializedComments}
+            canComment={actor.actor === 'user'}
+          />
           <TaskBlock leadId={lead.id} highlightTaskId={taskId} />
           <LeadHistory events={serializedEvents} />
         </aside>

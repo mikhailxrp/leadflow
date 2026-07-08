@@ -3,7 +3,7 @@ import { getLeadVisibility, visibilityWhere } from '@/lib/leads/visibilityFilter
 import { prisma } from '@/lib/prisma';
 import { computeRiskBatch } from '@/lib/risk/computeRiskBatch';
 import type { RiskResult } from '@/lib/risk/computeRisk';
-import type { CompanySession } from '@/types/session';
+import type { CompanyActor } from '@/lib/auth/requireCompanyAccess';
 
 export interface LeadHistoryEvent {
   id: string;
@@ -66,13 +66,9 @@ function extractLossReasonId(payload: Prisma.JsonValue): string | null {
 
 export async function getLeadById(
   id: string,
-  session: CompanySession,
+  actor: CompanyActor,
 ): Promise<LeadDetail | null> {
-  if (!session.user) {
-    throw new Error('getLeadById requires a user session');
-  }
-
-  const { companyId, role, id: userId } = session.user;
+  const { companyId } = actor;
 
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
@@ -80,7 +76,9 @@ export async function getLeadById(
   });
 
   const leadVisibility = getLeadVisibility(company.settings);
-  const visibility = visibilityWhere(role, userId, leadVisibility);
+  // Маркетолог видит все лиды компании (как HEAD) — visibilityWhere/leadVisibility к нему не применяются.
+  const visibility =
+    actor.actor === 'user' ? visibilityWhere(actor.role, actor.userId, leadVisibility) : {};
 
   const andConditions: Prisma.LeadWhereInput[] = [{ id }, { companyId }];
   if (Object.keys(visibility).length > 0) {

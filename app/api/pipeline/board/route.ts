@@ -1,21 +1,10 @@
-import { hasMinRole } from '@/constants/roles';
-import { auth } from '@/lib/auth';
+import { requireCompanyAccess } from '@/lib/auth/requireCompanyAccess';
 import { getLeadVisibility } from '@/lib/leads/visibilityFilter';
 import { getBoardData } from '@/lib/pipeline/boardQuery';
 import { prisma } from '@/lib/prisma';
 import { boardQuerySchema } from '@/lib/validations/pipeline';
 
 export async function GET(request: Request): Promise<Response> {
-  const session = await auth();
-
-  if (!session || session.kind !== 'company' || !session.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!hasMinRole(session.user.role, 'MANAGER')) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
   const { searchParams } = new URL(request.url);
   const parsed = boardQuerySchema.safeParse({
     includeClosed: searchParams.get('includeClosed') ?? undefined,
@@ -26,7 +15,19 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json({ error: 'VALIDATION_ERROR' }, { status: 400 });
   }
 
-  const companyId = session.user.companyId;
+  let actor;
+  try {
+    actor = await requireCompanyAccess({
+      minRole: 'MANAGER',
+      method: 'GET',
+      pathname: '/api/pipeline/board',
+    });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
+  }
+
+  const companyId = actor.companyId;
 
   try {
     const company = await prisma.company.findUniqueOrThrow({
@@ -38,8 +39,7 @@ export async function GET(request: Request): Promise<Response> {
 
     const boardData = await getBoardData({
       companyId,
-      userId: session.user.id,
-      role: session.user.role,
+      ...(actor.actor === 'user' ? { userId: actor.userId, role: actor.role } : {}),
       leadVisibility,
       companySettings: company.settings,
       includeClosed: parsed.data.includeClosed,
