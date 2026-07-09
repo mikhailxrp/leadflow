@@ -155,10 +155,6 @@
   box-sizing: border-box;
 }
 
-html {
-  scrollbar-gutter: stable;
-}
-
 body {
   font-family: var(--font-sans);
   font-size: 14px;

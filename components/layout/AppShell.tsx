@@ -60,7 +60,7 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
 
   const dbUser = await prisma.user.findUnique({
     where: { id, companyId },
-    select: { name: true },
+    select: { name: true, avatarUrl: true },
   });
 
   const userName = dbUser?.name ?? '';
@@ -74,7 +74,17 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
 
   return (
     <ThemeProvider storageKey={`theme_user_${id}`}>
-      <AppLayout sidebar={<Sidebar items={navItems} userName={userName} userInitials={userInitials} />}>
+      <AppLayout
+        sidebar={
+          <Sidebar
+            items={navItems}
+            userName={userName}
+            userInitials={userInitials}
+            userAvatarUrl={dbUser?.avatarUrl}
+            profileHref="/profile"
+          />
+        }
+      >
         <SseProvider initialItems={initialItems} initialUnreadCount={initialUnreadCount}>
           {isImpersonating && <ImpersonationBanner />}
           {children}
