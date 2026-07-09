@@ -36,6 +36,96 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-09 — Phase 12, Таск 4: UI уведомлений — SseProvider + тост + колокольчик + dropdown + Zustand
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `store/notificationStore.ts` — Zustand-стор (без `'use client'`): `{ items, unreadCount }` + `hydrate`, `addFromSse`, `markAllRead()`; тип `NotificationItem` с `createdAt`/`readAt` как ISO-строки
+- `lib/notifications/getUserNotifications.ts` (новый) — серверный хелпер `getUserNotifications(userId, companyId, limit?)` → `{ items, unreadCount }` с явной сериализацией дат в ISO; общий источник для API и SSR-гидрации
+- `app/api/notifications/route.ts` — рефакторинг `GET` на `getUserNotifications` (контракт ответа не изменился)
+- `components/notifications/SseProvider.tsx` (новый) — гидрация стора из пропсов при маунте; `EventSource('/api/stream')` → `addFromSse` + toast-слот «Новый лид {имя}» с действием «Открыть» → `/leads/:id`; закрытие `EventSource` при размонтировании
+- `components/notifications/NotificationBell.tsx` (новый) — `IconButton` (`lucide:bell`) + бейдж `unreadCount`, тумблер dropdown, закрытие по клику вне
+- `components/notifications/NotificationDropdown.tsx` (новый) — список из стора, относительное время, индикатор непрочитанного, «Прочитать всё» (`POST /api/notifications/read` + `markAllRead()`), клик по пункту → `/leads/:leadId`; пустое состояние «Нет уведомлений»
+- `components/layout/AppShell.tsx` — в user-ветке: `getUserNotifications` + обёртка `{children}` в `<SseProvider>`; marketer-ветка и fallback-ветки без провайдера
+- Колокольчик в `PageHeader`: `/today`, `/leads` и `/pipeline` (только `actor.actor === 'user'`), `/admin/pipeline-settings` (ADMIN-only); статичные `BellIcon` удалены с затронутых страниц
+
+**Out of scope (не делалось):** колокольчик на страницах без `PageHeader` (`/control`, `/reports`, `/admin/users`, `/admin/settings`, `/admin/integrations`, карточка лида); индивидуальная пометка одного уведомления из dropdown; Telegram-доставка, `notification-preferences` — Phase 13.
+
+**Проверено:** `npm run type-check`, `npm run build` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
+## 2026-07-09 — Phase 12, Таск 3: API непрочитанных + mark-as-read
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `constants/notifications.ts` (новый) — `DEFAULT_NOTIFICATIONS_LIMIT` (20) / `MAX_NOTIFICATIONS_LIMIT` (50)
+- `lib/validations/notifications.ts` (новый) — `notificationsQuerySchema`: `limit` через `z.coerce.number()`, ограничен максимумом
+- `app/api/notifications/route.ts` (новый) — `GET`: `requireCompanyUser({ minRole: 'MANAGER' })` (жёсткий блок маркетолога, не allow-list); `where: { userId, companyId }`, `orderBy: createdAt desc`, `take: limit`; параллельно `count({ readAt: null })` → `unreadCount`
+- `app/api/notifications/read/route.ts` (новый) — `POST`: тот же guard, `updateMany({ where: { userId, companyId, readAt: null } })` → отмечает все непрочитанные пользователя
+- `app/api/notifications/[id]/read/route.ts` (новый) — `POST`: тот же guard, `updateMany({ where: { id, userId, companyId } })`; `count === 0` → `404` (не подтверждает существование чужой записи)
+
+**Out of scope (не делалось):** `SseProvider`, колокольчик, dropdown, `store/notificationStore.ts` — таск 4; Telegram-доставка, `notification-preferences` — Phase 13.
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок. Ручной end-to-end смоук на реальной dev-БД через живой HTTP-сервер и реальные сессии (NextAuth credentials-логин, cookie-based):
+
+- Два реальных `MANAGER` одной компании (`test-manager@test.ru`, `maneger-test-two@test.ru`) — `GET` каждому возвращает только свои уведомления и свой `unreadCount`, несмотря на общий `companyId` (подтверждает, что фильтр по `userId`, а не только по `companyId`, реально работает, не только в схеме запроса)
+- `POST /api/notifications/:id/read` на чужом `id` и на несуществующем `id` — оба `404`; на своём — `200` + `readAt` персистится (проверено повторным `GET`)
+- `POST /api/notifications/read` гасит `unreadCount` до `0` только у вызвавшего пользователя, второй пользователь не затронут
+- Без сессии — `401` на всех трёх эндпоинтах
+- Реальная marketer-сессия (через `POST /api/platform/companies/:id/marketer-access` → одноразовый токен → провайдер `marketer-access`) — `403` на всех трёх эндпоинтах, подтверждён жёсткий блок (не allow-list)
+- Невалидный `limit` (`abc`, `0`, `9999`) → `400 VALIDATION_ERROR`
+
+Тестовые данные (сид-уведомления) удалены после проверки; пароли трёх dev-фикстур (`test-manager@test.ru`, `maneger-test-two@test.ru`, `kordont@yandex.ru`) были временно переустановлены на известное значение для входа — это тестовые аккаунты в dev-БД, не прод.
+
+**Definition of Done:** выполнено полностью
+
+---
+
+## 2026-07-09 — Phase 12, Таск 2: Модель `Notification` + миграция + `notifyNewLead` (SSE + persist) + встраивание в приём
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` — модель `Notification` (`companyId`, `userId`, `type: EventType`, `leadId?`, `title`, `body?`, `readAt?`) + обратные связи `notifications Notification[]` в `Company`/`User`/`Lead`; миграция `20260709094950_phase_12_notifications` — `onDelete: Cascade` на `user`, `onDelete: SetNull` на `lead` (сознательно отличается от конвенции `Event.lead`/`DuplicateFlag`, где везде `Cascade`, — удаление лида не должно ронять уведомление)
+- `lib/notifications/recipients.ts` — `resolveNewLeadRecipients(companyId, lead)`: `ALL` → все активные пользователи компании; `OWN` → HEAD/ADMIN + назначенный менеджер; переиспользует `getLeadVisibility()` из `lib/leads/visibilityFilter.ts`, не дублирует парсинг JSONB
+- `lib/notifications/notifyNewLead.ts` — перечитывает лид, резолвит получателей, создаёт `Notification`-строки (`type: "LEAD_CREATED"`) и делает `broadcast(companyId, payload, predicate)` с минимальным payload (`leadId`, `name`, `source`); не вызывает `writeEvent` — `LEAD_CREATED` уже записан в транзакции `createLead()`
+- Встраивание после `assignLead` в 4 точки приёма: в трёх вебхуках (`tilda`, `wordpress`, универсальный `webhooks/leads`) `assignLead` вызывается без `await` (`void assignLead(...).catch(...)`), поэтому `notifyNewLead` подключён через `.then()`, а не отдельной строкой — иначе получатели резолвились бы до простановки `assignedToId`; в `POST /api/leads` `assignLead` уже `await`-ится, там `notifyNewLead` вызван следующей строкой (fire-and-forget)
+- `.docs/database.md` — добавлен раздел «Модель: Уведомления (Notification)»
+
+**Out of scope (не делалось):** API непрочитанных / mark-as-read — таск 3; `SseProvider`, колокольчик, dropdown, `notificationStore` — таск 4; Telegram-доставка, `notification-preferences` — Phase 13.
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; миграция применена чисто (`ON DELETE SET NULL` на `leadId` подтверждён в сгенерированном SQL).
+
+**Definition of Done:** выполнено полностью
+
+---
+
+## 2026-07-09 — Phase 12, Таск 1: SSE-ядро — реестр подключений + `GET /api/stream` + heartbeat
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/sse.ts` — in-memory реестр `Map<companyId, Set<Connection>>`, где `Connection = { userId, role, send(data), close() }`; экспорт `addConnection`, `removeConnection`, `broadcast(companyId, payload, predicate?)` (предикат в сигнатуре — для фильтра по получателю в таске 2); SSE-энкодер `encodeSseMessage` (`data: …\n\n`) и heartbeat-комментарий `encodeSseHeartbeat` (`: keep-alive\n\n`)
+- `app/api/stream/route.ts` — `GET`, guard `requireCompanyUser({ minRole: 'MANAGER' })` из `lib/auth/requireCompanyAccess.ts` (структурно без marketer-ветки — возвращает только `UserActor`); `ReadableStream` с заголовками `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-transform`, `Connection: keep-alive`; регистрация соединения в реестре; heartbeat-интервал 20 сек; снятие с реестра + `clearInterval` по `request.signal` (`abort`) и в `cancel()`; `export const dynamic = 'force-dynamic'`, `export const runtime = 'nodejs'`
+- `/api/stream` **сознательно не добавлен** в `constants/marketerAccess.ts` — маркетолог получает 403 по deny-by-default
+
+**Out of scope (не делалось):** модель `Notification` + миграция, `notifyNewLead`/`recipients`, встраивание в 4 точки приёма лида — таск 2; API непрочитанных / mark-as-read — таск 3; `SseProvider`, колокольчик, dropdown, `notificationStore` — таск 4.
+
+**Проверено:** `npm run type-check` — без ошибок; нет `any`.
+
+**Definition of Done:** выполнено полностью
+
+---
+
 ## 2026-07-09 — Phase 11.8: Профиль маркетолога (аватар/контакты/компании) + self-service + вход суперадмина по companyId
 
 **Статус:** ✅ Завершено

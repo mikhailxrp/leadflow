@@ -612,6 +612,38 @@ Append-only, пишет только сервер через `lib/events.ts`, п
 
 ---
 
+## Модель: Уведомления (Notification)
+
+```prisma
+model Notification {
+  id        String    @id @default(cuid())
+  companyId String
+  userId    String // получатель — User компании
+  type      EventType
+  leadId    String?
+  title     String
+  body      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead    Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt])
+  @@index([companyId])
+  @@index([createdAt])
+}
+```
+
+Персистентная доставка уведомлений — источник правды для счётчика непрочитанных (Phase 12, таск 3), переживает перезагрузку страницы. **Не заменяет `Event`**: `LEAD_CREATED` уже пишется в транзакции `createLead()`; `Notification` — производная адресная рассылка поверх уже случившегося события, создаётся отдельно (`lib/notifications/notifyNewLead.ts`), без повторного `writeEvent`.
+
+Получатели — только `User` компании (маркетолог не участвует, у него нет `userId`); список резолвится через `lib/notifications/recipients.ts` с учётом `Company.settings.leadVisibility` (`ALL` → все активные, `OWN` → HEAD/ADMIN + назначенный менеджер).
+
+**`onDelete: Cascade` на `user`** — уведомления пользователя удаляются вместе с ним (нет отдельного пути «увидеть уведомление удалённого пользователя»). **`onDelete: SetNull` на `lead`** — сознательно отличается от конвенции остальных nullable-связей с `Lead` в этой схеме (`Event.lead`, `DuplicateFlag` — везде `Cascade`): удаление лида не должно ронять уведомление, только обнулять ссылку на него.
+
+---
+
 ## Модели: Интеграции и распределение
 
 ### `ApiKey`

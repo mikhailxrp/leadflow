@@ -1,11 +1,13 @@
 import { type ReactNode } from 'react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getUserNotifications } from '@/lib/notifications/getUserNotifications';
 import ThemeProvider from '@/components/providers/ThemeProvider';
 import AppLayout from '@/components/layout/AppLayout';
 import Sidebar from '@/components/layout/Sidebar';
 import ImpersonationBanner from '@/components/platform/ImpersonationBanner';
 import MarketerBanner from '@/components/platform/MarketerBanner';
+import SseProvider from '@/components/notifications/SseProvider';
 import { getMarketerNavItems, getNavItemsForRole } from '@/constants/navItems';
 
 function computeInitials(name: string): string {
@@ -65,12 +67,18 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
   const userInitials = computeInitials(userName);
   const navItems = getNavItemsForRole(role);
   const isImpersonating = Boolean(impersonatedByPlatformAdminId);
+  const { items: initialItems, unreadCount: initialUnreadCount } = await getUserNotifications(
+    id,
+    companyId,
+  );
 
   return (
     <ThemeProvider storageKey={`theme_user_${id}`}>
       <AppLayout sidebar={<Sidebar items={navItems} userName={userName} userInitials={userInitials} />}>
-        {isImpersonating && <ImpersonationBanner />}
-        {children}
+        <SseProvider initialItems={initialItems} initialUnreadCount={initialUnreadCount}>
+          {isImpersonating && <ImpersonationBanner />}
+          {children}
+        </SseProvider>
       </AppLayout>
     </ThemeProvider>
   );

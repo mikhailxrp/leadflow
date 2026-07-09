@@ -134,6 +134,7 @@ model Company {
   assignmentRules    AssignmentRule[]
   invites            CompanyInvite[]
   accessGrants       CompanyAccessGrant[]
+  notifications      Notification[]
 
   @@index([nextPaymentAt])
   @@index([createdByPlatformAdminId])
@@ -152,16 +153,17 @@ model User {
   lastLoginAt             DateTime?
   createdAt               DateTime  @default(now())
 
-  company              Company                  @relation(fields: [companyId], references: [id])
-  assignedLeads        Lead[]                   @relation("AssignedManager")
-  comments             Comment[]
-  tasksCreated         Task[]                   @relation("TaskCreator")
-  tasksAssigned        Task[]                   @relation("TaskAssignee")
-  remindersCreated     Reminder[]
-  importBatches        ImportBatch[]
-  rulesAsAssignee      AssignmentRule[]         @relation("RuleAssignee")
-  rulesAsFallback      AssignmentRule[]         @relation("RuleFallback")
-  passwordResetTokens  UserPasswordResetToken[]
+  company             Company                  @relation(fields: [companyId], references: [id])
+  assignedLeads       Lead[]                   @relation("AssignedManager")
+  comments            Comment[]
+  tasksCreated        Task[]                   @relation("TaskCreator")
+  tasksAssigned       Task[]                   @relation("TaskAssignee")
+  remindersCreated    Reminder[]
+  importBatches       ImportBatch[]
+  rulesAsAssignee     AssignmentRule[]         @relation("RuleAssignee")
+  rulesAsFallback     AssignmentRule[]         @relation("RuleFallback")
+  passwordResetTokens UserPasswordResetToken[]
+  notifications       Notification[]
 
   @@index([companyId])
   @@index([role])
@@ -201,12 +203,12 @@ model PlatformAdmin {
 }
 
 model PlatformAdminPasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   adminId   String
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   admin PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
@@ -215,7 +217,7 @@ model PlatformAdminPasswordResetToken {
 }
 
 model Lead {
-  id            String     @id @default(cuid())
+  id            String             @id @default(cuid())
   companyId     String
   name          String?
   phone         String?
@@ -224,28 +226,29 @@ model Lead {
   source        String
   stageId       String
   assignedToId  String?
-  utm           Json       @default("{}")
-  marketing     Json       @default("{}")
-  customFields  Json       @default("{}")
+  utm           Json               @default("{}")
+  marketing     Json               @default("{}")
+  customFields  Json               @default("{}")
   closeType     CloseType?
   closedAt      DateTime?
   lossReasonId  String?
   importBatchId String?
   qualification LeadQualification?
   qualifiedAt   DateTime?
-  createdAt     DateTime   @default(now())
+  createdAt     DateTime           @default(now())
 
-  company                 Company       @relation(fields: [companyId], references: [id])
-  stage                   PipelineStage @relation(fields: [stageId], references: [id])
-  assignedTo              User?         @relation("AssignedManager", fields: [assignedToId], references: [id])
-  lossReason              LossReason?   @relation(fields: [lossReasonId], references: [id])
-  importBatch             ImportBatch?  @relation(fields: [importBatchId], references: [id])
+  company                 Company         @relation(fields: [companyId], references: [id])
+  stage                   PipelineStage   @relation(fields: [stageId], references: [id])
+  assignedTo              User?           @relation("AssignedManager", fields: [assignedToId], references: [id])
+  lossReason              LossReason?     @relation(fields: [lossReasonId], references: [id])
+  importBatch             ImportBatch?    @relation(fields: [importBatchId], references: [id])
   comments                Comment[]
   events                  Event[]
   reminders               Reminder[]
   tasks                   Task[]
   duplicateFlagsAsLead    DuplicateFlag[] @relation("FlaggedLead")
   duplicateFlagsAsMatched DuplicateFlag[] @relation("MatchedLead")
+  notifications           Notification[]
 
   @@index([companyId])
   @@index([stageId])
@@ -336,6 +339,26 @@ model Event {
   @@index([createdAt])
   @@index([impersonatedByPlatformAdminId])
   @@index([companyId, createdAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  companyId String
+  userId    String // получатель — User компании
+  type      EventType
+  leadId    String?
+  title     String
+  body      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead    Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt])
+  @@index([companyId])
+  @@index([createdAt])
 }
 
 model ApiKey {
