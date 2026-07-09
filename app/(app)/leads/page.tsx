@@ -13,6 +13,7 @@ import LeadsTable from '@/components/leads/LeadsTable';
 import LeadsPagination from '@/components/leads/LeadsPagination';
 import { PageContent } from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
+import NotificationBell from '@/components/notifications/NotificationBell';
 import Button from '@/components/ui/Button';
 
 export const metadata: Metadata = {
@@ -61,11 +62,14 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
         title="Лиды"
         actions={
           actor.actor === 'user' ? (
-            <Link href="/leads/new">
-              <Button variant="primary" size="md" icon={<PlusIcon />}>
-                Добавить лид
-              </Button>
-            </Link>
+            <>
+              <NotificationBell />
+              <Link href="/leads/new">
+                <Button variant="primary" size="md" icon={<PlusIcon />}>
+                  Добавить лид
+                </Button>
+              </Link>
+            </>
           ) : undefined
         }
       />

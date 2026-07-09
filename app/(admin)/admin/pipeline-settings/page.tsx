@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { PageContent } from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
+import NotificationBell from '@/components/notifications/NotificationBell';
 import PipelineSettings from '@/components/pipeline/PipelineSettings';
 import { type StageData } from '@/components/pipeline/StageRow';
 import { hasMinRole } from '@/constants/roles';
@@ -44,7 +45,7 @@ export default async function AdminPipelinePage() {
 
   return (
     <>
-      <PageHeader title="Настройки воронки" />
+      <PageHeader title="Настройки воронки" actions={<NotificationBell />} />
 
       <PageContent>
         <p className="mb-6 text-[13px] text-[var(--color-text-secondary)]">

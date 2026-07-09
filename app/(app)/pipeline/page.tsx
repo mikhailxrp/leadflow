@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { PageContent } from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import PipelineBoard from '@/components/pipeline/PipelineBoard';
+import NotificationBell from '@/components/notifications/NotificationBell';
 import IconButton from '@/components/ui/IconButton';
 import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
@@ -34,25 +35,6 @@ function SearchIcon() {
         strokeLinejoin="round"
         strokeWidth={1.75}
         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-      />
-    </svg>
-  );
-}
-
-function BellIcon() {
-  return (
-    <svg
-      className="h-5 w-5 text-[var(--color-text-secondary)]"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={1.75}
-        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
       />
     </svg>
   );
@@ -125,7 +107,7 @@ export default async function PipelinePage() {
         actions={
           <>
             <IconButton aria-label="Поиск" icon={<SearchIcon />} />
-            <IconButton aria-label="Уведомления" icon={<BellIcon />} />
+            {actor.actor === 'user' && <NotificationBell />}
             <span
               className="mx-1 h-5 w-px bg-[var(--color-border)]"
               aria-hidden="true"
