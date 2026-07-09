@@ -58,7 +58,11 @@ export const proxy = auth((req) => {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  if (pathname.startsWith('/control') || pathname.startsWith('/reports')) {
+  if (
+    pathname.startsWith('/control') ||
+    pathname.startsWith('/reports') ||
+    pathname.startsWith('/team')
+  ) {
     if (!hasMinRole(session.user.role, 'HEAD')) {
       return NextResponse.redirect(new URL('/today', req.url));
     }
@@ -80,6 +84,8 @@ export const config = {
     '/pipeline/:path*',
     '/control/:path*',
     '/reports/:path*',
+    '/team/:path*',
+    '/profile/:path*',
     '/admin/:path*',
     '/platform/:path*',
   ],

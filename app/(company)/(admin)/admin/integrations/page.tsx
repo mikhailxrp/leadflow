@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import IntegrationCard from '@/components/integrations/IntegrationCard';
 import ApiKeysTable from '@/components/integrations/ApiKeysTable';
 import WebhookUrl from '@/components/integrations/WebhookUrl';
@@ -7,6 +8,16 @@ import { PageContent } from '@/components/layout/AppLayout';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import IconButton from '@/components/ui/IconButton';
 import Avatar from '@/components/ui/Avatar';
+import { hasMinRole } from '@/constants/roles';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+
+function computeInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return words[0].charAt(0).toUpperCase();
+  return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+}
 
 export const metadata: Metadata = {
   title: 'Интеграции',
@@ -142,7 +153,26 @@ function NotConfiguredBadge() {
   );
 }
 
-export default function AdminIntegrationsPage() {
+export default async function AdminIntegrationsPage() {
+  const session = await auth();
+  if (!session || session.kind !== 'company' || !session.user) {
+    redirect('/login');
+  }
+
+  if (!hasMinRole(session.user.role, 'ADMIN')) {
+    redirect('/today');
+  }
+
+  const { id, companyId } = session.user;
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id, companyId },
+    select: { name: true, avatarUrl: true },
+  });
+
+  const userName = dbUser?.name ?? '';
+  const userInitials = computeInitials(userName);
+
   return (
     <>
       <header
@@ -162,7 +192,7 @@ export default function AdminIntegrationsPage() {
         <div className="flex items-center gap-3">
           <IconButton aria-label="Поиск" icon={<SearchIcon />} />
           <NotificationBell />
-          <Avatar initials="АА" size="sm" />
+          <Avatar initials={userInitials} src={dbUser?.avatarUrl ?? undefined} size="sm" />
         </div>
       </header>
 

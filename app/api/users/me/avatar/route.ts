@@ -1,4 +1,4 @@
-import { requirePlatformSession } from '@/lib/platform/auth';
+import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { prisma } from '@/lib/prisma';
 import { deleteAvatar, isS3Configured, uploadAvatar } from '@/lib/s3';
 
@@ -18,9 +18,9 @@ function unauthorizedResponse(error: unknown): Response | null {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  let session;
+  let actor;
   try {
-    session = await requirePlatformSession({ roles: ['MARKETER'] });
+    actor = await requireCompanyUser({ minRole: 'MANAGER' });
   } catch (error) {
     const response = unauthorizedResponse(error);
     if (response) {
@@ -36,7 +36,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const id = session.admin.id;
+  const id = actor.userId;
 
   let formData: FormData;
   try {
@@ -66,15 +66,15 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const current = await prisma.platformAdmin.findUniqueOrThrow({
+    const current = await prisma.user.findUniqueOrThrow({
       where: { id },
       select: { avatarUrl: true },
     });
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const avatarUrl = await uploadAvatar('marketers', id, buffer, file.type, extension);
+    const avatarUrl = await uploadAvatar('users', id, buffer, file.type, extension);
 
-    await prisma.platformAdmin.update({
+    await prisma.user.update({
       where: { id },
       data: { avatarUrl },
     });
@@ -96,9 +96,9 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 export async function DELETE(): Promise<Response> {
-  let session;
+  let actor;
   try {
-    session = await requirePlatformSession({ roles: ['MARKETER'] });
+    actor = await requireCompanyUser({ minRole: 'MANAGER' });
   } catch (error) {
     const response = unauthorizedResponse(error);
     if (response) {
@@ -107,10 +107,10 @@ export async function DELETE(): Promise<Response> {
     throw error;
   }
 
-  const id = session.admin.id;
+  const id = actor.userId;
 
   try {
-    const current = await prisma.platformAdmin.findUniqueOrThrow({
+    const current = await prisma.user.findUniqueOrThrow({
       where: { id },
       select: { avatarUrl: true },
     });
@@ -119,7 +119,7 @@ export async function DELETE(): Promise<Response> {
       await deleteAvatar(current.avatarUrl);
     }
 
-    await prisma.platformAdmin.update({
+    await prisma.user.update({
       where: { id },
       data: { avatarUrl: null },
     });

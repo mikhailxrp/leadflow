@@ -1,70 +1,92 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { PageContent } from '@/components/layout/AppLayout';
 import LogoutButton from '@/components/layout/LogoutButton';
-import IconButton from '@/components/ui/IconButton';
+import NotificationBell from '@/components/notifications/NotificationBell';
 import ContactsSection from '@/components/profile/ContactsSection';
 import PersonalSection from '@/components/profile/PersonalSection';
 import ProfileFooter from '@/components/profile/ProfileFooter';
 import ProfileNotifications from '@/components/profile/ProfileNotifications';
 import ProfileSidebar from '@/components/profile/ProfileSidebar';
 import SecuritySection from '@/components/profile/SecuritySection';
+import type { UserProfileDetail } from '@/types/users';
 
-type DirtyKey = 'personal' | 'contacts' | 'security' | 'notifications';
-
-function BellIcon() {
-  return (
-    <svg
-      className="h-5 w-5 text-[var(--color-text-secondary)]"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={1.75}
-        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-      />
-    </svg>
-  );
+interface ProfileLayoutProps {
+  profile: UserProfileDetail;
 }
 
-export default function ProfileLayout() {
-  const [dirtyFlags, setDirtyFlags] = useState<Record<DirtyKey, boolean>>({
-    personal: false,
-    contacts: false,
-    security: false,
-    notifications: false,
-  });
-  const [resetSignal, setResetSignal] = useState(0);
+interface ProfileFormState {
+  name: string;
+  phone: string;
+  telegram: string;
+  max: string;
+  otherContact: string;
+}
 
-  const handleDirtyChange = useCallback((key: DirtyKey, dirty: boolean) => {
-    setDirtyFlags((prev) => (prev[key] === dirty ? prev : { ...prev, [key]: dirty }));
-  }, []);
+function toFormState(profile: UserProfileDetail): ProfileFormState {
+  return {
+    name: profile.name,
+    phone: profile.phone ?? '',
+    telegram: profile.telegram ?? '',
+    max: profile.max ?? '',
+    otherContact: profile.otherContact ?? '',
+  };
+}
 
-  const isDirty = Object.values(dirtyFlags).some(Boolean);
+export default function ProfileLayout({ profile: initialProfile }: ProfileLayoutProps) {
+  const [profile, setProfile] = useState<UserProfileDetail>(initialProfile);
+  const [form, setForm] = useState<ProfileFormState>(() => toFormState(initialProfile));
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleCancel() {
-    setResetSignal((prev) => prev + 1);
-    setDirtyFlags({
-      personal: false,
-      contacts: false,
-      security: false,
-      notifications: false,
-    });
+  const isDirty = JSON.stringify(form) !== JSON.stringify(toFormState(profile));
+
+  function handleFieldChange<K extends keyof ProfileFormState>(key: K, value: ProfileFormState[K]): void {
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleSave() {
-    setResetSignal((prev) => prev + 1);
-    setDirtyFlags({
-      personal: false,
-      contacts: false,
-      security: false,
-      notifications: false,
-    });
+  function handleCancel(): void {
+    setForm(toFormState(profile));
+    setError(null);
+  }
+
+  async function handleSave(): Promise<void> {
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          phone: form.phone.trim() || null,
+          telegram: form.telegram.trim() || null,
+          max: form.max.trim() || null,
+          otherContact: form.otherContact.trim() || null,
+        }),
+      });
+
+      const data: UserProfileDetail & { error?: string } = await response.json();
+
+      if (!response.ok) {
+        setError(data.error ?? 'Не удалось сохранить профиль');
+        return;
+      }
+
+      setProfile(data);
+      setForm(toFormState(data));
+    } catch (err) {
+      console.error(err);
+      setError('Не удалось сохранить профиль');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function handleAvatarChange(avatarUrl: string | null): void {
+    setProfile((prev) => ({ ...prev, avatarUrl }));
   }
 
   return (
@@ -84,40 +106,41 @@ export default function ProfileLayout() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <IconButton
-            aria-label="Уведомления"
-            icon={<BellIcon />}
-          />
+          <NotificationBell />
           <LogoutButton />
         </div>
       </header>
 
       <PageContent>
         <div className="flex flex-row items-start gap-6">
-          <ProfileSidebar />
+          <ProfileSidebar profile={profile} onAvatarChange={handleAvatarChange} />
 
           <div className="flex flex-1 flex-col gap-4">
             <PersonalSection
-              key={`personal-${resetSignal}`}
-              onDirtyChange={(dirty) => handleDirtyChange('personal', dirty)}
+              name={form.name}
+              onNameChange={(name) => handleFieldChange('name', name)}
             />
             <ContactsSection
-              key={`contacts-${resetSignal}`}
-              onDirtyChange={(dirty) => handleDirtyChange('contacts', dirty)}
+              email={profile.email}
+              phone={form.phone}
+              telegram={form.telegram}
+              max={form.max}
+              otherContact={form.otherContact}
+              onFieldChange={handleFieldChange}
             />
-            <SecuritySection
-              key={`security-${resetSignal}`}
-              onDirtyChange={(dirty) => handleDirtyChange('security', dirty)}
-            />
-            <ProfileNotifications
-              key={`notifications-${resetSignal}`}
-              onDirtyChange={(dirty) => handleDirtyChange('notifications', dirty)}
-            />
+            <SecuritySection />
+            <ProfileNotifications initialPreferences={profile.notificationPreferences} />
           </div>
         </div>
-
-        <ProfileFooter isDirty={isDirty} onCancel={handleCancel} onSave={handleSave} />
       </PageContent>
+
+      <ProfileFooter
+        isDirty={isDirty}
+        isSaving={isSaving}
+        error={error}
+        onCancel={handleCancel}
+        onSave={handleSave}
+      />
     </>
   );
 }

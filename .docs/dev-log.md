@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-07-09 — Фикс «дёрганья» сайдбара + шапка на всю ширину
+
+**Статус:** ✅ Завершено (вне формального роадмапа фаз — багфикс по запросу)
+
+**Проблема 1 (шапка «обрезана» справа):** `app/globals.css` содержал устаревший `html { scrollbar-gutter: stable; }` (со времён шаблона до появления текущего `AppLayout` с вложенным `overflow-auto` в `main`). Прокрутка реально происходит не на `html`, а внутри `PageContent`, поэтому `html`-уровневый гаттер просто резервировал пустую полосу у правого края окна без функции. Убрано.
+
+**Проблема 2 (дёрганье сайдбара при переходах между страницами):** `(app)`, `(management)`, `(admin)` были тремя независимыми route group с ОТДЕЛЬНЫМИ `layout.tsx`, каждый из которых сам оборачивал `children` в `<AppShell>`. Next.js App Router не считает эти layout'ы общими (нет единого родителя, кроме корневого `app/layout.tsx`), поэтому переход, например, `/leads` → `/admin/users` полностью размонтировал и заново монтировал `AppShell`/`Sidebar`/`ThemeProvider`/`SseProvider` — визуально это «дёрганье». Переходы **внутри** одной группы (например `/today` → `/leads`) не дёргались — поэтому баг проявлялся только «на некоторых страницах».
+
+**Фикс:** три группы вложены в новую `app/(company)/layout.tsx` — единственное место, где теперь рендерится `<AppShell>`. `(app)`/`(management)`/`(admin)` остались как папки-группы (для ролевой организации, как задокументировано в `CLAUDE.md`), но без собственных `layout.tsx`. URL не изменились (route groups не создают сегментов пути) — `git mv` папок + `next build` подтвердили идентичное дерево роутов.
+
+**Проверено:** Playwright — DOM-узел `<aside>` (сайдбар) помечен вручную на `/today`, метка пережила клиентские переходы `/today → /team → /admin/integrations` без исчезновения (то есть без remount). `npm run type-check`, `npm run lint`, `npm run build` — чисто (после `rm -rf .next`, так как в кэше остались ссылки на старые пути).
+
+**Definition of Done:** см. `.docs/dod-global.md`.
+
+---
+
 ## Вспомогательные скрипты
 
 Одноразовые/служебные скрипты для ручных операций. Запускаются локально через `tsx`, читают `.env` из корня проекта.
@@ -33,6 +49,39 @@ npx tsx scripts/seedTestApiKey.ts
 # или
 npm run seed:api-key
 ```
+
+---
+
+## 2026-07-09 — Профили пользователей компании (`/profile`) + карточка сотрудника (`/team`)
+
+**Статус:** ✅ Завершено (вне формального роадмапа фаз — доработка по запросу)
+
+**Цель:** Менеджер/Руководитель/Администратор настраивают собственный профиль (ФИО, контакты, аватар, пароль, уведомления) — по образцу уже реализованного self-service профиля маркетолога. Руководитель и Администратор видят список всех сотрудников компании и открывают read-only карточку.
+
+**Что было сделано:**
+
+- Миграция `add_user_profile_fields` — аддитивные поля `User.phone`/`avatarUrl`/`telegram`/`max`/`otherContact` (зеркалят `PlatformAdmin`, кроме `vk`)
+- `lib/s3.ts` (переезд из `lib/platform/s3.ts`) — `uploadAvatar`/`deleteAvatar` получили параметр `namespace: 'marketers' | 'users'`; `app/api/platform/profile/avatar/route.ts` обновлён на новый импорт
+- `lib/users/profile.ts` — `USER_PROFILE_SELECT` + `toUserProfileDetail()`, общий маппинг для `/profile` и `/team/:id`
+- `lib/notifications/preferences.ts` — `parseNotificationPreferences()` (JSON → типизированный объект с дефолтами)
+- `lib/validations/users.ts` — `updateOwnProfileSchema`/`changeOwnPasswordSchema`/`updateNotificationPreferencesSchema`
+- `app/api/users/me/route.ts` (GET/PATCH), `.../avatar/route.ts` (POST/DELETE, S3), `.../password/route.ts` (PATCH, проверка текущего пароля через `comparePassword`), `.../notification-preferences/route.ts` (PATCH) — все на guard'е `requireCompanyUser` (маркетолог отсекается автоматически, у него нет `session.user`)
+- `app/(app)/profile/page.tsx` — Server Component, подключает уже существовавший, но не заинченный шаблон `components/profile/*` (`ProfileLayout`/`PersonalSection`/`ContactsSection`/`SecuritySection`/`ProfileNotifications`/`ProfileSidebar`/`ProfileFooter`) к реальным данным вместо фейковых
+  - `PersonalSection` упрощён с несуществующих `firstName/lastName/displayName` до одного поля `name` (у `User` только одно поле ФИО)
+  - `SecuritySection`: поле «Текущий пароль» было `readOnly` и показывало захардкоженную строку — исправлено на редактируемый инпут (иначе пароль нельзя ввести); реальный вызов `PATCH /api/users/me/password`
+  - `ProfileNotifications`: три тумблера сохраняются немедленно (`PATCH .../notification-preferences`); строка Telegram задизейблена с пометкой «Появится после подключения Telegram-бота» — намеренно не подключена (реальная привязка `chat_id` через бот — Phase 13, а не ручной ввод)
+  - Personal+Contacts объединены в один батч-сейв через общий `ProfileFooter` (Save/Cancel), Security и Notifications сохраняются немедленно собственными действиями — вне общего dirty-трекинга
+- `app/(management)/team/page.tsx` + `.../team/[id]/page.tsx` — список всех сотрудников компании (любая роль) и read-only карточка; `companyId`-скоуп в `findUnique` (`notFound()` при чужой компании); доступ `hasMinRole(role, 'HEAD')`, как `/control`/`/reports`
+- `components/team/TeamTable.tsx` + `TeamMemberDetail.tsx` — новые, без действий редактирования/блокировки (это остаётся на `/admin/users`)
+- `proxy.ts` — добавлены `/profile` (любая роль компании, маркетолог отсекается существующим allow-list) и `/team` (HEAD+) в матчер и проверку роли
+- `constants/navItems.ts` — пункт «Команда» (`/team`, `minRole: 'HEAD'`)
+- `components/layout/Sidebar.tsx` — нижний блок профиля теперь `Link` на `/profile` (когда передан `profileHref`) + реальный аватар вместо только инициалов; `AppShell.tsx` пробрасывает `avatarUrl` и `profileHref="/profile"` для user-ветки (marketer-ветка не получает `profileHref` — ссылки нет)
+
+**Out of scope (сознательно):** Telegram-привязка чата и связанный переключатель (Phase 13); события (`Event`) на изменения профиля/пароля/уведомлений не пишутся — как и у профиля маркетолога, это self-service, а не журналируемое действие; блокировка/смена роли сотрудника из `/team` не добавлялись — это остаётся в `/admin/users`.
+
+**Проверено:** `npm run type-check`, `npm run lint` — без ошибок.
+
+**Definition of Done:** см. `.docs/dod-global.md`.
 
 ---
 

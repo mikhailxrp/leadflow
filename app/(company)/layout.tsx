@@ -1,10 +1,10 @@
 import { type ReactNode } from 'react';
 import AppShell from '@/components/layout/AppShell';
 
-interface AppGroupLayoutProps {
+interface CompanyGroupLayoutProps {
   children: ReactNode;
 }
 
-export default function AppGroupLayout({ children }: AppGroupLayoutProps): ReactNode {
+export default function CompanyGroupLayout({ children }: CompanyGroupLayoutProps): ReactNode {
   return <AppShell>{children}</AppShell>;
 }

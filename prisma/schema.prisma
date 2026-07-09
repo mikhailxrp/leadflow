@@ -150,6 +150,11 @@ model User {
   isBlocked               Boolean   @default(false)
   telegramChatId          String?
   notificationPreferences Json      @default("{}")
+  phone                   String?
+  avatarUrl               String?
+  telegram                String?
+  max                     String?
+  otherContact            String?
   lastLoginAt             DateTime?
   createdAt               DateTime  @default(now())
 
