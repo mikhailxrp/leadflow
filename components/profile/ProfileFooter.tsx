@@ -4,11 +4,19 @@ import Button from '@/components/ui/Button';
 
 interface ProfileFooterProps {
   isDirty: boolean;
+  isSaving?: boolean;
+  error?: string | null;
   onCancel: () => void;
   onSave: () => void;
 }
 
-export default function ProfileFooter({ isDirty, onCancel, onSave }: ProfileFooterProps) {
+export default function ProfileFooter({
+  isDirty,
+  isSaving = false,
+  error,
+  onCancel,
+  onSave,
+}: ProfileFooterProps) {
   if (!isDirty) return null;
 
   return (
@@ -21,18 +29,23 @@ export default function ProfileFooter({ isDirty, onCancel, onSave }: ProfileFoot
       "
     >
       <div className="flex items-center gap-2">
-        <span className="h-2 w-2 shrink-0 rounded-full bg-[#10B981]" aria-hidden="true" />
-        <span className="text-[13px] text-[var(--color-text-secondary)]">
-          Изменения не сохранены
+        <span
+          className={`h-2 w-2 shrink-0 rounded-full ${error ? 'bg-[#DC2626]' : 'bg-[#10B981]'}`}
+          aria-hidden="true"
+        />
+        <span
+          className={`text-[13px] ${error ? 'text-[#DC2626]' : 'text-[var(--color-text-secondary)]'}`}
+        >
+          {error ?? 'Изменения не сохранены'}
         </span>
       </div>
 
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="md" type="button" onClick={onCancel}>
+        <Button variant="ghost" size="md" type="button" disabled={isSaving} onClick={onCancel}>
           Отмена
         </Button>
-        <Button variant="primary" size="md" type="button" onClick={onSave}>
-          Сохранить
+        <Button variant="primary" size="md" type="button" disabled={isSaving} onClick={onSave}>
+          {isSaving ? 'Сохранение…' : 'Сохранить'}
         </Button>
       </div>
     </footer>

@@ -19,6 +19,8 @@ interface SidebarProps {
   items: NavItem[];
   userInitials: string;
   userName: string;
+  userAvatarUrl?: string | null;
+  profileHref?: string;
 }
 
 interface SidebarContentProps {
@@ -26,6 +28,8 @@ interface SidebarContentProps {
   pathname: string;
   userInitials: string;
   userName: string;
+  userAvatarUrl?: string | null;
+  profileHref?: string;
   onNavigate?: () => void;
 }
 
@@ -34,6 +38,8 @@ function SidebarContent({
   pathname,
   userInitials,
   userName,
+  userAvatarUrl,
+  profileHref,
   onNavigate,
 }: SidebarContentProps): ReactNode {
   function isActive(item: NavItem): boolean {
@@ -96,14 +102,27 @@ function SidebarContent({
       </nav>
 
       <div className="border-t border-white/5 p-4">
-        <div
-          aria-label="Профиль пользователя"
-          className="flex items-center gap-2 rounded-[6px] px-2 py-3"
-        >
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#252B3B] text-[12px] font-medium text-white">
-            {userInitials}
-          </div>
-          <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">{userName}</span>
+        <div className="flex items-center gap-2 rounded-[6px] px-2 py-3">
+          {profileHref ? (
+            <Link
+              href={profileHref}
+              onClick={onNavigate}
+              aria-label="Профиль пользователя"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-[6px] transition-colors duration-150 hover:bg-white/[0.06]"
+            >
+              <SidebarAvatar initials={userInitials} avatarUrl={userAvatarUrl} />
+              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">
+                {userName}
+              </span>
+            </Link>
+          ) : (
+            <div aria-label="Профиль пользователя" className="flex min-w-0 flex-1 items-center gap-2">
+              <SidebarAvatar initials={userInitials} avatarUrl={userAvatarUrl} />
+              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">
+                {userName}
+              </span>
+            </div>
+          )}
           <ThemeToggle className="text-[#94A3B8] hover:bg-white/[0.06] hover:text-white" />
         </div>
       </div>
@@ -111,7 +130,33 @@ function SidebarContent({
   );
 }
 
-export default function Sidebar({ items, userInitials, userName }: SidebarProps) {
+function SidebarAvatar({
+  initials,
+  avatarUrl,
+}: {
+  initials: string;
+  avatarUrl?: string | null;
+}): ReactNode {
+  if (avatarUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={avatarUrl}
+        alt=""
+        className="h-8 w-8 flex-shrink-0 rounded-full border border-white/10 object-cover"
+        aria-hidden="true"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#252B3B] text-[12px] font-medium text-white">
+      {initials}
+    </div>
+  );
+}
+
+export default function Sidebar({ items, userInitials, userName, userAvatarUrl, profileHref }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
@@ -127,6 +172,8 @@ export default function Sidebar({ items, userInitials, userName }: SidebarProps)
           pathname={pathname}
           userInitials={userInitials}
           userName={userName}
+          userAvatarUrl={userAvatarUrl}
+          profileHref={profileHref}
         />
       </aside>
 
@@ -149,6 +196,8 @@ export default function Sidebar({ items, userInitials, userName }: SidebarProps)
           pathname={pathname}
           userInitials={userInitials}
           userName={userName}
+          userAvatarUrl={userAvatarUrl}
+          profileHref={profileHref}
           onNavigate={closeMobile}
         />
       </aside>

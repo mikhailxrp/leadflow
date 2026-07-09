@@ -1,46 +1,53 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Input from '@/components/ui/Input';
+import { useState } from 'react';
 import Toggle from '@/components/settings/Toggle';
 import ProfileRow from '@/components/profile/ProfileRow';
 import ProfileSectionCard from '@/components/profile/ProfileSectionCard';
-
-interface NotificationsState {
-  assignedLead: boolean;
-  commentOnLead: boolean;
-  reminders: boolean;
-  telegramEnabled: boolean;
-  telegramChatId: string;
-}
-
-const INITIAL_STATE: NotificationsState = {
-  assignedLead: true,
-  commentOnLead: true,
-  reminders: true,
-  telegramEnabled: false,
-  telegramChatId: '',
-};
+import type { NotificationPreferences } from '@/types/users';
 
 interface ProfileNotificationsProps {
-  onDirtyChange: (dirty: boolean) => void;
+  initialPreferences: NotificationPreferences;
 }
 
-function isStateDirty(state: NotificationsState): boolean {
-  return JSON.stringify(state) !== JSON.stringify(INITIAL_STATE);
-}
+type PreferenceKey = keyof NotificationPreferences;
+
+const PREFERENCE_LABELS: Record<PreferenceKey, string> = {
+  assignedLead: 'Новый лид назначен на меня',
+  commentOnLead: 'Комментарий к моему лиду',
+  reminders: 'Напоминания',
+};
 
 export default function ProfileNotifications({
-  onDirtyChange,
+  initialPreferences,
 }: ProfileNotificationsProps) {
-  const [state, setState] = useState<NotificationsState>(INITIAL_STATE);
+  const [preferences, setPreferences] = useState(initialPreferences);
+  const [pendingKey, setPendingKey] = useState<PreferenceKey | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    onDirtyChange(isStateDirty(state));
-  }, [state, onDirtyChange]);
+  async function handleToggle(key: PreferenceKey, checked: boolean): Promise<void> {
+    const previous = preferences;
+    setPreferences((prev) => ({ ...prev, [key]: checked }));
+    setPendingKey(key);
+    setError(null);
 
-  function update<K extends keyof NotificationsState>(key: K, value: NotificationsState[K]) {
-    setState((prev) => ({ ...prev, [key]: value }));
+    try {
+      const response = await fetch('/api/users/me/notification-preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: checked }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update notification preferences');
+      }
+    } catch (err) {
+      console.error(err);
+      setPreferences(previous);
+      setError('Не удалось сохранить настройку');
+    } finally {
+      setPendingKey(null);
+    }
   }
 
   return (
@@ -49,53 +56,33 @@ export default function ProfileNotifications({
       title="Мои уведомления"
       subtitle="Персональные настройки, перекрывают общие"
     >
-      <ProfileRow label="Новый лид назначен на меня">
-        <div className="flex flex-1 justify-end">
-          <Toggle
-            checked={state.assignedLead}
-            onChange={(checked) => update('assignedLead', checked)}
-            aria-label="Новый лид назначен на меня"
-          />
-        </div>
-      </ProfileRow>
-
-      <ProfileRow label="Комментарий к моему лиду">
-        <div className="flex flex-1 justify-end">
-          <Toggle
-            checked={state.commentOnLead}
-            onChange={(checked) => update('commentOnLead', checked)}
-            aria-label="Комментарий к моему лиду"
-          />
-        </div>
-      </ProfileRow>
-
-      <ProfileRow label="Напоминания">
-        <div className="flex flex-1 justify-end">
-          <Toggle
-            checked={state.reminders}
-            onChange={(checked) => update('reminders', checked)}
-            aria-label="Напоминания"
-          />
-        </div>
-      </ProfileRow>
+      {(Object.keys(PREFERENCE_LABELS) as PreferenceKey[]).map((key) => (
+        <ProfileRow key={key} label={PREFERENCE_LABELS[key]}>
+          <div className="flex flex-1 justify-end">
+            <Toggle
+              checked={preferences[key]}
+              disabled={pendingKey === key}
+              onChange={(checked) => handleToggle(key, checked)}
+              aria-label={PREFERENCE_LABELS[key]}
+            />
+          </div>
+        </ProfileRow>
+      ))}
 
       <ProfileRow label="Уведомления в Telegram">
         <div className="flex flex-1 items-center justify-end gap-3">
-          <div className="w-[160px]">
-            <Input
-              placeholder="Telegram Chat ID"
-              value={state.telegramChatId}
-              disabled={!state.telegramEnabled}
-              onChange={(e) => update('telegramChatId', e.target.value)}
-            />
-          </div>
-          <Toggle
-            checked={state.telegramEnabled}
-            onChange={(checked) => update('telegramEnabled', checked)}
-            aria-label="Уведомления в Telegram"
-          />
+          <span className="text-[11px] text-[var(--color-text-tertiary)]">
+            Появится после подключения Telegram-бота
+          </span>
+          <Toggle checked={false} disabled onChange={() => undefined} aria-label="Уведомления в Telegram" />
         </div>
       </ProfileRow>
+
+      {error && (
+        <p className="px-6 py-2 text-[12px] text-[#DC2626]" role="alert">
+          {error}
+        </p>
+      )}
     </ProfileSectionCard>
   );
 }

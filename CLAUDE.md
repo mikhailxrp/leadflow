@@ -106,21 +106,27 @@
 │   │   └── platform/
 │   │       └── login/page.tsx      # Вход платформенного администратора — отдельная форма
 │   │
-│   ├── (app)/                     # Любой авторизованный пользователь компании
-│   │   ├── today/
-│   │   ├── leads/
-│   │   └── pipeline/
-│   │
-│   ├── (management)/              # HEAD и выше (Руководитель, Администратор)
-│   │   ├── control/                # Счётчик активности менеджеров — НОВОЕ местоположение
-│   │   └── reports/
-│   │
-│   ├── (admin)/admin/             # Только ADMIN
-│   │   ├── users/
-│   │   ├── integrations/
-│   │   ├── pipeline-settings/
-│   │   ├── settings/               # + причины отказа, нормативы эскалации, рабочее время, правила назначения
-│   │   └── import/
+│   ├── (company)/                 # НОВОЕ — общий layout.tsx (единственный <AppShell>) для всех трёх групп ниже.
+│   │   │                          # Раньше каждая из (app)/(management)/(admin) сама оборачивала children в <AppShell>,
+│   │   │                          # из-за чего переход между группами полностью размонтировал Sidebar/AppShell
+│   │   │                          # (визуальное «дёрганье»). Вложенность — только для группировки по роли, без layout.tsx.
+│   │   ├── (app)/                  # Любой авторизованный пользователь компании
+│   │   │   ├── today/
+│   │   │   ├── leads/
+│   │   │   ├── pipeline/
+│   │   │   └── profile/             # Собственный профиль (ФИО/телефон/соцсети/аватар/пароль/уведомления) — self-service, любая роль
+│   │   │
+│   │   ├── (management)/           # HEAD и выше (Руководитель, Администратор)
+│   │   │   ├── control/             # Счётчик активности менеджеров — НОВОЕ местоположение
+│   │   │   ├── reports/
+│   │   │   └── team/                # Список сотрудников + карточка (только просмотр) — HEAD и выше
+│   │   │
+│   │   └── (admin)/admin/          # Только ADMIN
+│   │       ├── users/
+│   │       ├── integrations/
+│   │       ├── pipeline-settings/
+│   │       ├── settings/            # + причины отказа, нормативы эскалации, рабочее время, правила назначения
+│   │       └── import/
 │   │
 │   ├── (platform)/platform/       # Только PlatformAdmin — отдельная сессия; внутри — скоуп по PlatformRole
 │   │   ├── companies/              # Список (скоуп по владению), создание, блокировка, impersonation, гранты
@@ -148,7 +154,7 @@
 │       │   └── leads/
 │       ├── leads/
 │       ├── stages/
-│       ├── users/
+│       ├── users/                   # + me/ (route.ts, avatar/, password/, notification-preferences/) — self-service профиль
 │       ├── settings/
 │       ├── assignment-rules/
 │       ├── loss-reasons/
@@ -172,6 +178,9 @@
 │   ├── notifications/
 │   ├── reminders/
 │   ├── tasks/
+│   ├── users/                     # UsersTable + Add/Edit/DeleteUserModal (/admin/users, ADMIN-only CRUD)
+│   ├── profile/                   # Personal/Contacts/Security/Notifications/Sidebar/Footer — self-service профиль (/profile)
+│   ├── team/                      # TeamTable + TeamMemberDetail — только просмотр (/team, HEAD+)
 │   └── admin/
 │
 ├── lib/
@@ -181,10 +190,13 @@
 │   ├── telegram.ts
 │   ├── events.ts
 │   ├── sse.ts
+│   ├── s3.ts                     # S3-совместимый клиент аватаров (Beget Cloud Storage), общий для маркетолога и пользователей компании — namespace 'marketers' | 'users'
 │   ├── assignLead.ts             # AssignmentRule → assignMode
 │   ├── roundRobin.ts
 │   ├── auth/
 │   │   └── requireCompanyAccess.ts # единый guard company-зоны: hasMinRole ИЛИ allow-list маркетолога
+│   ├── users/
+│   │   └── profile.ts              # toUserProfileDetail + USER_PROFILE_SELECT — общий маппинг для /profile и /team/:id
 │   ├── platform/                  # НОВОЕ
 │   │   ├── auth.ts                 # requirePlatformSession({ roles }) — явный список PlatformRole
 │   │   ├── createCompany.ts        # + createdByPlatformAdminId из сессии
@@ -192,14 +204,15 @@
 │   │   ├── marketerAccess.ts       # токены входа маркетолога внутрь компании
 │   │   ├── companyVisibility.ts    # where-скоупы владения/грантов для обеих платформенных ролей
 │   │   ├── cascadeBlock.ts         # каскадная блокировка/разблокировка компаний маркетолога
-│   │   ├── companyActivity.ts      # отчёты об активности компаний
-│   │   └── s3.ts                   # S3-совместимый клиент (аватары маркетологов, Beget Cloud Storage)
+│   │   └── companyActivity.ts      # отчёты об активности компаний
 │   ├── risk/
 │   │   └── computeRisk.ts
 │   ├── import/
 │   │   ├── parseFile.ts
 │   │   └── runImport.ts
 │   ├── intake/
+│   ├── notifications/
+│   │   └── preferences.ts          # parseNotificationPreferences (JSON → typed) — User.notificationPreferences
 │   ├── reminders/
 │   │   ├── scheduler.ts
 │   │   └── channels/
@@ -338,7 +351,11 @@ export const proxy = auth((req) => {
 	}
 
 	// HEAD и выше
-	if (pathname.startsWith('/control') || pathname.startsWith('/reports')) {
+	if (
+		pathname.startsWith('/control') ||
+		pathname.startsWith('/reports') ||
+		pathname.startsWith('/team')
+	) {
 		if (!hasMinRole(session.user.role, 'HEAD'))
 			return NextResponse.redirect(new URL('/today', req.url));
 	}
@@ -359,6 +376,8 @@ export const config = {
 		'/pipeline/:path*',
 		'/control/:path*',
 		'/reports/:path*',
+		'/team/:path*',
+		'/profile/:path*',
 		'/admin/:path*',
 		'/platform/:path*',
 	],
@@ -368,6 +387,8 @@ export const config = {
 **Почему `(management)` — отдельная группа, а не часть `(admin)`:** «контроль» и «отчёты» — возможности Руководителя, а не Администратора (см. роли выше); если бы они жили под `/admin/`\*, пришлось бы либо открывать туда доступ Руководителю целиком (включая настройки, которые ему не положены), либо разносить проверку роли по каждому файлу внутри одной папки — менее явно, чем разделение на уровне пути.
 
 **API-проверка остаётся defense-in-depth**, не заменяется проверкой в `proxy.ts`: каждый route handler у `/control`, `/reports`, `/admin/`\* повторно проверяет `hasMinRole` сам, на случай прямого вызова API мимо страницы.
+
+**Почему `(app)`/`(management)`/`(admin)` вложены в `(company)`:** это разделение — только для роли/документации ролевого доступа (папка = минимальный порог, как описано выше), но `<AppShell>` (сайдбар, шапка, тема, SSE) должен быть **один и тот же смонтированный компонент** для всех company-страниц, иначе Next.js App Router размонтирует и заново монтирует его при каждом переходе между этими тремя группами (сайдбар видимо «мигает»/«дёргается»). Поэтому `<AppShell>` живёт ровно в одном месте — `app/(company)/layout.tsx`, а у `(app)`/`(management)`/`(admin)` своего `layout.tsx` больше нет: они существуют только как папки-группы без файлов. Не добавляй `layout.tsx` обратно ни в одну из них — это вернёт дёрганье.
 
 ---
 

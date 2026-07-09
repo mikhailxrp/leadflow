@@ -14,6 +14,7 @@ export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
   { label: 'Воронка', icon: 'lucide:kanban', href: '/pipeline', minRole: 'MANAGER' },
   { label: 'Контроль', icon: 'lucide:activity', href: '/control', minRole: 'HEAD' },
   { label: 'Отчёты', icon: 'lucide:bar-chart-2', href: '/reports', minRole: 'HEAD' },
+  { label: 'Команда', icon: 'lucide:users-round', href: '/team', minRole: 'HEAD' },
   { label: 'Интеграции', icon: 'lucide:plug', href: '/admin/integrations', minRole: 'ADMIN' },
   { label: 'Пользователи', icon: 'lucide:user-cog', href: '/admin/users', minRole: 'ADMIN' },
   { label: 'Настройки', icon: 'lucide:settings', href: '/admin/settings', minRole: 'ADMIN' },

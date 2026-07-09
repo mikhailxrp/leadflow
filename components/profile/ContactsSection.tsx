@@ -1,26 +1,21 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
 import Input from '@/components/ui/Input';
 import ProfileRow from '@/components/profile/ProfileRow';
 import ProfileSectionCard from '@/components/profile/ProfileSectionCard';
 
-interface ContactsState {
+type ContactField = 'phone' | 'telegram' | 'max' | 'otherContact';
+
+interface ContactsSectionProps {
   email: string;
   phone: string;
   telegram: string;
   max: string;
-  other: string;
+  otherContact: string;
+  onFieldChange: (field: ContactField, value: string) => void;
 }
-
-const INITIAL_STATE: ContactsState = {
-  email: 'admin@lidkanal.ru',
-  phone: '+7 (999) 123-45-67',
-  telegram: '',
-  max: '',
-  other: '',
-};
 
 function MaxIcon(): ReactNode {
   return (
@@ -29,33 +24,22 @@ function MaxIcon(): ReactNode {
   );
 }
 
-interface ContactsSectionProps {
-  onDirtyChange: (dirty: boolean) => void;
-}
-
-function isStateDirty(state: ContactsState): boolean {
-  return JSON.stringify(state) !== JSON.stringify(INITIAL_STATE);
-}
-
-export default function ContactsSection({ onDirtyChange }: ContactsSectionProps) {
-  const [state, setState] = useState<ContactsState>(INITIAL_STATE);
-
-  useEffect(() => {
-    onDirtyChange(isStateDirty(state));
-  }, [state, onDirtyChange]);
-
-  function update<K extends keyof ContactsState>(key: K, value: ContactsState[K]) {
-    setState((prev) => ({ ...prev, [key]: value }));
-  }
-
+export default function ContactsSection({
+  email,
+  phone,
+  telegram,
+  max,
+  otherContact,
+  onFieldChange,
+}: ContactsSectionProps) {
   return (
     <ProfileSectionCard icon="tabler:address-book" title="Контакты">
       <ProfileRow label="Email">
         <div className="flex-1">
           <Input
             type="email"
-            value={state.email}
-            onChange={(e) => update('email', e.target.value)}
+            value={email}
+            disabled
             icon={<Icon icon="tabler:mail" className="h-4 w-4" />}
           />
         </div>
@@ -65,8 +49,8 @@ export default function ContactsSection({ onDirtyChange }: ContactsSectionProps)
         <div className="flex-1">
           <Input
             type="tel"
-            value={state.phone}
-            onChange={(e) => update('phone', e.target.value)}
+            value={phone}
+            onChange={(e) => onFieldChange('phone', e.target.value)}
             icon={<Icon icon="tabler:phone" className="h-4 w-4" />}
           />
         </div>
@@ -87,8 +71,8 @@ export default function ContactsSection({ onDirtyChange }: ContactsSectionProps)
         <div className="flex-1">
           <Input
             placeholder="@username"
-            value={state.telegram}
-            onChange={(e) => update('telegram', e.target.value)}
+            value={telegram}
+            onChange={(e) => onFieldChange('telegram', e.target.value)}
             icon={<Icon icon="simple-icons:telegram" className="h-4 w-4 text-[#3B82F6]" />}
           />
         </div>
@@ -99,8 +83,8 @@ export default function ContactsSection({ onDirtyChange }: ContactsSectionProps)
           <Input
             type="tel"
             placeholder="+7 (999) 000-00-00"
-            value={state.max}
-            onChange={(e) => update('max', e.target.value)}
+            value={max}
+            onChange={(e) => onFieldChange('max', e.target.value)}
             icon={<MaxIcon />}
           />
         </div>
@@ -110,8 +94,8 @@ export default function ContactsSection({ onDirtyChange }: ContactsSectionProps)
         <div className="flex-1">
           <Input
             placeholder="Ссылка или контакт"
-            value={state.other}
-            onChange={(e) => update('other', e.target.value)}
+            value={otherContact}
+            onChange={(e) => onFieldChange('otherContact', e.target.value)}
             icon={<Icon icon="tabler:message" className="h-4 w-4" />}
           />
         </div>

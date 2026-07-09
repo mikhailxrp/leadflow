@@ -66,8 +66,11 @@ function keyFromPublicUrl(config: S3Config, url: string): string | null {
   return url.slice(base.length);
 }
 
+export type AvatarNamespace = 'marketers' | 'users';
+
 export async function uploadAvatar(
-  marketerId: string,
+  namespace: AvatarNamespace,
+  id: string,
   buffer: Buffer,
   contentType: string,
   extension: string,
@@ -77,7 +80,7 @@ export async function uploadAvatar(
     throw new Error('S3 is not configured');
   }
 
-  const key = `avatars/marketers/${marketerId}/${Date.now()}.${extension}`;
+  const key = `avatars/${namespace}/${id}/${Date.now()}.${extension}`;
   const client = getClient(config);
 
   await client.send(

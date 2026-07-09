@@ -1,34 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Icon } from '@iconify/react';
 import Button from '@/components/ui/Button';
 import PasswordStrength, { calculatePasswordStrength } from '@/components/profile/PasswordStrength';
 import ProfileRow from '@/components/profile/ProfileRow';
 import ProfileSectionCard from '@/components/profile/ProfileSectionCard';
-
-interface SecurityState {
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-}
-
-const INITIAL_STATE: SecurityState = {
-  currentPassword: 'password',
-  newPassword: '',
-  confirmPassword: '',
-};
-
-interface SecuritySectionProps {
-  onDirtyChange: (dirty: boolean) => void;
-}
-
-function isStateDirty(state: SecurityState): boolean {
-  return (
-    state.newPassword !== INITIAL_STATE.newPassword ||
-    state.confirmPassword !== INITIAL_STATE.confirmPassword
-  );
-}
 
 const inputBaseClass = `
   h-[36px] w-full rounded-[6px]
@@ -40,20 +17,63 @@ const inputBaseClass = `
   focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]
 `;
 
-export default function SecuritySection({ onDirtyChange }: SecuritySectionProps) {
-  const [state, setState] = useState<SecurityState>(INITIAL_STATE);
+export default function SecuritySection() {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    onDirtyChange(isStateDirty(state));
-  }, [state, onDirtyChange]);
+  const passwordStrength = calculatePasswordStrength(newPassword);
+  const displayStrength = newPassword ? passwordStrength : 4;
 
-  function update<K extends keyof SecurityState>(key: K, value: SecurityState[K]) {
-    setState((prev) => ({ ...prev, [key]: value }));
+  const canSubmit =
+    currentPassword.length > 0 &&
+    newPassword.length >= 8 &&
+    newPassword === confirmPassword &&
+    !isSaving;
+
+  async function handleChangePassword(): Promise<void> {
+    setError(null);
+    setSuccess(false);
+
+    if (newPassword !== confirmPassword) {
+      setError('Пароли не совпадают');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/users/me/password', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const data: { error?: string } = await response.json();
+
+      if (!response.ok) {
+        setError(
+          data.error === 'INVALID_CURRENT_PASSWORD'
+            ? 'Текущий пароль указан неверно'
+            : 'Не удалось сменить пароль',
+        );
+        return;
+      }
+
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setSuccess(true);
+    } catch (err) {
+      console.error(err);
+      setError('Не удалось сменить пароль');
+    } finally {
+      setIsSaving(false);
+    }
   }
-
-  const passwordStrength = calculatePasswordStrength(state.newPassword);
-  const displayStrength = state.newPassword ? passwordStrength : 4;
 
   return (
     <ProfileSectionCard icon="tabler:lock" title="Безопасность">
@@ -61,8 +81,13 @@ export default function SecuritySection({ onDirtyChange }: SecuritySectionProps)
         <div className="relative flex-1">
           <input
             type={showCurrentPassword ? 'text' : 'password'}
-            value={showCurrentPassword ? state.currentPassword : '••••••••'}
-            readOnly
+            placeholder="Введите текущий пароль"
+            value={currentPassword}
+            onChange={(e) => {
+              setCurrentPassword(e.target.value);
+              setError(null);
+              setSuccess(false);
+            }}
             className={`${inputBaseClass} pr-9`}
           />
           <button
@@ -81,8 +106,12 @@ export default function SecuritySection({ onDirtyChange }: SecuritySectionProps)
           <input
             type="password"
             placeholder="Введите новый пароль"
-            value={state.newPassword}
-            onChange={(e) => update('newPassword', e.target.value)}
+            value={newPassword}
+            onChange={(e) => {
+              setNewPassword(e.target.value);
+              setError(null);
+              setSuccess(false);
+            }}
             className={inputBaseClass}
           />
           <div className="mt-2">
@@ -99,23 +128,36 @@ export default function SecuritySection({ onDirtyChange }: SecuritySectionProps)
           <input
             type="password"
             placeholder="Повторите пароль"
-            value={state.confirmPassword}
-            onChange={(e) => update('confirmPassword', e.target.value)}
+            value={confirmPassword}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              setError(null);
+              setSuccess(false);
+            }}
             className={inputBaseClass}
           />
         </div>
       </ProfileRow>
 
-      <div className="flex justify-end px-6 py-3">
+      <div className="flex items-center justify-between px-6 py-3">
+        <div>
+          {error && (
+            <p className="text-[12px] text-[#DC2626]" role="alert">
+              {error}
+            </p>
+          )}
+          {success && !error && (
+            <p className="text-[12px] text-[#059669]">Пароль изменён</p>
+          )}
+        </div>
         <Button
           variant="secondary"
           size="md"
           type="button"
-          onClick={() => {
-            // TODO: implement password change
-          }}
+          disabled={!canSubmit}
+          onClick={handleChangePassword}
         >
-          Сменить пароль
+          {isSaving ? 'Сохранение…' : 'Сменить пароль'}
         </Button>
       </div>
     </ProfileSectionCard>

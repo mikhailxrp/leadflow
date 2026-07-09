@@ -331,6 +331,11 @@ model User {
   isBlocked               Boolean   @default(false)
   telegramChatId          String?
   notificationPreferences Json      @default("{}")
+  phone                   String?
+  avatarUrl               String?
+  telegram                String?
+  max                     String?
+  otherContact            String?
   lastLoginAt             DateTime?
   createdAt               DateTime  @default(now())
 
@@ -350,6 +355,8 @@ model User {
 ```
 
 `lastLoginAt` обновляется при каждом успешном входе — нужен платформенному администратору для отчёта об активности компаний, не используется в логике внутри компании. Лимита на число пользователей нет — тарифов больше нет.
+
+`phone`/`avatarUrl`/`telegram`/`max`/`otherContact` — self-service профиль пользователя (см. `.docs/modules/admin-users.md` → «Профиль пользователя»), зеркалят одноимённые поля `PlatformAdmin` (кроме `vk`, которого здесь нет). `telegram` — обычный контактный хендл (`@username`), не путать с `telegramChatId` — техническим полем привязки Telegram-бота (Phase 13).
 
 ### `UserPasswordResetToken`
 
