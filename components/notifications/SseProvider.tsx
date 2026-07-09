@@ -55,10 +55,11 @@ export default function SseProvider({
         title: 'Новый лид',
         message: payload.name ?? payload.source,
       });
+      router.refresh();
     };
 
     return () => source.close();
-  }, [addFromSse]);
+  }, [addFromSse, router]);
 
   return (
     <>

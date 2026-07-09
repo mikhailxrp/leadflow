@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Toast from '@/components/ui/Toast';
-import { useNotificationStore } from '@/store/notificationStore';
+import { useNotificationStore, type NotificationItem } from '@/store/notificationStore';
 
 interface NotificationDropdownProps {
   onClose: () => void;
@@ -27,6 +27,7 @@ export default function NotificationDropdown({ onClose }: NotificationDropdownPr
   const items = useNotificationStore((state) => state.items);
   const unreadCount = useNotificationStore((state) => state.unreadCount);
   const markAllRead = useNotificationStore((state) => state.markAllRead);
+  const markItemRead = useNotificationStore((state) => state.markItemRead);
   const router = useRouter();
   const [markingAll, setMarkingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,9 +48,13 @@ export default function NotificationDropdown({ onClose }: NotificationDropdownPr
     }
   }
 
-  function handleItemClick(leadId: string | null): void {
+  function handleItemClick(item: NotificationItem): void {
     onClose();
-    if (leadId) router.push(`/leads/${leadId}`);
+    if (!item.readAt) {
+      markItemRead(item.id);
+      fetch(`/api/notifications/${item.id}/read`, { method: 'POST' }).catch(console.error);
+    }
+    if (item.leadId) router.push(`/leads/${item.leadId}`);
   }
 
   return (
@@ -81,7 +86,7 @@ export default function NotificationDropdown({ onClose }: NotificationDropdownPr
             <button
               key={item.id}
               type="button"
-              onClick={() => handleItemClick(item.leadId)}
+              onClick={() => handleItemClick(item)}
               className="flex w-full flex-col gap-0.5 border-b border-[0.5px] border-[var(--color-border)] px-4 py-3 text-left last:border-b-0 hover:bg-[var(--color-bg-surface-2)]"
             >
               <span className="flex items-center gap-2">

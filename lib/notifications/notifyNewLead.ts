@@ -1,8 +1,9 @@
 import { resolveNewLeadRecipients } from '@/lib/notifications/recipients';
 import { prisma } from '@/lib/prisma';
-import { broadcast } from '@/lib/sse';
+import { broadcastPerUser } from '@/lib/sse';
 
 export type NewLeadBroadcastPayload = {
+  notificationId: string;
   leadId: string;
   name: string | null;
   source: string;
@@ -26,25 +27,38 @@ export async function notifyNewLead(leadId: string, companyId: string): Promise<
   const title = 'Новый лид';
   const body = lead.name ?? lead.source;
 
-  await prisma.notification.createMany({
-    data: recipients.map((recipient) => ({
-      companyId,
-      userId: recipient.userId,
-      type: 'LEAD_CREATED' as const,
-      leadId: lead.id,
-      title,
-      body,
-    })),
-  });
+  const notifications = await prisma.$transaction(
+    recipients.map((recipient) =>
+      prisma.notification.create({
+        data: {
+          companyId,
+          userId: recipient.userId,
+          type: 'LEAD_CREATED' as const,
+          leadId: lead.id,
+          title,
+          body,
+        },
+        select: { id: true, userId: true },
+      }),
+    ),
+  );
 
-  const recipientIds = new Set(recipients.map((recipient) => recipient.userId));
-  const payload: NewLeadBroadcastPayload = {
-    leadId: lead.id,
-    name: lead.name,
-    source: lead.source,
-  };
+  // Каждый получатель — своя строка Notification, свой id; broadcastPerUser даёт каждому
+  // соединению payload именно с ЕГО notificationId, а не общий на всех (иначе клик по
+  // уведомлению, пришедшему через SSE, нечем было бы пометить прочитанным).
+  const payloadByUserId = new Map<string, NewLeadBroadcastPayload>(
+    notifications.map((notification) => [
+      notification.userId,
+      {
+        notificationId: notification.id,
+        leadId: lead.id,
+        name: lead.name,
+        source: lead.source,
+      },
+    ]),
+  );
 
-  broadcast(companyId, payload, (connection) => recipientIds.has(connection.userId));
+  broadcastPerUser(companyId, payloadByUserId);
 
   // Telegram delivery — Phase 13: branches from here after the SSE broadcast above.
 }

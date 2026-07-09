@@ -12,6 +12,7 @@ export interface NotificationItem {
 }
 
 export interface NewLeadSsePayload {
+  notificationId: string;
   leadId: string;
   name: string | null;
   source: string;
@@ -23,6 +24,7 @@ interface NotificationState {
   hydrate: (data: { items: NotificationItem[]; unreadCount: number }) => void;
   addFromSse: (payload: NewLeadSsePayload) => void;
   markAllRead: () => void;
+  markItemRead: (id: string) => void;
 }
 
 export const useNotificationStore = create<NotificationState>((set) => ({
@@ -36,7 +38,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
       unreadCount: state.unreadCount + 1,
       items: [
         {
-          id: `sse-${payload.leadId}-${Date.now()}`,
+          id: payload.notificationId,
           type: 'LEAD_CREATED',
           leadId: payload.leadId,
           title: 'Новый лид',
@@ -55,4 +57,17 @@ export const useNotificationStore = create<NotificationState>((set) => ({
         item.readAt ? item : { ...item, readAt: new Date().toISOString() },
       ),
     })),
+
+  markItemRead: (id) =>
+    set((state) => {
+      const target = state.items.find((item) => item.id === id);
+      if (!target || target.readAt) return state;
+
+      return {
+        unreadCount: Math.max(0, state.unreadCount - 1),
+        items: state.items.map((item) =>
+          item.id === id ? { ...item, readAt: new Date().toISOString() } : item,
+        ),
+      };
+    }),
 }));

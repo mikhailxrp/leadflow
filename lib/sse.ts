@@ -42,6 +42,20 @@ export function broadcast(
   }
 }
 
+/** Как broadcast(), но каждый получатель — свой payload (например, свой Notification.id). */
+export function broadcastPerUser(
+  companyId: string,
+  payloadByUserId: Map<string, unknown>,
+): void {
+  const connections = registry.get(companyId);
+  if (!connections) return;
+
+  for (const connection of connections) {
+    if (!payloadByUserId.has(connection.userId)) continue;
+    connection.send(payloadByUserId.get(connection.userId));
+  }
+}
+
 export function encodeSseMessage(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
 }
