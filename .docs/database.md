@@ -379,6 +379,11 @@ model PlatformAdmin {
   email        String       @unique
   passwordHash String
   name         String
+  phone        String?
+  avatarUrl    String?
+  telegram     String?
+  vk           String?
+  max          String?
   role         PlatformRole @default(SUPER_ADMIN)
   isActive     Boolean      @default(true)
   deletedAt    DateTime?
@@ -390,6 +395,8 @@ model PlatformAdmin {
 ```
 
 Полностью отдельная от `User` сущность — нет `companyId`. С v4.1 несёт платформенную роль (`SUPER_ADMIN`/`MARKETER`, см. Enums — не иерархия). Дефолт `SUPER_ADMIN` сохраняет работу bootstrap-скрипта и существующих записей. Первая запись создаётся одноразовым bootstrap-скриптом при первом деплое (раздел 13), не публичной регистрацией. Дальше суперадмин создаёт следующих суперадминов через `/platform/admins` и маркетологов через `/platform/marketers`.
+
+**Профиль маркетолога:** `phone`/`avatarUrl`/`telegram`/`vk`/`max` — nullable-колонки, добавлены аддитивно (существующие записи получают `null`). `phone` обязателен только на форме создания нового маркетолога (`createMarketerSchema`, заполняет `SUPER_ADMIN`) — это ограничение формы, не БД; ранее созданные маркетологи не бэкофиллятся. Дальнейшее редактирование (`name`/`phone`/`telegram`/`vk`/`max`/аватар) — **только сам маркетолог**, через `PATCH /api/platform/profile` и `POST/DELETE /api/platform/profile/avatar` (оба действуют строго на `session.admin.id`, без `:id` в пути). `SUPER_ADMIN` видит карточку `/platform/marketers/:id` в режиме только чтения — управляет исключительно блокировкой/разблокировкой, не контактными данными. `avatarUrl` — публичный URL объекта в S3-совместимом хранилище (`lib/platform/s3.ts`, см. Environment Variables в `CLAUDE.md`), загрузка — multipart, ручная валидация MIME/размера (не JSON, поэтому не через Zod). `telegram`/`vk`/`max` — свободные строки без формат-проверки, как `Lead.phone` в остальной схеме. Список компаний карточки не хранится отдельно — выводится из `Company.createdByPlatformAdminId` (созданные) и `CompanyAccessGrant.platformAdminId` (гранты).
 
 `isActive = false` — блокировка платформенного пользователя (вход запрещён; для маркетолога — с каскадной блокировкой его компаний). `lastLoginAt` обновляется при входе — нужен для активности маркетологов на `/platform/activity`.
 

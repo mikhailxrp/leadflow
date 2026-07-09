@@ -33,6 +33,13 @@ export const proxy = auth((req) => {
       return NextResponse.redirect(new URL('/platform/companies', req.url));
     }
 
+    if (
+      pathname.startsWith('/platform/profile') &&
+      session.admin.role !== 'MARKETER'
+    ) {
+      return NextResponse.redirect(new URL('/platform/companies', req.url));
+    }
+
     return NextResponse.next();
   }
 

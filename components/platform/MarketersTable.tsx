@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
 import Modal from '@/components/ui/Modal';
@@ -15,6 +16,7 @@ interface MarketersTableProps {
 type FieldErrors = {
   name?: string;
   email?: string;
+  phone?: string;
   password?: string;
 };
 
@@ -37,6 +39,7 @@ export default function MarketersTable({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -49,6 +52,7 @@ export default function MarketersTable({
   function resetModalState(): void {
     setName('');
     setEmail('');
+    setPhone('');
     setPassword('');
     setShowPassword(false);
     setFieldErrors({});
@@ -74,6 +78,7 @@ export default function MarketersTable({
     const parsed = createMarketerSchema.safeParse({
       name: name.trim(),
       email: email.trim(),
+      phone: phone.trim(),
       password,
     });
 
@@ -81,7 +86,12 @@ export default function MarketersTable({
       const nextFieldErrors: FieldErrors = {};
       for (const issue of parsed.error.issues) {
         const field = issue.path[0];
-        if (field === 'name' || field === 'email' || field === 'password') {
+        if (
+          field === 'name' ||
+          field === 'email' ||
+          field === 'phone' ||
+          field === 'password'
+        ) {
           nextFieldErrors[field] = issue.message;
         }
       }
@@ -205,12 +215,13 @@ export default function MarketersTable({
             bg-[var(--color-bg-surface)]
           "
         >
-          <table className="w-full min-w-[820px] text-left">
+          <table className="w-full min-w-[940px] text-left">
             <thead>
               <tr className="border-b border-[0.5px] border-[var(--color-border)]">
                 {[
                   'Имя',
                   'Email',
+                  'Телефон',
                   'Статус',
                   'Компаний создано',
                   'Последний вход',
@@ -242,25 +253,58 @@ export default function MarketersTable({
                     "
                   >
                     <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                      {marketer.name}
+                      <Link
+                        href={`/platform/marketers/${marketer.id}`}
+                        className="block -mx-4 -my-3 px-4 py-3"
+                      >
+                        {marketer.name}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                      {marketer.email}
+                      <Link
+                        href={`/platform/marketers/${marketer.id}`}
+                        className="block -mx-4 -my-3 px-4 py-3"
+                      >
+                        {marketer.email}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
+                      <Link
+                        href={`/platform/marketers/${marketer.id}`}
+                        className="block -mx-4 -my-3 px-4 py-3"
+                      >
+                        {marketer.phone || '—'}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-[13px]">
-                      {marketer.isActive ? (
-                        <span className="text-[#10B981]">Активен</span>
-                      ) : (
-                        <span className="text-[#EF4444]">Заблокирован</span>
-                      )}
+                      <Link
+                        href={`/platform/marketers/${marketer.id}`}
+                        className="block -mx-4 -my-3 px-4 py-3"
+                      >
+                        {marketer.isActive ? (
+                          <span className="text-[#10B981]">Активен</span>
+                        ) : (
+                          <span className="text-[#EF4444]">Заблокирован</span>
+                        )}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                      {marketer.companiesCreated}
+                      <Link
+                        href={`/platform/marketers/${marketer.id}`}
+                        className="block -mx-4 -my-3 px-4 py-3"
+                      >
+                        {marketer.companiesCreated}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                      {formatDate(marketer.lastLoginAt)}
+                      <Link
+                        href={`/platform/marketers/${marketer.id}`}
+                        className="block -mx-4 -my-3 px-4 py-3"
+                      >
+                        {formatDate(marketer.lastLoginAt)}
+                      </Link>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" data-actions="true">
                       <Button
                         type="button"
                         variant={marketer.isActive ? 'danger' : 'secondary'}
@@ -309,6 +353,15 @@ export default function MarketersTable({
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               error={fieldErrors.email}
+            />
+
+            <Input
+              label="Телефон"
+              type="tel"
+              placeholder="+7 900 000-00-00"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              error={fieldErrors.phone}
             />
 
             <div className="flex flex-col gap-1.5">

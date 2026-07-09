@@ -48,12 +48,23 @@ export const platformAdminParamsSchema = z.object({
 export const createMarketerSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(100),
+  phone: z.string().min(1).max(32),
   password: z.string().min(8),
 });
 
 export const updateMarketerSchema = z
   .object({
     isActive: z.boolean(),
+  })
+  .strict();
+
+export const updateMarketerProfileSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    phone: z.string().min(1).max(32).optional(),
+    telegram: z.string().max(100).nullable().optional(),
+    vk: z.string().max(100).nullable().optional(),
+    max: z.string().max(100).nullable().optional(),
   })
   .strict();
 
@@ -136,6 +147,9 @@ export type CreatePlatformAdminInput = z.infer<typeof createPlatformAdminSchema>
 export type PlatformAdminParamsInput = z.infer<typeof platformAdminParamsSchema>;
 export type CreateMarketerInput = z.infer<typeof createMarketerSchema>;
 export type UpdateMarketerInput = z.infer<typeof updateMarketerSchema>;
+export type UpdateMarketerProfileInput = z.infer<
+  typeof updateMarketerProfileSchema
+>;
 export type MarketerParamsInput = z.infer<typeof marketerParamsSchema>;
 export type CreateGrantInput = z.infer<typeof createGrantSchema>;
 export type CompanyGrantParamsInput = z.infer<typeof companyGrantParamsSchema>;

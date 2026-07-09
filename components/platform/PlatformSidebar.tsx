@@ -39,6 +39,12 @@ const NAV_ITEMS = [
     href: '/platform/logs',
     icon: 'tabler:list-details',
   },
+  {
+    label: 'Профиль',
+    href: '/platform/profile',
+    icon: 'tabler:user-circle',
+    marketerOnly: true,
+  },
 ] as const;
 
 function linkClassName(active: boolean): string {
@@ -55,9 +61,15 @@ function linkClassName(active: boolean): string {
 
 export default function PlatformSidebar({ role }: PlatformSidebarProps) {
   const pathname = usePathname();
-  const visibleNavItems = NAV_ITEMS.filter(
-    (item) => !('superAdminOnly' in item) || role === 'SUPER_ADMIN',
-  );
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if ('superAdminOnly' in item && role !== 'SUPER_ADMIN') {
+      return false;
+    }
+    if ('marketerOnly' in item && role !== 'MARKETER') {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <aside className="flex h-screen w-[220px] flex-shrink-0 flex-col bg-[#1A1F2E]">

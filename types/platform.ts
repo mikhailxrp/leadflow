@@ -22,9 +22,33 @@ export type MarketerActivityItem = {
   id: string;
   name: string;
   email: string;
+  phone: string | null;
   isActive: boolean;
   lastLoginAt: string | null;
   companiesCreated: number;
+};
+
+export type MarketerCompanyItem = {
+  id: string;
+  name: string;
+  createdAt: string;
+  isBlocked: boolean;
+};
+
+export type MarketerDetail = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  avatarUrl: string | null;
+  telegram: string | null;
+  vk: string | null;
+  max: string | null;
+  isActive: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  companies: MarketerCompanyItem[];
+  grantedCompanies: MarketerCompanyItem[];
 };
 
 export type CompanyActivityResponse = {
@@ -90,6 +114,7 @@ export type PlatformLogItem = {
   actorLabel: string;
   createdAt: string;
   leadId: string | null;
+  leadLabel: string | null;
   payload: Prisma.JsonValue;
 };
 
