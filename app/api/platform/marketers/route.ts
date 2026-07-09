@@ -31,6 +31,7 @@ export async function GET(): Promise<Response> {
         id: true,
         name: true,
         email: true,
+        phone: true,
         isActive: true,
         lastLoginAt: true,
       },
@@ -55,6 +56,7 @@ export async function GET(): Promise<Response> {
       id: marketer.id,
       name: marketer.name,
       email: marketer.email,
+      phone: marketer.phone,
       isActive: marketer.isActive,
       lastLoginAt: marketer.lastLoginAt?.toISOString() ?? null,
       companiesCreated: companiesCreatedByMarketerId.get(marketer.id) ?? 0,
@@ -103,6 +105,7 @@ export async function POST(request: Request): Promise<Response> {
     const passwordHash = await hashPassword(parsed.data.password);
     const normalizedEmail = parsed.data.email.toLowerCase().trim();
     const trimmedName = parsed.data.name.trim();
+    const trimmedPhone = parsed.data.phone.trim();
 
     const existing = await prisma.platformAdmin.findUnique({
       where: { email: normalizedEmail },
@@ -121,6 +124,7 @@ export async function POST(request: Request): Promise<Response> {
         where: { id: existing.id },
         data: {
           name: trimmedName,
+          phone: trimmedPhone,
           passwordHash,
           role: 'MARKETER',
           isActive: true,
@@ -130,6 +134,7 @@ export async function POST(request: Request): Promise<Response> {
           id: true,
           name: true,
           email: true,
+          phone: true,
           isActive: true,
           lastLoginAt: true,
         },
@@ -139,6 +144,7 @@ export async function POST(request: Request): Promise<Response> {
         id: restored.id,
         name: restored.name,
         email: restored.email,
+        phone: restored.phone,
         isActive: restored.isActive,
         lastLoginAt: restored.lastLoginAt?.toISOString() ?? null,
         companiesCreated: 0,
@@ -151,6 +157,7 @@ export async function POST(request: Request): Promise<Response> {
       data: {
         email: normalizedEmail,
         name: trimmedName,
+        phone: trimmedPhone,
         passwordHash,
         role: 'MARKETER',
       },
@@ -158,6 +165,7 @@ export async function POST(request: Request): Promise<Response> {
         id: true,
         name: true,
         email: true,
+        phone: true,
         isActive: true,
         lastLoginAt: true,
       },
@@ -167,6 +175,7 @@ export async function POST(request: Request): Promise<Response> {
       id: marketer.id,
       name: marketer.name,
       email: marketer.email,
+      phone: marketer.phone,
       isActive: marketer.isActive,
       lastLoginAt: marketer.lastLoginAt?.toISOString() ?? null,
       companiesCreated: 0,

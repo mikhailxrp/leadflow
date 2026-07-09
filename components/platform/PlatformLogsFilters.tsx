@@ -130,7 +130,7 @@ export default function PlatformLogsFilters({
       {role === 'MARKETER' ? (
         <div className="mt-4 border-t border-[0.5px] border-[var(--color-border)] pt-4">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
+            <p className="text-[13px] font-medium text-[var(--color-text-primary)] pl-3">
               Путь лида
             </p>
             <button

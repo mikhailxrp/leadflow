@@ -137,6 +137,17 @@ export default function CompanyDetailPageClient({
   );
   const [isPaymentPending, setIsPaymentPending] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [idCopied, setIdCopied] = useState(false);
+
+  async function handleCopyId(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(company.id);
+      setIdCopied(true);
+      setTimeout(() => setIdCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy company id:', error);
+    }
+  }
 
   async function handleToggleBlock(): Promise<void> {
     const nextBlocked = !company.isBlocked;
@@ -228,7 +239,10 @@ export default function CompanyDetailPageClient({
     company.subscriptionStatus === 'expiring' ||
     company.subscriptionStatus === 'overdue';
 
-  const canImpersonate = viewerRole === 'SUPER_ADMIN' && company.manageable;
+  // Суперадмин видит эту страницу только владея правами (свои компании) либо
+  // получив companyId вручную от маркетолога — второй случай специально не
+  // ограничен company.manageable, иначе «войти по ID» ничего бы не давало.
+  const canImpersonate = viewerRole === 'SUPER_ADMIN';
 
   return (
     <main className="px-6 py-8">
@@ -245,16 +259,35 @@ export default function CompanyDetailPageClient({
       </Link>
 
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-[28px] font-medium tracking-[-0.01em] text-[var(--color-text-primary)]">
-            {company.name}
-          </h1>
-          <CompanyStatusBadge isBlocked={company.isBlocked} />
-          {company.ownedByMarketer ? (
-            <span className="inline-flex rounded-[20px] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-text-secondary)]">
-              Компания маркетолога
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-[28px] font-medium tracking-[-0.01em] text-[var(--color-text-primary)]">
+              {company.name}
+            </h1>
+            <CompanyStatusBadge isBlocked={company.isBlocked} />
+            {company.ownedByMarketer ? (
+              <span className="inline-flex rounded-[20px] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-text-secondary)]">
+                Компания маркетолога
+              </span>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[12px] text-[var(--color-text-secondary)]">
+              ID: {company.id}
             </span>
-          ) : null}
+            <button
+              type="button"
+              onClick={handleCopyId}
+              className="
+                text-[12px] font-medium text-[var(--color-text-secondary)]
+                underline underline-offset-2 transition-colors duration-150
+                hover:text-[var(--color-text-primary)]
+              "
+            >
+              {idCopied ? 'Скопировано' : 'Скопировать'}
+            </button>
+          </div>
         </div>
 
         {company.manageable ? (
