@@ -36,6 +36,38 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-09 — Phase 11.8: Профиль маркетолога (аватар/контакты/компании) + self-service + вход суперадмина по companyId
+
+**Статус:** ✅ Завершено
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` + миграция `add_marketer_profile_fields` — `PlatformAdmin`: + `phone`/`avatarUrl`/`telegram`/`vk`/`max` (nullable, аддитивно, существующие записи целы)
+- `lib/platform/s3.ts` (новый) — тонкий клиент над `@aws-sdk/client-s3` (endpoint/region/bucket из ENV), провайдер-агностичен (Beget Cloud Storage и другие S3-совместимые); `isS3Configured()`, `uploadAvatar()`, `deleteAvatar()`
+- `.env.example` + `CLAUDE.md` (Environment Variables) — `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL_BASE` с описанием каждой переменной
+- `lib/validations/platform.ts` — `createMarketerSchema` требует `phone`; `updateMarketerProfileSchema` (`name?/phone?/telegram?/vk?/max?`)
+- **Разделение прав (правка в рамках сессии):** профиль редактирует только сам маркетолог — `SUPER_ADMIN` получил только просмотр
+  - `GET /api/platform/marketers/:id` — только чтение (профиль + `companies` + `grantedCompanies`); `PATCH /api/platform/marketers/:id` не тронут (только каскадная блокировка)
+  - `PATCH /api/platform/profile` + `POST/DELETE /api/platform/profile/avatar` (новые, `MARKETER`-only, self-service — действуют строго на `session.admin.id`, без `:id` в пути)
+  - Удалены `PATCH /api/platform/marketers/:id/profile` и `POST/DELETE /api/platform/marketers/:id/avatar` (замена self-service вариантом)
+  - `app/(platform)/platform/marketers/[id]/page.tsx` + `MarketerDetailPageClient.tsx` — только просмотр (SUPER_ADMIN)
+  - `app/(platform)/platform/profile/page.tsx` (новый) + `MarketerProfileClient.tsx` (новый) — редактирование + аватар, видно только `MARKETER`
+  - `PlatformSidebar.tsx` — пункт «Профиль» (`marketerOnly`); `proxy.ts` — редирект `SUPER_ADMIN` с `/platform/profile`
+- `MarketersTable.tsx` — кликабельные строки → `/platform/marketers/:id`, колонка «Телефон», обязательное поле «Телефон» в модалке создания
+- `next.config.ts` — `images.remotePatterns` выводится из `S3_PUBLIC_URL_BASE`
+- **Вход суперадмина в компанию маркетолога по вручную предоставленному `companyId`** (донастройка существующего намерения из `platform-marketer.md`, раздел «Архитектурное решение 4»):
+  - `CompanyDetailPageClient.tsx` — `canImpersonate` теперь проверяет только `viewerRole === 'SUPER_ADMIN'`, не `company.manageable` (тот остаётся только для блокировки/даты платежа/грантов, не для входа как поддержка)
+  - Добавлено поле «ID компании» с кнопкой «Скопировать» на карточке компании — маркетолог копирует id и передаёт суперадмину вне системы; вход — через существующую форму «Войти в компанию по ID» на `/platform/companies`
+- Документация: `.docs/database.md`, `.docs/modules/platform-marketer.md`, `CLAUDE.md` (дерево приложения + AI Rules) — обновлены под self-service-модель и под явное разрешение impersonation независимо от `manageable`
+
+**Out of scope (не делалось):** кадрирование/ресайз аватара на клиенте; удаление объекта из S3 при полном удалении маркетолога; presigned direct-upload с клиента; смена email маркетолога.
+
+**Проверено:** `npm run type-check`, `npm run lint` — без ошибок; `npm run build` пройден на промежуточном этапе (до финальной правки прав редактирования — далее проверено `type-check`/`lint`, дев-сервер компилируется без ошибок).
+
+**Definition of Done:** выполнено полностью
+
+---
+
 ## 2026-07-09 — Phase 11.7, Таск 2: UI `/platform/logs`: filter-first + таблица + пагинация + «путь лида» + пункт сайдбара
 
 **Статус:** ✅ Завершён

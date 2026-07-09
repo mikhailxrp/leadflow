@@ -63,6 +63,28 @@ function resolveActorLabel(
   return 'Система';
 }
 
+function formatLeadLabel(lead: {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+}): string {
+  const parts = [lead.name, lead.phone, lead.email].filter(
+    (part): part is string => Boolean(part),
+  );
+  return parts.length > 0 ? parts.join(' · ') : 'Без имени';
+}
+
+function resolveLeadLabel(
+  leadId: string | null,
+  leadLabelById: Map<string, string>,
+): string | null {
+  if (!leadId) {
+    return null;
+  }
+
+  return leadLabelById.get(leadId) ?? 'Лид удалён';
+}
+
 export type GetCompanyLogsParams = {
   admin: PlatformAdminIdentity;
   companyId: string;
@@ -129,6 +151,25 @@ export async function getCompanyLogs({
 
   const userNameById = new Map(users.map((user) => [user.id, user.name]));
 
+  const leadIds = Array.from(
+    new Set(
+      pageEvents
+        .map((event) => event.leadId)
+        .filter((id): id is string => id !== null),
+    ),
+  );
+
+  const leads = leadIds.length
+    ? await prisma.lead.findMany({
+        where: { id: { in: leadIds }, companyId },
+        select: { id: true, name: true, phone: true, email: true },
+      })
+    : [];
+
+  const leadLabelById = new Map(
+    leads.map((lead) => [lead.id, formatLeadLabel(lead)]),
+  );
+
   const items: PlatformLogItem[] = pageEvents.map((event) => ({
     id: event.id,
     type: event.type,
@@ -136,6 +177,7 @@ export async function getCompanyLogs({
     actorLabel: resolveActorLabel(event, userNameById),
     createdAt: event.createdAt.toISOString(),
     leadId: event.leadId,
+    leadLabel: resolveLeadLabel(event.leadId, leadLabelById),
     payload: event.payload,
   }));
 

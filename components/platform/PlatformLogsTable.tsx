@@ -130,14 +130,14 @@ export default function PlatformLogsTable({
     <div>
       <div
         className={`
-          overflow-x-auto rounded-[14px]
+          custom-scrollbar max-h-[560px] overflow-y-auto overflow-x-auto rounded-[14px]
           border border-[0.5px] border-[var(--color-border)]
           bg-[var(--color-bg-surface)]
           ${isLoading ? 'opacity-60' : ''}
         `}
       >
         <table className="w-full min-w-[700px] text-left">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-[var(--color-bg-surface)]">
             <tr className="border-b border-[0.5px] border-[var(--color-border)]">
               {['Дата', 'Событие', 'Актор', 'Лид'].map((header) => (
                 <th
@@ -171,8 +171,8 @@ export default function PlatformLogsTable({
                 <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
                   {item.actorLabel}
                 </td>
-                <td className="px-4 py-3 font-mono text-[12px] text-[var(--color-text-secondary)]">
-                  {item.leadId ? `${item.leadId.slice(0, 8)}…` : '—'}
+                <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
+                  {item.leadLabel ?? '—'}
                 </td>
               </tr>
             ))}

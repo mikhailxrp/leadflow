@@ -186,6 +186,11 @@ model PlatformAdmin {
   email        String       @unique
   passwordHash String
   name         String
+  phone        String?
+  avatarUrl    String?
+  telegram     String?
+  vk           String?
+  max          String?
   role         PlatformRole @default(SUPER_ADMIN)
   isActive     Boolean      @default(true)
   deletedAt    DateTime?
