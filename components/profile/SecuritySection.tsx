@@ -1,14 +1,16 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Icon } from '@iconify/react';
-import Button from '@/components/ui/Button';
-import PasswordStrength, { calculatePasswordStrength } from '@/components/profile/PasswordStrength';
-import ProfileRow from '@/components/profile/ProfileRow';
-import ProfileSectionCard from '@/components/profile/ProfileSectionCard';
+import { useState } from "react";
+import { Icon } from "@iconify/react";
+import Button from "@/components/ui/Button";
+import PasswordStrength, {
+  calculatePasswordStrength,
+} from "@/components/profile/PasswordStrength";
+import ProfileRow from "@/components/profile/ProfileRow";
+import ProfileSectionCard from "@/components/profile/ProfileSectionCard";
 
 const inputBaseClass = `
-  h-[36px] w-full rounded-[6px]
+  h-[36px] w-full rounded-[6px] pl-3
   border-[0.5px] border-[var(--color-border)]
   bg-[var(--color-bg-surface)]
   text-[14px] text-[var(--color-text-primary)]
@@ -18,9 +20,9 @@ const inputBaseClass = `
 `;
 
 export default function SecuritySection() {
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,15 +42,15 @@ export default function SecuritySection() {
     setSuccess(false);
 
     if (newPassword !== confirmPassword) {
-      setError('Пароли не совпадают');
+      setError("Пароли не совпадают");
       return;
     }
 
     setIsSaving(true);
     try {
-      const response = await fetch('/api/users/me/password', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/users/me/password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 
@@ -56,20 +58,20 @@ export default function SecuritySection() {
 
       if (!response.ok) {
         setError(
-          data.error === 'INVALID_CURRENT_PASSWORD'
-            ? 'Текущий пароль указан неверно'
-            : 'Не удалось сменить пароль',
+          data.error === "INVALID_CURRENT_PASSWORD"
+            ? "Текущий пароль указан неверно"
+            : "Не удалось сменить пароль",
         );
         return;
       }
 
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
       setSuccess(true);
     } catch (err) {
       console.error(err);
-      setError('Не удалось сменить пароль');
+      setError("Не удалось сменить пароль");
     } finally {
       setIsSaving(false);
     }
@@ -80,7 +82,7 @@ export default function SecuritySection() {
       <ProfileRow label="Текущий пароль">
         <div className="relative flex-1">
           <input
-            type={showCurrentPassword ? 'text' : 'password'}
+            type={showCurrentPassword ? "text" : "password"}
             placeholder="Введите текущий пароль"
             value={currentPassword}
             onChange={(e) => {
@@ -94,7 +96,9 @@ export default function SecuritySection() {
             type="button"
             onClick={() => setShowCurrentPassword((prev) => !prev)}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] transition-colors duration-150 hover:text-[var(--color-text-secondary)]"
-            aria-label={showCurrentPassword ? 'Скрыть пароль' : 'Показать пароль'}
+            aria-label={
+              showCurrentPassword ? "Скрыть пароль" : "Показать пароль"
+            }
           >
             <Icon icon="tabler:eye" className="h-4 w-4" />
           </button>
@@ -157,7 +161,7 @@ export default function SecuritySection() {
           disabled={!canSubmit}
           onClick={handleChangePassword}
         >
-          {isSaving ? 'Сохранение…' : 'Сменить пароль'}
+          {isSaving ? "Сохранение…" : "Сменить пароль"}
         </Button>
       </div>
     </ProfileSectionCard>
