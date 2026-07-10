@@ -4,22 +4,6 @@
 
 ---
 
-## 2026-07-09 — Фикс «дёрганья» сайдбара + шапка на всю ширину
-
-**Статус:** ✅ Завершено (вне формального роадмапа фаз — багфикс по запросу)
-
-**Проблема 1 (шапка «обрезана» справа):** `app/globals.css` содержал устаревший `html { scrollbar-gutter: stable; }` (со времён шаблона до появления текущего `AppLayout` с вложенным `overflow-auto` в `main`). Прокрутка реально происходит не на `html`, а внутри `PageContent`, поэтому `html`-уровневый гаттер просто резервировал пустую полосу у правого края окна без функции. Убрано.
-
-**Проблема 2 (дёрганье сайдбара при переходах между страницами):** `(app)`, `(management)`, `(admin)` были тремя независимыми route group с ОТДЕЛЬНЫМИ `layout.tsx`, каждый из которых сам оборачивал `children` в `<AppShell>`. Next.js App Router не считает эти layout'ы общими (нет единого родителя, кроме корневого `app/layout.tsx`), поэтому переход, например, `/leads` → `/admin/users` полностью размонтировал и заново монтировал `AppShell`/`Sidebar`/`ThemeProvider`/`SseProvider` — визуально это «дёрганье». Переходы **внутри** одной группы (например `/today` → `/leads`) не дёргались — поэтому баг проявлялся только «на некоторых страницах».
-
-**Фикс:** три группы вложены в новую `app/(company)/layout.tsx` — единственное место, где теперь рендерится `<AppShell>`. `(app)`/`(management)`/`(admin)` остались как папки-группы (для ролевой организации, как задокументировано в `CLAUDE.md`), но без собственных `layout.tsx`. URL не изменились (route groups не создают сегментов пути) — `git mv` папок + `next build` подтвердили идентичное дерево роутов.
-
-**Проверено:** Playwright — DOM-узел `<aside>` (сайдбар) помечен вручную на `/today`, метка пережила клиентские переходы `/today → /team → /admin/integrations` без исчезновения (то есть без remount). `npm run type-check`, `npm run lint`, `npm run build` — чисто (после `rm -rf .next`, так как в кэше остались ссылки на старые пути).
-
-**Definition of Done:** см. `.docs/dod-global.md`.
-
----
-
 ## Вспомогательные скрипты
 
 Одноразовые/служебные скрипты для ручных операций. Запускаются локально через `tsx`, читают `.env` из корня проекта.
@@ -49,6 +33,99 @@ npx tsx scripts/seedTestApiKey.ts
 # или
 npm run seed:api-key
 ```
+
+---
+
+## 2026-07-10 — Phase 13, Таск 3: UI привязки Telegram + admin-тумблер `telegramEnabled` + доки
+
+**Статус:** ✅ Завершён (код и статические проверки; живая проверка через бота — не проводилась)
+
+**Что было сделано:**
+
+- `components/notifications/TelegramBindButton.tsx` (новый) — Client Component: проп `connected`; «Подключить» → `POST /api/telegram/bind` + открытие `deepLink`; «Отключить» → `DELETE /api/telegram/bind` + `router.refresh()`; состояние привязки только из серверного пропса
+- `components/profile/ProfileNotifications.tsx` — удалена мёртвая disabled-строка «Уведомления в Telegram» / «Появится после подключения…»; вместо неё строка «Telegram-бот» с `TelegramBindButton`; три тумблера prefs (`assignedLead`/`commentOnLead`/`reminders`) без изменений — `assignedLead` остаётся реальным гейтом Telegram-доставки
+- `lib/users/profile.ts` + `types/users.ts` — `telegramChatId` в `USER_PROFILE_SELECT`, наружу только производный `telegramConnected: boolean` (общий маппинг для `/profile` и `/team/:id`, сырой `chatId` клиенту не уходит)
+- `components/profile/ProfileLayout.tsx` — проброс `telegramConnected={profile.telegramConnected}` в `<ProfileNotifications>`
+- `components/settings/NotificationsSection.tsx` — переписан: убраны моки (`newLead`/`assignedToMe`/ручной `telegramChatId`-инпут) и `onDirtyChange`; один тумблер «Telegram-уведомления для компании», немедленный `PATCH /api/settings` по паттерну `AssignModeSection` (свой `useState` + Toast, откат при ошибке)
+- `components/settings/SettingsClientArea.tsx` — `NotificationsSection` убран из батч-сохранения; ключ `'notifications'` удалён из `DirtyKey` и обоих объектов `dirtyFlags`
+- `app/(company)/(admin)/admin/settings/page.tsx` — `readTelegramEnabled(settings)` + `<NotificationsSection initialTelegramEnabled={...} />` вне `SettingsDirtyProvider`, рядом с `AssignModeSection`
+- `lib/validations/settings.ts` — `telegramEnabled: z.boolean().optional()`; `.refine` обобщён на «хотя бы одно из `assignMode`/`telegramEnabled`» (одиночный `PATCH { telegramEnabled }` больше не отклоняется)
+- `CLAUDE.md` — env `TELEGRAM_BOT_USERNAME`/`TELEGRAM_WEBHOOK_SECRET` + заметка о ручном `setWebhook` (ops-шаг, как crontab Phase 1)
+- `.docs/modules/admin-users.md` — строка Telegram в профиле: кнопка привязки + гейт через `assignedLead`, без формулировки «появится в Phase 13»
+- `.docs/modules/notifications.md` — `NotificationPreferences` как типизированный объект (не `disabledTypes[]`); аудитория Telegram нового лида = только назначенный менеджер; scope Phase 13 = операционная доставка нового лида
+- `.docs/phases/phase-13.md` + `.docs/phases/_status.md` — таск 3 ✅, фаза 13 ✅ Завершено (2026-07-10)
+
+**Out of scope (не делалось):** статус привязки на `/team/:id` (поле в типе есть, UI карточки не расширяли); `RemindersSection`/`SecuritySection` в `/admin/settings` — моки не трогали; управленческие алерты — Phase 17; живые Telegram-триггеры `commentOnLead`/`reminders` — вне scope.
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; нет `any`. Живой e2e (`/profile` deep-link + `/start` в боте, `/admin/settings` тумблер + reload) — **не проводился** в этой сессии (нет доступа к реальному боту/браузеру); проверить руками на dev-окружении.
+
+**Definition of Done:** выполнено полностью по коду и статическим проверкам; пункты DoD с ручным обходом UI в браузере — на стороне поставщика
+
+---
+
+## 2026-07-10 — Phase 13, Таск 2: Привязка Telegram-аккаунта (миграция + bind + webhook)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` + миграция `20260710051201_phase_13_telegram_bind` — `User.telegramBindTokenHash` (`@unique`) + `telegramBindTokenExpiresAt`; создана вручную (`prisma migrate dev` недоступен в неинтерактивном окружении — сгенерирован SQL через `prisma migrate diff --from-url ... --to-schema-datamodel`, применён через `prisma migrate deploy`)
+- `lib/telegram/bindToken.ts` (новый) — `createBindToken`/`resolveBindToken`, переиспользуют `generateToken`/`hashToken` из `lib/tokens.ts` (тот же паттерн, что и `passwordReset.ts`); резолв — один атомарный `$queryRaw` `UPDATE ... WHERE hash AND expiresAt RETURNING id` (не read-then-clear — исключает гонку повторного использования токена)
+- `lib/validations/telegram.ts` (новый) — Zod для тела Telegram-вебхука + `extractStartToken()`
+- `app/api/telegram/bind/route.ts` (новый) — `POST`/`DELETE`, guard `requireCompanyUser({ minRole: 'MANAGER' })`
+- `app/api/telegram/webhook/route.ts` (новый) — `POST` без сессии, секрет `X-Telegram-Bot-Api-Secret-Token`, всегда `200` на бизнес-провал (просрочен/неизвестен токен), `401` только на неверный секрет
+- `.docs/database.md` — задокументированы новые поля `User`
+
+**Найденный и исправленный баг (обнаружен только на живом прогоне, не типами/линтом):** атомарный `UPDATE` в `resolveBindToken` изначально сравнивал `telegramBindTokenExpiresAt > NOW()`. `telegramBindTokenExpiresAt` — наивная колонка `timestamp(3)` (Prisma пишет туда UTC-эквивалент без TZ), а `NOW()` — `timestamptz`; Postgres приводит `timestamptz` к `timestamp` через **timezone сессии**, а не UTC. Сессия dev-БД — `Etc/GMT-3` (UTC+3), из-за чего `NOW()`, приведённый к naive, оказывался на 3 часа позже реального UTC — валидный токен (TTL 15 мин) ошибочно считался просроченным всегда. Вебхук при этом отвечал `200 {"ok":true}` в обоих случаях (успех/провал — намеренно одинаковый ответ, см. риск в `TASK.md`), поэтому баг не был виден по HTTP-ответу — только по факту, что `telegramChatId` в БД не менялся. Исправлено: `AND "telegramBindTokenExpiresAt" > (NOW() AT TIME ZONE 'UTC')`. Проверено, что связывание JS `Date` как параметра вместо `NOW()` **не** решает проблему (тот же наивный каст на стороне Postgres) — рабочий фикс только через `AT TIME ZONE 'UTC'` в самом SQL.
+
+**Out of scope (не делалось):** UI привязки, admin-тумблер `telegramEnabled`, `CLAUDE.md`/`admin-users.md` доки — таск 3.
+
+**Проверено:** `npm run type-check`, `npm run lint` — без ошибок. Живой e2e на dev-БД через реальный HTTP-сервер (`next dev`) и реальные сессии:
+
+- `POST /api/telegram/bind` без сессии → `401`; с сессией `test-manager@test.ru` (MANAGER) → `200` + `deepLink`, хэш+TTL записаны в БД
+- `POST /api/telegram/webhook` без секрета / с неверным секретом → `401` (дважды); с верным секретом + `/start <token>` → `200`, `telegramChatId` проставлен, bind-поля обнулены
+- Повторный вызов с тем же (уже использованным) токеном и другим `chat.id` → `200`, но `telegramChatId` **не изменился** — одноразовость подтверждена на живой БД
+- `DELETE /api/telegram/bind` → `200`, `telegramChatId` очищен; без сессии → `401`
+- Marketer-сессия на `POST /api/telegram/bind` — не проверена вживую (у доступного dev-фикстуры маркетолога `kordont@yandex.ru` нет видимости/гранта на тестовую компанию, `POST /api/platform/companies/:id/marketer-access` → `404`); опирается на то, что `requireCompanyUser` — тот же guard, что уже проверен вживую с реальной marketer-сессией в Phase 12 таск 3 (`/api/notifications/*` → `403`)
+
+Тестовые артефакты (bind-токен, `telegramChatId`, временные `.env`-записи `TELEGRAM_WEBHOOK_SECRET`/`TELEGRAM_BOT_USERNAME`, dev-сервер) удалены/остановлены после проверки. Пароль `test-manager@test.ru` восстановлен на значение из предыдущей сессии (Phase 12); пароль `kordont@yandex.ru` (уже была dev-фикстура с заранее известным паролем — см. запись Phase 12 таск 3) переустановлен на новое известное значение, не восстановлен к прежнему (не был сохранён перед сбросом) — не проблема, аккаунт тестовый, не прод.
+
+**Definition of Done:** выполнено полностью
+
+---
+
+## 2026-07-10 — Phase 13, Таск 1: Telegram-канал + доставка нового лида назначенному менеджеру
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/telegram.ts` — реализован `sendTelegramMessage(chatId, text)`: Bot API `sendMessage` без `parse_mode` (plain text), весь сетевой I/O в try/catch, graceful no-op при пустом `TELEGRAM_BOT_TOKEN` (лог, не throw), возвращает `boolean`
+- `constants/telegramTemplates.ts` (новый) — типизированный реестр шаблонов; в этой фазе — `newLeadForManager({ name, source })` → строка; форма реестра рассчитана на управленческие шаблоны Phase 17
+- `lib/notifications/notifyManager.ts` (новый) — операционный алерт конкретному `User`: тройной гейт (`Company.settings.telegramEnabled` + `telegramChatId` + личная настройка `assignedLead` через `parseNotificationPreferences`) → `sendTelegramMessage`; провал любого условия — тихий выход; ключ алерта `'NEW_LEAD'` — отдельный словарь, не `EventType`/`Notification.type`; локальный `getTelegramEnabled()` читает JSONB с дефолтом из `DEFAULT_COMPANY_SETTINGS`
+- `lib/notifications/notifyNewLead.ts` — Telegram-ветка **после** `broadcastPerUser(...)`: если `lead.assignedToId` задан — отдельный запрос `prisma.user.findFirst({ where: { id, companyId } })` и `notifyManager(assignee, 'NEW_LEAD', { name, source })`; аудитория Telegram не переиспользует широкий SSE-набор `recipients` (HEAD/ADMIN не спамятся)
+
+**Out of scope (не делалось):** миграция `telegramBindTokenHash`/`telegramBindTokenExpiresAt`, `POST/DELETE /api/telegram/bind`, `POST /api/telegram/webhook` — таск 2; UI привязки (`TelegramBindButton`), активация строки «Уведомления в Telegram» в `ProfileNotifications`, admin-тумблер `telegramEnabled` в `/admin/settings`, env/доки — таск 3; управленческие алерты (`ASSIGNMENT_FAILED`, эскалация, зависшие лиды) — Phase 17; доставка комментариев и напоминаний в Telegram — вне scope.
+
+**Проверено:** `npm run type-check` — без ошибок; нет `any`. Живая отправка в Telegram не проверялась — для e2e нужны таск 2 (привязка `chat_id`) и таск 3 (тумблер `telegramEnabled` + UI).
+
+**Definition of Done:** выполнено полностью
+
+---
+
+## 2026-07-09 — Фикс «дёрганья» сайдбара + шапка на всю ширину
+
+**Статус:** ✅ Завершено (вне формального роадмапа фаз — багфикс по запросу)
+
+**Проблема 1 (шапка «обрезана» справа):** `app/globals.css` содержал устаревший `html { scrollbar-gutter: stable; }` (со времён шаблона до появления текущего `AppLayout` с вложенным `overflow-auto` в `main`). Прокрутка реально происходит не на `html`, а внутри `PageContent`, поэтому `html`-уровневый гаттер просто резервировал пустую полосу у правого края окна без функции. Убрано.
+
+**Проблема 2 (дёрганье сайдбара при переходах между страницами):** `(app)`, `(management)`, `(admin)` были тремя независимыми route group с ОТДЕЛЬНЫМИ `layout.tsx`, каждый из которых сам оборачивал `children` в `<AppShell>`. Next.js App Router не считает эти layout'ы общими (нет единого родителя, кроме корневого `app/layout.tsx`), поэтому переход, например, `/leads` → `/admin/users` полностью размонтировал и заново монтировал `AppShell`/`Sidebar`/`ThemeProvider`/`SseProvider` — визуально это «дёрганье». Переходы **внутри** одной группы (например `/today` → `/leads`) не дёргались — поэтому баг проявлялся только «на некоторых страницах».
+
+**Фикс:** три группы вложены в новую `app/(company)/layout.tsx` — единственное место, где теперь рендерится `<AppShell>`. `(app)`/`(management)`/`(admin)` остались как папки-группы (для ролевой организации, как задокументировано в `CLAUDE.md`), но без собственных `layout.tsx`. URL не изменились (route groups не создают сегментов пути) — `git mv` папок + `next build` подтвердили идентичное дерево роутов.
+
+**Проверено:** Playwright — DOM-узел `<aside>` (сайдбар) помечен вручную на `/today`, метка пережила клиентские переходы `/today → /team → /admin/integrations` без исчезновения (то есть без remount). `npm run type-check`, `npm run lint`, `npm run build` — чисто (после `rm -rf .next`, так как в кэше остались ссылки на старые пути).
+
+**Definition of Done:** см. `.docs/dod-global.md`.
 
 ---
 
@@ -1063,7 +1140,7 @@ npm run seed:api-key
 
 **Что было реализовано в рамках `TASK.md`:**
 
-- `constants/fieldAliases.ts` — карта `FIELD_ALIASES` (name/имя/фио, phone/телефон/tel, email/e-mail/почта, comment/комментарий/сообщение и др.); набор `MARKETING_FIELDS` (gclid, yclid, fbclid, roistat, _ym_uid и др.) для `Lead.marketing`
+- `constants/fieldAliases.ts` — карта `FIELD_ALIASES` (name/имя/фио, phone/телефон/tel, email/e-mail/почта, comment/комментарий/сообщение и др.); набор `MARKETING_FIELDS` (gclid, yclid, fbclid, roistat, \_ym_uid и др.) для `Lead.marketing`
 - `lib/intake/parseBody.ts` — server-side lib: разбор тела запроса (JSON, `application/x-www-form-urlencoded`, `multipart/form-data`, fallback raw text → JSON → url-encoded); не бросает исключение — возвращает `Record<string, unknown>` или `{}`
 - `lib/intake/normalizeLead.ts` — server-side lib: `normalizeLead(raw, source)` → `NormalizedLead`; регистронезависимый маппинг через `FIELD_ALIASES`; `utm_*` → `utm`; маркетинговые поля → `marketing`; остальное → `customFields` с оригинальным ключом; пустые значения стандартных полей → `null`; первое распознанное значение побеждает при дублях алиасов
 - `lib/intake/createLead.ts` — server-side lib: `createLead(raw, source, companyId)`; `stageId` через `pipelineStage.findFirst({ where: { companyId }, orderBy: { order: 'asc' } })`; `prisma.$transaction`: `tx.lead.create(...)` + `tx.event.create({ type: 'LEAD_CREATED', ... })`; `assignedToId: null`; без `writeEvent` внутри транзакции

@@ -129,7 +129,10 @@ export default function ProfileLayout({ profile: initialProfile }: ProfileLayout
               onFieldChange={handleFieldChange}
             />
             <SecuritySection />
-            <ProfileNotifications initialPreferences={profile.notificationPreferences} />
+            <ProfileNotifications
+              initialPreferences={profile.notificationPreferences}
+              telegramConnected={profile.telegramConnected}
+            />
           </div>
         </div>
       </PageContent>

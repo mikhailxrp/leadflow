@@ -141,22 +141,24 @@ model Company {
 }
 
 model User {
-  id                      String    @id @default(cuid())
-  companyId               String
-  email                   String    @unique
-  passwordHash            String
-  name                    String
-  role                    UserRole  @default(MANAGER)
-  isBlocked               Boolean   @default(false)
-  telegramChatId          String?
-  notificationPreferences Json      @default("{}")
-  phone                   String?
-  avatarUrl               String?
-  telegram                String?
-  max                     String?
-  otherContact            String?
-  lastLoginAt             DateTime?
-  createdAt               DateTime  @default(now())
+  id                         String    @id @default(cuid())
+  companyId                  String
+  email                      String    @unique
+  passwordHash               String
+  name                       String
+  role                       UserRole  @default(MANAGER)
+  isBlocked                  Boolean   @default(false)
+  telegramChatId             String?
+  telegramBindTokenHash      String?   @unique
+  telegramBindTokenExpiresAt DateTime?
+  notificationPreferences    Json      @default("{}")
+  phone                      String?
+  avatarUrl                  String?
+  telegram                   String?
+  max                        String?
+  otherContact               String?
+  lastLoginAt                DateTime?
+  createdAt                  DateTime  @default(now())
 
   company             Company                  @relation(fields: [companyId], references: [id])
   assignedLeads       Lead[]                   @relation("AssignedManager")

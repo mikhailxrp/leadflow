@@ -24,6 +24,7 @@ export type UserProfileDetail = {
   otherContact: string | null;
   isBlocked: boolean;
   notificationPreferences: NotificationPreferences;
+  telegramConnected: boolean;
   lastLoginAt: string | null;
   createdAt: string;
 };

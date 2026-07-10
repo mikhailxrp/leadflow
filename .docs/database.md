@@ -330,6 +330,8 @@ model User {
   role                    UserRole  @default(MANAGER)
   isBlocked               Boolean   @default(false)
   telegramChatId          String?
+  telegramBindTokenHash   String?   @unique
+  telegramBindTokenExpiresAt DateTime?
   notificationPreferences Json      @default("{}")
   phone                   String?
   avatarUrl               String?
@@ -357,6 +359,8 @@ model User {
 `lastLoginAt` обновляется при каждом успешном входе — нужен платформенному администратору для отчёта об активности компаний, не используется в логике внутри компании. Лимита на число пользователей нет — тарифов больше нет.
 
 `phone`/`avatarUrl`/`telegram`/`max`/`otherContact` — self-service профиль пользователя (см. `.docs/modules/admin-users.md` → «Профиль пользователя»), зеркалят одноимённые поля `PlatformAdmin` (кроме `vk`, которого здесь нет). `telegram` — обычный контактный хендл (`@username`), не путать с `telegramChatId` — техническим полем привязки Telegram-бота (Phase 13).
+
+`telegramBindTokenHash`/`telegramBindTokenExpiresAt` (Phase 13) — одноразовый токен привязки Telegram-аккаунта: в БД хранится только SHA-256 хэш (`lib/tokens.ts`, тот же паттерн, что и `UserPasswordResetToken`), plaintext-токен существует только в deep-link `https://t.me/<бот>?start=<token>` и никогда не пишется в БД. TTL — 15 минут (`lib/telegram/bindToken.ts`). При успешной привязке (`/api/telegram/webhook`, `/start <token>`) оба поля обнуляются в той же операции, что и запись `telegramChatId`, — токен одноразовый. `@unique` на `telegramBindTokenHash` допускает множественные `NULL` (большинство пользователей его не имеют) — это не проблема в PostgreSQL.
 
 ### `UserPasswordResetToken`
 
