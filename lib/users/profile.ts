@@ -14,6 +14,7 @@ export const USER_PROFILE_SELECT = {
   otherContact: true,
   isBlocked: true,
   notificationPreferences: true,
+  telegramChatId: true,
   lastLoginAt: true,
   createdAt: true,
 } as const;
@@ -37,6 +38,7 @@ export function toUserProfileDetail(user: UserProfileRow): UserProfileDetail {
     notificationPreferences: parseNotificationPreferences(
       user.notificationPreferences,
     ),
+    telegramConnected: user.telegramChatId != null,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
   };

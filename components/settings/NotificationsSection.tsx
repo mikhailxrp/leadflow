@@ -1,98 +1,63 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Input from '@/components/ui/Input';
+import { useState, type ReactNode } from 'react';
 import SettingsCard from '@/components/settings/SettingsCard';
 import SettingsRow from '@/components/settings/SettingsRow';
 import Toggle from '@/components/settings/Toggle';
-
-interface NotificationsState {
-  newLead: boolean;
-  assignedToMe: boolean;
-  commentOnMyLead: boolean;
-  reminder: boolean;
-  telegramEnabled: boolean;
-  telegramChatId: string;
-}
-
-const INITIAL_STATE: NotificationsState = {
-  newLead: true,
-  assignedToMe: true,
-  commentOnMyLead: true,
-  reminder: true,
-  telegramEnabled: false,
-  telegramChatId: '',
-};
+import Toast from '@/components/ui/Toast';
 
 interface NotificationsSectionProps {
-  onDirtyChange: (dirty: boolean) => void;
+  initialTelegramEnabled: boolean;
 }
 
-function isStateDirty(state: NotificationsState): boolean {
-  return JSON.stringify(state) !== JSON.stringify(INITIAL_STATE);
-}
+export default function NotificationsSection({
+  initialTelegramEnabled,
+}: NotificationsSectionProps): ReactNode {
+  const [telegramEnabled, setTelegramEnabled] = useState(initialTelegramEnabled);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
-export default function NotificationsSection({ onDirtyChange }: NotificationsSectionProps) {
-  const [state, setState] = useState<NotificationsState>(INITIAL_STATE);
+  async function handleToggle(checked: boolean): Promise<void> {
+    if (saving) return;
 
-  useEffect(() => {
-    onDirtyChange(isStateDirty(state));
-  }, [state, onDirtyChange]);
+    const previous = telegramEnabled;
+    setTelegramEnabled(checked);
+    setSaving(true);
 
-  function update<K extends keyof NotificationsState>(key: K, value: NotificationsState[K]) {
-    setState((prev) => ({ ...prev, [key]: value }));
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramEnabled: checked }),
+      });
+
+      if (!res.ok) {
+        setTelegramEnabled(previous);
+        setToast('Не удалось сохранить настройку');
+        return;
+      }
+
+      setToast('Настройка сохранена');
+    } catch {
+      setTelegramEnabled(previous);
+      setToast('Не удалось сохранить настройку');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <SettingsCard icon="tabler:bell" title="Уведомления">
-      <SettingsRow label="Новый лид поступил">
+      <SettingsRow label="Telegram-уведомления для компании">
         <Toggle
-          checked={state.newLead}
-          onChange={(checked) => update('newLead', checked)}
-          aria-label="Новый лид поступил"
+          checked={telegramEnabled}
+          disabled={saving}
+          onChange={handleToggle}
+          aria-label="Telegram-уведомления для компании"
         />
       </SettingsRow>
 
-      <SettingsRow label="Лид назначен на меня">
-        <Toggle
-          checked={state.assignedToMe}
-          onChange={(checked) => update('assignedToMe', checked)}
-          aria-label="Лид назначен на меня"
-        />
-      </SettingsRow>
-
-      <SettingsRow label="Комментарий к моему лиду">
-        <Toggle
-          checked={state.commentOnMyLead}
-          onChange={(checked) => update('commentOnMyLead', checked)}
-          aria-label="Комментарий к моему лиду"
-        />
-      </SettingsRow>
-
-      <SettingsRow label="Напоминание по лиду">
-        <Toggle
-          checked={state.reminder}
-          onChange={(checked) => update('reminder', checked)}
-          aria-label="Напоминание по лиду"
-        />
-      </SettingsRow>
-
-      <SettingsRow label="Уведомления в Telegram">
-        <div className="w-[160px]">
-          <Input
-            placeholder="Telegram Chat ID"
-            value={state.telegramChatId}
-            disabled={!state.telegramEnabled}
-            onChange={(e) => update('telegramChatId', e.target.value)}
-            className="h-[36px]"
-          />
-        </div>
-        <Toggle
-          checked={state.telegramEnabled}
-          onChange={(checked) => update('telegramEnabled', checked)}
-          aria-label="Уведомления в Telegram"
-        />
-      </SettingsRow>
+      {toast && <Toast title={toast} onClose={() => setToast(null)} />}
     </SettingsCard>
   );
 }
