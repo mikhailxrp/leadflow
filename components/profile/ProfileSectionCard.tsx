@@ -8,6 +8,8 @@ interface ProfileSectionCardProps {
   title: string;
   subtitle?: string;
   children: ReactNode;
+  /** Отключает `overflow-hidden` — нужно, если внутри карточки есть выпадающий список (`Select`), который иначе обрезается по границе карточки. */
+  overflowVisible?: boolean;
 }
 
 export default function ProfileSectionCard({
@@ -15,9 +17,15 @@ export default function ProfileSectionCard({
   title,
   subtitle,
   children,
+  overflowVisible = false,
 }: ProfileSectionCardProps) {
   return (
-    <section className="overflow-hidden rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)]">
+    <section
+      className={`
+        rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)]
+        ${overflowVisible ? 'overflow-visible' : 'overflow-hidden'}
+      `}
+    >
       <div className="border-b-[0.5px] border-[var(--color-border)] px-6 py-4">
         <div className="flex items-center gap-2">
           <Icon

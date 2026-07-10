@@ -156,13 +156,13 @@ export default function CompanyProfileForm({ company: initialCompany }: CompanyP
           </ProfileRow>
         </ProfileSectionCard>
 
-        <ProfileSectionCard icon="tabler:file-text" title="Реквизиты">
+        <ProfileSectionCard icon="tabler:file-text" title="Реквизиты" overflowVisible>
           <ProfileRow label="Форма регистрации">
             <Select
               value={form.legalForm}
               onChange={(value) => handleFieldChange('legalForm', value)}
               options={LEGAL_FORM_SELECT_OPTIONS}
-              className="max-w-[240px]"
+              className="w-[150px]"
             />
           </ProfileRow>
           <ProfileRow label="ФИО руководителя">
