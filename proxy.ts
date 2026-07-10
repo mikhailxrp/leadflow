@@ -61,7 +61,8 @@ export const proxy = auth((req) => {
   if (
     pathname.startsWith('/control') ||
     pathname.startsWith('/reports') ||
-    pathname.startsWith('/team')
+    pathname.startsWith('/team') ||
+    pathname.startsWith('/company')
   ) {
     if (!hasMinRole(session.user.role, 'HEAD')) {
       return NextResponse.redirect(new URL('/today', req.url));
@@ -85,6 +86,7 @@ export const config = {
     '/control/:path*',
     '/reports/:path*',
     '/team/:path*',
+    '/company/:path*',
     '/profile/:path*',
     '/admin/:path*',
     '/platform/:path*',

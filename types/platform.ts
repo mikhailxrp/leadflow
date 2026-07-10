@@ -1,4 +1,4 @@
-import type { EventType, Prisma } from '@prisma/client';
+import type { CompanyLegalForm, EventType, Prisma } from '@prisma/client';
 
 export type SubscriptionStatus = 'none' | 'ok' | 'expiring' | 'overdue';
 
@@ -93,6 +93,12 @@ export type PlatformCompanyDetail = {
   ownedByMarketer: boolean;
   grants?: CompanyGrantItem[];
   availableMarketers?: AvailableMarketer[];
+  logoUrl: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  legalForm: CompanyLegalForm | null;
+  directorName: string | null;
 };
 
 export type CompanyGrantItem = {

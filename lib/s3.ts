@@ -66,7 +66,7 @@ function keyFromPublicUrl(config: S3Config, url: string): string | null {
   return url.slice(base.length);
 }
 
-export type AvatarNamespace = 'marketers' | 'users';
+export type AvatarNamespace = 'marketers' | 'users' | 'companies';
 
 export async function uploadAvatar(
   namespace: AvatarNamespace,

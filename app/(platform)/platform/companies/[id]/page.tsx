@@ -31,6 +31,12 @@ async function loadCompanyDetail(
         nextPaymentAt: true,
         createdAt: true,
         createdByPlatformAdminId: true,
+        logoUrl: true,
+        phone: true,
+        email: true,
+        address: true,
+        legalForm: true,
+        directorName: true,
         _count: { select: { leads: true } },
         users: {
           orderBy: [{ role: 'desc' }, { name: 'asc' }],
@@ -137,6 +143,12 @@ async function loadCompanyDetail(
     ownedByMarketer: !isPlatform,
     grants,
     availableMarketers,
+    logoUrl: company.logoUrl,
+    phone: company.phone,
+    email: company.email,
+    address: company.address,
+    legalForm: company.legalForm,
+    directorName: company.directorName,
   };
 }
 
