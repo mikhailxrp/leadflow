@@ -350,11 +350,12 @@ export async function DELETE(
       },
     });
 
-    const result = await prisma.lead.deleteMany({
-      where: { id, companyId },
-    });
+    const [, { count }] = await prisma.$transaction([
+      prisma.notification.deleteMany({ where: { leadId: id, companyId } }),
+      prisma.lead.deleteMany({ where: { id, companyId } }),
+    ]);
 
-    if (result.count === 0) {
+    if (count === 0) {
       return notFoundResponse();
     }
 
