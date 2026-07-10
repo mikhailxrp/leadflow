@@ -41,6 +41,10 @@ export default function SseProvider({
   useEffect(() => {
     const source = new EventSource('/api/stream');
 
+    source.onerror = () => {
+      console.error('[sse] connection error, readyState:', source.readyState);
+    };
+
     source.onmessage = (event: MessageEvent<string>) => {
       let payload: NewLeadSsePayload;
       try {
