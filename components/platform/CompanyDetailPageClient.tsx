@@ -5,6 +5,7 @@ import { useState, type ChangeEvent, type ReactNode } from 'react';
 import CompanyGrantsSection from '@/components/platform/CompanyGrantsSection';
 import ImpersonateButton from '@/components/platform/ImpersonateButton';
 import Button from '@/components/ui/Button';
+import { LEGAL_FORM_LABELS } from '@/constants/legalForms';
 import type { PlatformCompanyDetail, SubscriptionStatus } from '@/types/platform';
 import type { PlatformRole, UserRole } from '@prisma/client';
 
@@ -115,6 +116,25 @@ function UserStatusBadge({ isBlocked }: { isBlocked: boolean }): ReactNode {
     <span className="inline-flex rounded-[20px] bg-[#D1FAE5] px-2.5 py-1 text-[12px] font-medium text-[#065F46]">
       Активен
     </span>
+  );
+}
+
+function ProfileField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null;
+}): ReactNode {
+  return (
+    <div>
+      <p className="mb-1 text-[11px] font-medium text-[var(--color-text-secondary)]">
+        {label}
+      </p>
+      <p className="text-[14px] text-[var(--color-text-primary)]">
+        {value ?? 'Не заполнено'}
+      </p>
+    </div>
   );
 }
 
@@ -344,6 +364,51 @@ export default function CompanyDetailPageClient({
           <p className="text-[14px] text-[var(--color-text-primary)]">
             {formatLastLogin(company.lastLoginAt)}
           </p>
+        </div>
+      </section>
+
+      <section
+        className="
+          mb-8 rounded-[14px] border border-[0.5px]
+          border-[var(--color-border)] bg-[var(--color-bg-surface)] p-5
+        "
+      >
+        <h2 className="mb-4 text-[20px] font-medium text-[var(--color-text-primary)]">
+          Реквизиты компании
+        </h2>
+
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-4">
+            {company.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={company.logoUrl}
+                alt={company.name}
+                className="h-16 w-16 shrink-0 rounded-[12px] border-[0.5px] border-[var(--color-border)] object-cover"
+              />
+            ) : (
+              <div
+                className="
+                  flex h-16 w-16 shrink-0 items-center justify-center rounded-[12px]
+                  border-[0.5px] border-[var(--color-border)]
+                  bg-[var(--color-bg-surface-2)] text-[12px] text-[var(--color-text-tertiary)]
+                "
+              >
+                Нет лого
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <ProfileField label="Телефон" value={company.phone} />
+            <ProfileField label="Почта" value={company.email} />
+            <ProfileField label="Адрес" value={company.address} />
+            <ProfileField
+              label="Форма регистрации"
+              value={company.legalForm ? LEGAL_FORM_LABELS[company.legalForm] : null}
+            />
+            <ProfileField label="ФИО руководителя" value={company.directorName} />
+          </div>
         </div>
       </section>
 

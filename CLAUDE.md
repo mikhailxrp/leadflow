@@ -47,6 +47,7 @@
 | Детальная спецификация модуля                  | `.docs/modules/<module-name>.md`  |
 | Платформенный администратор, создание компаний | `.docs/modules/platform-admin.md` |
 | Маркетолог (платформенная роль), квалификация лидов | `.docs/modules/platform-marketer.md` |
+| Карточка компании (реквизиты)                  | `.docs/modules/company-profile.md` |
 | Экран «Сегодня»                                | `.docs/modules/today.md`          |
 | Индикатор риска (сквозная логика)              | `.docs/modules/risk.md`           |
 | Импорт CSV/Excel                               | `.docs/modules/import.md`         |
@@ -119,7 +120,8 @@
 │   │   ├── (management)/           # HEAD и выше (Руководитель, Администратор)
 │   │   │   ├── control/             # Счётчик активности менеджеров — НОВОЕ местоположение
 │   │   │   ├── reports/
-│   │   │   └── team/                # Список сотрудников + карточка (только просмотр) — HEAD и выше
+│   │   │   ├── team/                # Список сотрудников + карточка (только просмотр) — HEAD и выше
+│   │   │   └── company/             # НОВОЕ — реквизиты компании (лого/контакты/адрес/форма/ФИО руководителя) — HEAD и выше
 │   │   │
 │   │   └── (admin)/admin/          # Только ADMIN
 │   │       ├── users/
@@ -155,6 +157,7 @@
 │       ├── leads/
 │       ├── stages/
 │       ├── users/                   # + me/ (route.ts, avatar/, password/, notification-preferences/) — self-service профиль
+│       ├── company/                 # НОВОЕ — route.ts (GET/PATCH реквизитов) + logo/ (POST/DELETE, S3) — HEAD и выше
 │       ├── settings/
 │       ├── assignment-rules/
 │       ├── loss-reasons/
@@ -181,6 +184,7 @@
 │   ├── users/                     # UsersTable + Add/Edit/DeleteUserModal (/admin/users, ADMIN-only CRUD)
 │   ├── profile/                   # Personal/Contacts/Security/Notifications/Sidebar/Footer — self-service профиль (/profile)
 │   ├── team/                      # TeamTable + TeamMemberDetail — только просмотр (/team, HEAD+)
+│   ├── company/                   # НОВОЕ — CompanyProfileForm + CompanyLogoUploader (/company, HEAD+)
 │   └── admin/
 │
 ├── lib/
@@ -190,13 +194,15 @@
 │   ├── telegram.ts
 │   ├── events.ts
 │   ├── sse.ts
-│   ├── s3.ts                     # S3-совместимый клиент аватаров (Beget Cloud Storage), общий для маркетолога и пользователей компании — namespace 'marketers' | 'users'
+│   ├── s3.ts                     # S3-совместимый клиент аватаров (Beget Cloud Storage), общий для маркетолога, пользователей компании и логотипа компании — namespace 'marketers' | 'users' | 'companies'
 │   ├── assignLead.ts             # AssignmentRule → assignMode
 │   ├── roundRobin.ts
 │   ├── auth/
 │   │   └── requireCompanyAccess.ts # единый guard company-зоны: hasMinRole ИЛИ allow-list маркетолога
 │   ├── users/
 │   │   └── profile.ts              # toUserProfileDetail + USER_PROFILE_SELECT — общий маппинг для /profile и /team/:id
+│   ├── company/                    # НОВОЕ
+│   │   └── profile.ts              # toCompanyProfileDetail + COMPANY_PROFILE_SELECT — общий маппинг для /company и карточки платформенного уровня
 │   ├── platform/                  # НОВОЕ
 │   │   ├── auth.ts                 # requirePlatformSession({ roles }) — явный список PlatformRole
 │   │   ├── createCompany.ts        # + createdByPlatformAdminId из сессии
@@ -222,7 +228,7 @@
 │   │   └── checkSourceHealth.ts
 │   └── validations/
 │
-├── constants/                     # roles.ts (ROLE_RANK/hasMinRole), marketerAccess.ts (allow-list маркетолога), eventTypes, leadSources, defaultStages, defaultLossReasons
+├── constants/                     # roles.ts (ROLE_RANK/hasMinRole), marketerAccess.ts (allow-list маркетолога), navItems.ts, legalForms.ts (НОВОЕ — LEGAL_FORM_LABELS/OPTIONS), eventTypes, leadSources, defaultStages, defaultLossReasons
 ├── store/
 ├── types/
 ├── prisma/                         # schema.prisma + migrations

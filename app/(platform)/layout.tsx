@@ -18,9 +18,9 @@ export default async function PlatformGroupLayout({
 
   return (
     <ThemeProvider storageKey="theme_platform">
-      <div className="flex min-h-screen bg-[var(--color-bg-page)]">
+      <div className="flex h-screen overflow-hidden bg-[var(--color-bg-page)]">
         <PlatformSidebar role={role} />
-        <div className="flex-1 overflow-auto">{children}</div>
+        <div className="min-h-0 flex-1 overflow-auto">{children}</div>
       </div>
     </ThemeProvider>
   );
