@@ -4,22 +4,6 @@
 
 ---
 
-## 2026-07-09 — Фикс «дёрганья» сайдбара + шапка на всю ширину
-
-**Статус:** ✅ Завершено (вне формального роадмапа фаз — багфикс по запросу)
-
-**Проблема 1 (шапка «обрезана» справа):** `app/globals.css` содержал устаревший `html { scrollbar-gutter: stable; }` (со времён шаблона до появления текущего `AppLayout` с вложенным `overflow-auto` в `main`). Прокрутка реально происходит не на `html`, а внутри `PageContent`, поэтому `html`-уровневый гаттер просто резервировал пустую полосу у правого края окна без функции. Убрано.
-
-**Проблема 2 (дёрганье сайдбара при переходах между страницами):** `(app)`, `(management)`, `(admin)` были тремя независимыми route group с ОТДЕЛЬНЫМИ `layout.tsx`, каждый из которых сам оборачивал `children` в `<AppShell>`. Next.js App Router не считает эти layout'ы общими (нет единого родителя, кроме корневого `app/layout.tsx`), поэтому переход, например, `/leads` → `/admin/users` полностью размонтировал и заново монтировал `AppShell`/`Sidebar`/`ThemeProvider`/`SseProvider` — визуально это «дёрганье». Переходы **внутри** одной группы (например `/today` → `/leads`) не дёргались — поэтому баг проявлялся только «на некоторых страницах».
-
-**Фикс:** три группы вложены в новую `app/(company)/layout.tsx` — единственное место, где теперь рендерится `<AppShell>`. `(app)`/`(management)`/`(admin)` остались как папки-группы (для ролевой организации, как задокументировано в `CLAUDE.md`), но без собственных `layout.tsx`. URL не изменились (route groups не создают сегментов пути) — `git mv` папок + `next build` подтвердили идентичное дерево роутов.
-
-**Проверено:** Playwright — DOM-узел `<aside>` (сайдбар) помечен вручную на `/today`, метка пережила клиентские переходы `/today → /team → /admin/integrations` без исчезновения (то есть без remount). `npm run type-check`, `npm run lint`, `npm run build` — чисто (после `rm -rf .next`, так как в кэше остались ссылки на старые пути).
-
-**Definition of Done:** см. `.docs/dod-global.md`.
-
----
-
 ## Вспомогательные скрипты
 
 Одноразовые/служебные скрипты для ручных операций. Запускаются локально через `tsx`, читают `.env` из корня проекта.
@@ -49,6 +33,41 @@ npx tsx scripts/seedTestApiKey.ts
 # или
 npm run seed:api-key
 ```
+
+---
+
+## 2026-07-10 — Phase 13, Таск 1: Telegram-канал + доставка нового лида назначенному менеджеру
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/telegram.ts` — реализован `sendTelegramMessage(chatId, text)`: Bot API `sendMessage` без `parse_mode` (plain text), весь сетевой I/O в try/catch, graceful no-op при пустом `TELEGRAM_BOT_TOKEN` (лог, не throw), возвращает `boolean`
+- `constants/telegramTemplates.ts` (новый) — типизированный реестр шаблонов; в этой фазе — `newLeadForManager({ name, source })` → строка; форма реестра рассчитана на управленческие шаблоны Phase 17
+- `lib/notifications/notifyManager.ts` (новый) — операционный алерт конкретному `User`: тройной гейт (`Company.settings.telegramEnabled` + `telegramChatId` + личная настройка `assignedLead` через `parseNotificationPreferences`) → `sendTelegramMessage`; провал любого условия — тихий выход; ключ алерта `'NEW_LEAD'` — отдельный словарь, не `EventType`/`Notification.type`; локальный `getTelegramEnabled()` читает JSONB с дефолтом из `DEFAULT_COMPANY_SETTINGS`
+- `lib/notifications/notifyNewLead.ts` — Telegram-ветка **после** `broadcastPerUser(...)`: если `lead.assignedToId` задан — отдельный запрос `prisma.user.findFirst({ where: { id, companyId } })` и `notifyManager(assignee, 'NEW_LEAD', { name, source })`; аудитория Telegram не переиспользует широкий SSE-набор `recipients` (HEAD/ADMIN не спамятся)
+
+**Out of scope (не делалось):** миграция `telegramBindTokenHash`/`telegramBindTokenExpiresAt`, `POST/DELETE /api/telegram/bind`, `POST /api/telegram/webhook` — таск 2; UI привязки (`TelegramBindButton`), активация строки «Уведомления в Telegram» в `ProfileNotifications`, admin-тумблер `telegramEnabled` в `/admin/settings`, env/доки — таск 3; управленческие алерты (`ASSIGNMENT_FAILED`, эскалация, зависшие лиды) — Phase 17; доставка комментариев и напоминаний в Telegram — вне scope.
+
+**Проверено:** `npm run type-check` — без ошибок; нет `any`. Живая отправка в Telegram не проверялась — для e2e нужны таск 2 (привязка `chat_id`) и таск 3 (тумблер `telegramEnabled` + UI).
+
+**Definition of Done:** выполнено полностью
+
+---
+
+## 2026-07-09 — Фикс «дёрганья» сайдбара + шапка на всю ширину
+
+**Статус:** ✅ Завершено (вне формального роадмапа фаз — багфикс по запросу)
+
+**Проблема 1 (шапка «обрезана» справа):** `app/globals.css` содержал устаревший `html { scrollbar-gutter: stable; }` (со времён шаблона до появления текущего `AppLayout` с вложенным `overflow-auto` в `main`). Прокрутка реально происходит не на `html`, а внутри `PageContent`, поэтому `html`-уровневый гаттер просто резервировал пустую полосу у правого края окна без функции. Убрано.
+
+**Проблема 2 (дёрганье сайдбара при переходах между страницами):** `(app)`, `(management)`, `(admin)` были тремя независимыми route group с ОТДЕЛЬНЫМИ `layout.tsx`, каждый из которых сам оборачивал `children` в `<AppShell>`. Next.js App Router не считает эти layout'ы общими (нет единого родителя, кроме корневого `app/layout.tsx`), поэтому переход, например, `/leads` → `/admin/users` полностью размонтировал и заново монтировал `AppShell`/`Sidebar`/`ThemeProvider`/`SseProvider` — визуально это «дёрганье». Переходы **внутри** одной группы (например `/today` → `/leads`) не дёргались — поэтому баг проявлялся только «на некоторых страницах».
+
+**Фикс:** три группы вложены в новую `app/(company)/layout.tsx` — единственное место, где теперь рендерится `<AppShell>`. `(app)`/`(management)`/`(admin)` остались как папки-группы (для ролевой организации, как задокументировано в `CLAUDE.md`), но без собственных `layout.tsx`. URL не изменились (route groups не создают сегментов пути) — `git mv` папок + `next build` подтвердили идентичное дерево роутов.
+
+**Проверено:** Playwright — DOM-узел `<aside>` (сайдбар) помечен вручную на `/today`, метка пережила клиентские переходы `/today → /team → /admin/integrations` без исчезновения (то есть без remount). `npm run type-check`, `npm run lint`, `npm run build` — чисто (после `rm -rf .next`, так как в кэше остались ссылки на старые пути).
+
+**Definition of Done:** см. `.docs/dod-global.md`.
 
 ---
 
@@ -1063,7 +1082,7 @@ npm run seed:api-key
 
 **Что было реализовано в рамках `TASK.md`:**
 
-- `constants/fieldAliases.ts` — карта `FIELD_ALIASES` (name/имя/фио, phone/телефон/tel, email/e-mail/почта, comment/комментарий/сообщение и др.); набор `MARKETING_FIELDS` (gclid, yclid, fbclid, roistat, _ym_uid и др.) для `Lead.marketing`
+- `constants/fieldAliases.ts` — карта `FIELD_ALIASES` (name/имя/фио, phone/телефон/tel, email/e-mail/почта, comment/комментарий/сообщение и др.); набор `MARKETING_FIELDS` (gclid, yclid, fbclid, roistat, \_ym_uid и др.) для `Lead.marketing`
 - `lib/intake/parseBody.ts` — server-side lib: разбор тела запроса (JSON, `application/x-www-form-urlencoded`, `multipart/form-data`, fallback raw text → JSON → url-encoded); не бросает исключение — возвращает `Record<string, unknown>` или `{}`
 - `lib/intake/normalizeLead.ts` — server-side lib: `normalizeLead(raw, source)` → `NormalizedLead`; регистронезависимый маппинг через `FIELD_ALIASES`; `utm_*` → `utm`; маркетинговые поля → `marketing`; остальное → `customFields` с оригинальным ключом; пустые значения стандартных полей → `null`; первое распознанное значение побеждает при дублях алиасов
 - `lib/intake/createLead.ts` — server-side lib: `createLead(raw, source, companyId)`; `stageId` через `pipelineStage.findFirst({ where: { companyId }, orderBy: { order: 'asc' } })`; `prisma.$transaction`: `tx.lead.create(...)` + `tx.event.create({ type: 'LEAD_CREATED', ... })`; `assignedToId: null`; без `writeEvent` внутри транзакции

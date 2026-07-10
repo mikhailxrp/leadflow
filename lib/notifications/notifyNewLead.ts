@@ -1,3 +1,4 @@
+import { notifyManager } from '@/lib/notifications/notifyManager';
 import { resolveNewLeadRecipients } from '@/lib/notifications/recipients';
 import { prisma } from '@/lib/prisma';
 import { broadcastPerUser } from '@/lib/sse';
@@ -60,5 +61,15 @@ export async function notifyNewLead(leadId: string, companyId: string): Promise<
 
   broadcastPerUser(companyId, payloadByUserId);
 
-  // Telegram delivery — Phase 13: branches from here after the SSE broadcast above.
+  // Telegram delivery — Phase 13: только назначенному менеджеру, не всей аудитории SSE выше.
+  if (lead.assignedToId) {
+    const assignee = await prisma.user.findFirst({
+      where: { id: lead.assignedToId, companyId },
+      select: { id: true, companyId: true, telegramChatId: true, notificationPreferences: true },
+    });
+
+    if (assignee) {
+      await notifyManager(assignee, 'NEW_LEAD', { name: lead.name, source: lead.source });
+    }
+  }
 }
