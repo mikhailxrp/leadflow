@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 import Toggle from '@/components/settings/Toggle';
+import TelegramBindButton from '@/components/notifications/TelegramBindButton';
 import ProfileRow from '@/components/profile/ProfileRow';
 import ProfileSectionCard from '@/components/profile/ProfileSectionCard';
 import type { NotificationPreferences } from '@/types/users';
 
 interface ProfileNotificationsProps {
   initialPreferences: NotificationPreferences;
+  telegramConnected: boolean;
 }
 
 type PreferenceKey = keyof NotificationPreferences;
@@ -20,6 +22,7 @@ const PREFERENCE_LABELS: Record<PreferenceKey, string> = {
 
 export default function ProfileNotifications({
   initialPreferences,
+  telegramConnected,
 }: ProfileNotificationsProps) {
   const [preferences, setPreferences] = useState(initialPreferences);
   const [pendingKey, setPendingKey] = useState<PreferenceKey | null>(null);
@@ -69,12 +72,9 @@ export default function ProfileNotifications({
         </ProfileRow>
       ))}
 
-      <ProfileRow label="Уведомления в Telegram">
-        <div className="flex flex-1 items-center justify-end gap-3">
-          <span className="text-[11px] text-[var(--color-text-tertiary)]">
-            Появится после подключения Telegram-бота
-          </span>
-          <Toggle checked={false} disabled onChange={() => undefined} aria-label="Уведомления в Telegram" />
+      <ProfileRow label="Telegram-бот">
+        <div className="flex flex-1 justify-end">
+          <TelegramBindButton connected={telegramConnected} />
         </div>
       </ProfileRow>
 

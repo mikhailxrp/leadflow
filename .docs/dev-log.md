@@ -36,6 +36,33 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-10 — Phase 13, Таск 3: UI привязки Telegram + admin-тумблер `telegramEnabled` + доки
+
+**Статус:** ✅ Завершён (код и статические проверки; живая проверка через бота — не проводилась)
+
+**Что было сделано:**
+
+- `components/notifications/TelegramBindButton.tsx` (новый) — Client Component: проп `connected`; «Подключить» → `POST /api/telegram/bind` + открытие `deepLink`; «Отключить» → `DELETE /api/telegram/bind` + `router.refresh()`; состояние привязки только из серверного пропса
+- `components/profile/ProfileNotifications.tsx` — удалена мёртвая disabled-строка «Уведомления в Telegram» / «Появится после подключения…»; вместо неё строка «Telegram-бот» с `TelegramBindButton`; три тумблера prefs (`assignedLead`/`commentOnLead`/`reminders`) без изменений — `assignedLead` остаётся реальным гейтом Telegram-доставки
+- `lib/users/profile.ts` + `types/users.ts` — `telegramChatId` в `USER_PROFILE_SELECT`, наружу только производный `telegramConnected: boolean` (общий маппинг для `/profile` и `/team/:id`, сырой `chatId` клиенту не уходит)
+- `components/profile/ProfileLayout.tsx` — проброс `telegramConnected={profile.telegramConnected}` в `<ProfileNotifications>`
+- `components/settings/NotificationsSection.tsx` — переписан: убраны моки (`newLead`/`assignedToMe`/ручной `telegramChatId`-инпут) и `onDirtyChange`; один тумблер «Telegram-уведомления для компании», немедленный `PATCH /api/settings` по паттерну `AssignModeSection` (свой `useState` + Toast, откат при ошибке)
+- `components/settings/SettingsClientArea.tsx` — `NotificationsSection` убран из батч-сохранения; ключ `'notifications'` удалён из `DirtyKey` и обоих объектов `dirtyFlags`
+- `app/(company)/(admin)/admin/settings/page.tsx` — `readTelegramEnabled(settings)` + `<NotificationsSection initialTelegramEnabled={...} />` вне `SettingsDirtyProvider`, рядом с `AssignModeSection`
+- `lib/validations/settings.ts` — `telegramEnabled: z.boolean().optional()`; `.refine` обобщён на «хотя бы одно из `assignMode`/`telegramEnabled`» (одиночный `PATCH { telegramEnabled }` больше не отклоняется)
+- `CLAUDE.md` — env `TELEGRAM_BOT_USERNAME`/`TELEGRAM_WEBHOOK_SECRET` + заметка о ручном `setWebhook` (ops-шаг, как crontab Phase 1)
+- `.docs/modules/admin-users.md` — строка Telegram в профиле: кнопка привязки + гейт через `assignedLead`, без формулировки «появится в Phase 13»
+- `.docs/modules/notifications.md` — `NotificationPreferences` как типизированный объект (не `disabledTypes[]`); аудитория Telegram нового лида = только назначенный менеджер; scope Phase 13 = операционная доставка нового лида
+- `.docs/phases/phase-13.md` + `.docs/phases/_status.md` — таск 3 ✅, фаза 13 ✅ Завершено (2026-07-10)
+
+**Out of scope (не делалось):** статус привязки на `/team/:id` (поле в типе есть, UI карточки не расширяли); `RemindersSection`/`SecuritySection` в `/admin/settings` — моки не трогали; управленческие алерты — Phase 17; живые Telegram-триггеры `commentOnLead`/`reminders` — вне scope.
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; нет `any`. Живой e2e (`/profile` deep-link + `/start` в боте, `/admin/settings` тумблер + reload) — **не проводился** в этой сессии (нет доступа к реальному боту/браузеру); проверить руками на dev-окружении.
+
+**Definition of Done:** выполнено полностью по коду и статическим проверкам; пункты DoD с ручным обходом UI в браузере — на стороне поставщика
+
+---
+
 ## 2026-07-10 — Phase 13, Таск 2: Привязка Telegram-аккаунта (миграция + bind + webhook)
 
 **Статус:** ✅ Завершён

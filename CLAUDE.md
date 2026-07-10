@@ -409,6 +409,8 @@ APP_URL=
 
 # Telegram Bot
 TELEGRAM_BOT_TOKEN=
+TELEGRAM_BOT_USERNAME=
+TELEGRAM_WEBHOOK_SECRET=
 
 # Email (приглашения, восстановление пароля, напоминания)
 SMTP_HOST=
@@ -436,6 +438,8 @@ S3_PUBLIC_URL_BASE=
 **Убрано относительно v3.0:** `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, `ROBOKASSA_MERCHANT_LOGIN`, `ROBOKASSA_PASSWORD_1/2` — вместе с биллингом.
 
 `**PLATFORM_ADMIN_BOOTSTRAP_*`\*\* используется ровно один раз — скриптом `npm run bootstrap:platform-admin`, который создаёт первую запись `PlatformAdmin`, если таблица пуста. Дальше платформенные администраторы создаются друг другом через `/platform/admins`, эти переменные можно убрать из `.env` после первого запуска (скрипт не запускается повторно, если хоть одна запись уже есть).
+
+`TELEGRAM_BOT_USERNAME` — username бота без `@`, используется для сборки deep-link привязки (`https://t.me/<username>?start=<token>`). `TELEGRAM_WEBHOOK_SECRET` — секрет, который Telegram обязан присылать в заголовке `X-Telegram-Bot-Api-Secret-Token` на `/api/telegram/webhook`; несовпадение/отсутствие → `401`. **Регистрация вебхука у Telegram — ручной ops-шаг** (как crontab в Phase 1), выполняется один раз командой вида `curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook?url=$APP_URL/api/telegram/webhook&secret_token=$TELEGRAM_WEBHOOK_SECRET"` — приложение само `setWebhook` не вызывает.
 
 ---
 

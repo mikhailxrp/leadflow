@@ -7,7 +7,9 @@ import SystemSection from '@/components/settings/SystemSection';
 import LossReasonsSection from '@/components/settings/LossReasonsSection';
 import AssignModeSection from '@/components/settings/AssignModeSection';
 import AssignmentRulesSection from '@/components/settings/AssignmentRulesSection';
+import NotificationsSection from '@/components/settings/NotificationsSection';
 import { hasMinRole } from '@/constants/roles';
+import { DEFAULT_COMPANY_SETTINGS } from '@/constants/defaultCompanyData';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
@@ -17,6 +19,14 @@ function readAssignMode(settings: unknown): 'MANUAL' | 'ROUND_ROBIN' {
     if (mode === 'ROUND_ROBIN') return 'ROUND_ROBIN';
   }
   return 'MANUAL'; // отсутствующие/битые настройки → MANUAL, не исключение
+}
+
+function readTelegramEnabled(settings: unknown): boolean {
+  if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
+    const value = (settings as Record<string, unknown>).telegramEnabled;
+    if (typeof value === 'boolean') return value;
+  }
+  return DEFAULT_COMPANY_SETTINGS.telegramEnabled;
 }
 
 export const metadata: Metadata = {
@@ -98,6 +108,7 @@ export default async function AdminSettingsPage() {
           <LossReasonsSection initialReasons={lossReasons} />
           <AssignModeSection initialAssignMode={readAssignMode(company.settings)} />
           <AssignmentRulesSection initialRules={assignmentRules} users={users} />
+          <NotificationsSection initialTelegramEnabled={readTelegramEnabled(company.settings)} />
           <SettingsDirtyProvider>
             <SettingsSections />
             <SystemSection companyName={company.name} nextPaymentAt={company.nextPaymentAt} />
