@@ -36,6 +36,31 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-10 — Phase 14, Таск 1: Ядро напоминаний — cron-эндпоинт + каналы доставки
+
+**Статус:** ✅ Завершён (код, статические проверки и живая проверка против реального dev-сервера — throwaway-компания/лид/напоминания удалены после проверки)
+
+**Что было сделано:**
+
+- `lib/reminders/channels/types.ts` (новый) — интерфейс `ReminderChannel`, тип `ReminderWithContext` (`Reminder` + `lead` + `createdBy`)
+- `lib/reminders/channels/telegram.ts` — `deliver()` через `sendTelegramMessage`; пустой `telegramChatId` → `throw`; `false` от `sendTelegramMessage` → `throw` (иначе сбой не попадёт в `Promise.allSettled`)
+- `lib/reminders/channels/email.ts` — `deliver()` через `sendEmail`/`isEmailConfigured`; без настроенного SMTP — `throw` до вызова `sendEmail`
+- `lib/reminders/channels/index.ts` (новый) — реестр `{ telegram, email }`, `deliverChannels()` с явной привязкой результата к имени канала (`ChannelDeliveryResult`)
+- `lib/reminders/processReminders.ts` (новый) — выборка due `PENDING` по всем компаниям (без `companyId`, без фильтра `isBlocked`); guard идемпотентности через `updateMany` (`count === 0` → `continue`); `writeEvent(REMINDER_FIRED)` / `writeEvent(REMINDER_FAILED)` с `leadId` и `payload.reminderId` (+ `payload.channel`); `try/catch` на каждую итерацию; сводка `{ processed, delivered, failed }`
+- `lib/cron/verifyCronSecret.ts` (новый) + `lib/validations/cron.ts` (новый) — проверка `CRON_SECRET` в трёх равнозначных форматах (`Authorization: Bearer`, `x-cron-secret`, `?key=`)
+- `app/api/cron/reminders/route.ts` (новый) — `POST` без сессии, `dynamic = 'force-dynamic'`, `verifyCronSecret` → `401`, иначе `processReminders()` → JSON-сводка; не в matcher `proxy.ts`
+- `app/api/platform/cron/subscription-reminders/route.ts` — локальная проверка секрета заменена на `verifyCronSecret` (механический рефакторинг, поведение не менялось)
+- `lib/reminders/scheduler.ts` — удалён (неиспользуемый стаб, заменён cron-эндпоинтом)
+- `.docs/modules/reminders.md` — до реализации исправлены примеры `writeEvent()` (сигнатура `lib/events.ts`, нельзя вызывать внутри `$transaction`)
+
+**Out of scope (не делалось):** CRUD `/api/leads/:id/reminders*` (Таск 2); UI блока «Напоминания» в карточке лида + удаление мока `RemindersSection.tsx` (Таск 3); регистрация записи в VPS crontab — ручной ops-шаг после деплоя; новые ENV (используется существующий `CRON_SECRET` из Phase 3)
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; живая проверка на dev: `401` без/с неверным секретом (все 3 формата по отдельности), `200` с верным секретом; due-напоминание в заблокированной компании (`isBlocked: true`) → `FIRED`; повторный вызов → `processed: 0` (без дублей доставки); упавшее напоминание не блокирует остальные в батче; `REMINDER_FIRED`/`REMINDER_FAILED` с корректным `leadId` и `payload`; напоминание с `remindAt` в будущем не трогается; `node-cron` не добавлен, `instrumentation.ts` не создан
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-10 — Phase 13, Таск 3: UI привязки Telegram + admin-тумблер `telegramEnabled` + доки
 
 **Статус:** ✅ Завершён (код и статические проверки; живая проверка через бота — не проводилась)
