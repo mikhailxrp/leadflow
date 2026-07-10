@@ -59,3 +59,23 @@
 Настройки персональные: один менеджер может отключить Telegram-уведомления, другой — оставить, не влияя друг на друга.
 В Phase 13 живой тип один — «новый лид назначен на меня» (→ назначенному менеджеру). Остальные тумблеры (комментарии, напоминания) получат реальные триггеры в следующих фазах (14, 17).
 Хочешь — добавлю этот флоу как короткую диаграмму в сам phase-13.md, чтобы при реализации не восстанавливать по памяти.
+
+---
+
+**Переменные в .env**
+
+TELEGRAM_BOT_TOKEN= # токен бота от @BotFather — уже есть в .env, но сейчас пустой
+TELEGRAM_BOT_USERNAME= # username бота без @ (например leadkanal_bot) — для deep-link в /api/telegram/bind
+
+TELEGRAM_WEBHOOK_SECRET= # произвольная случайная строка — секрет для проверки заголовка X-Telegram-Bot-Api-Secret-Token в /api/telegram/webhook
+
+TELEGRAM_BOT_TOKEN — уже объявлена в .env, просто сейчас пустая (без неё sendTelegramMessage тихо no-op'ится, лид не теряется, но сообщения не уходят).
+
+TELEGRAM_BOT_USERNAME и TELEGRAM_WEBHOOK_SECRET — ещё не добавлены; они появятся в CLAUDE.md официально в Task 3, но фактически нужны в .env уже сейчас, так как код (Task 2) их читает.
+Ручной шаг (не код, не .env)
+Нужно один раз зарегистрировать вебхук у самого Telegram, указав секрет:
+
+curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+ -d "url=https://<ваш-домен>/api/telegram/webhook" \
+ -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+Без setWebhook Telegram не будет слать апдейты на /api/telegram/webhook, и /start <token> в боте не привяжет chat_id, даже если все переменные в .env заполнены.

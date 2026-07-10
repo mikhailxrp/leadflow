@@ -36,6 +36,37 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-10 — Phase 13, Таск 2: Привязка Telegram-аккаунта (миграция + bind + webhook)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` + миграция `20260710051201_phase_13_telegram_bind` — `User.telegramBindTokenHash` (`@unique`) + `telegramBindTokenExpiresAt`; создана вручную (`prisma migrate dev` недоступен в неинтерактивном окружении — сгенерирован SQL через `prisma migrate diff --from-url ... --to-schema-datamodel`, применён через `prisma migrate deploy`)
+- `lib/telegram/bindToken.ts` (новый) — `createBindToken`/`resolveBindToken`, переиспользуют `generateToken`/`hashToken` из `lib/tokens.ts` (тот же паттерн, что и `passwordReset.ts`); резолв — один атомарный `$queryRaw` `UPDATE ... WHERE hash AND expiresAt RETURNING id` (не read-then-clear — исключает гонку повторного использования токена)
+- `lib/validations/telegram.ts` (новый) — Zod для тела Telegram-вебхука + `extractStartToken()`
+- `app/api/telegram/bind/route.ts` (новый) — `POST`/`DELETE`, guard `requireCompanyUser({ minRole: 'MANAGER' })`
+- `app/api/telegram/webhook/route.ts` (новый) — `POST` без сессии, секрет `X-Telegram-Bot-Api-Secret-Token`, всегда `200` на бизнес-провал (просрочен/неизвестен токен), `401` только на неверный секрет
+- `.docs/database.md` — задокументированы новые поля `User`
+
+**Найденный и исправленный баг (обнаружен только на живом прогоне, не типами/линтом):** атомарный `UPDATE` в `resolveBindToken` изначально сравнивал `telegramBindTokenExpiresAt > NOW()`. `telegramBindTokenExpiresAt` — наивная колонка `timestamp(3)` (Prisma пишет туда UTC-эквивалент без TZ), а `NOW()` — `timestamptz`; Postgres приводит `timestamptz` к `timestamp` через **timezone сессии**, а не UTC. Сессия dev-БД — `Etc/GMT-3` (UTC+3), из-за чего `NOW()`, приведённый к naive, оказывался на 3 часа позже реального UTC — валидный токен (TTL 15 мин) ошибочно считался просроченным всегда. Вебхук при этом отвечал `200 {"ok":true}` в обоих случаях (успех/провал — намеренно одинаковый ответ, см. риск в `TASK.md`), поэтому баг не был виден по HTTP-ответу — только по факту, что `telegramChatId` в БД не менялся. Исправлено: `AND "telegramBindTokenExpiresAt" > (NOW() AT TIME ZONE 'UTC')`. Проверено, что связывание JS `Date` как параметра вместо `NOW()` **не** решает проблему (тот же наивный каст на стороне Postgres) — рабочий фикс только через `AT TIME ZONE 'UTC'` в самом SQL.
+
+**Out of scope (не делалось):** UI привязки, admin-тумблер `telegramEnabled`, `CLAUDE.md`/`admin-users.md` доки — таск 3.
+
+**Проверено:** `npm run type-check`, `npm run lint` — без ошибок. Живой e2e на dev-БД через реальный HTTP-сервер (`next dev`) и реальные сессии:
+
+- `POST /api/telegram/bind` без сессии → `401`; с сессией `test-manager@test.ru` (MANAGER) → `200` + `deepLink`, хэш+TTL записаны в БД
+- `POST /api/telegram/webhook` без секрета / с неверным секретом → `401` (дважды); с верным секретом + `/start <token>` → `200`, `telegramChatId` проставлен, bind-поля обнулены
+- Повторный вызов с тем же (уже использованным) токеном и другим `chat.id` → `200`, но `telegramChatId` **не изменился** — одноразовость подтверждена на живой БД
+- `DELETE /api/telegram/bind` → `200`, `telegramChatId` очищен; без сессии → `401`
+- Marketer-сессия на `POST /api/telegram/bind` — не проверена вживую (у доступного dev-фикстуры маркетолога `kordont@yandex.ru` нет видимости/гранта на тестовую компанию, `POST /api/platform/companies/:id/marketer-access` → `404`); опирается на то, что `requireCompanyUser` — тот же guard, что уже проверен вживую с реальной marketer-сессией в Phase 12 таск 3 (`/api/notifications/*` → `403`)
+
+Тестовые артефакты (bind-токен, `telegramChatId`, временные `.env`-записи `TELEGRAM_WEBHOOK_SECRET`/`TELEGRAM_BOT_USERNAME`, dev-сервер) удалены/остановлены после проверки. Пароль `test-manager@test.ru` восстановлен на значение из предыдущей сессии (Phase 12); пароль `kordont@yandex.ru` (уже была dev-фикстура с заранее известным паролем — см. запись Phase 12 таск 3) переустановлен на новое известное значение, не восстановлен к прежнему (не был сохранён перед сбросом) — не проблема, аккаунт тестовый, не прод.
+
+**Definition of Done:** выполнено полностью
+
+---
+
 ## 2026-07-10 — Phase 13, Таск 1: Telegram-канал + доставка нового лида назначенному менеджеру
 
 **Статус:** ✅ Завершён
