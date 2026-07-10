@@ -38,6 +38,16 @@ enum CloseType {
   LOST
 }
 
+enum CompanyLegalForm {
+  IP
+  OOO
+  AO
+  PAO
+  NKO
+  SELF_EMPLOYED
+  OTHER
+}
+
 enum EventType {
   LEAD_CREATED
   STAGE_CHANGED
@@ -84,6 +94,7 @@ enum EventType {
   MARKETER_ACCESS_ENDED
   LEAD_QUALIFIED
   LEAD_DISQUALIFIED
+  COMPANY_PROFILE_UPDATED
 }
 
 enum ReminderStatus {
@@ -111,14 +122,20 @@ enum ImportStatus {
 }
 
 model Company {
-  id                       String    @id @default(cuid())
+  id                       String            @id @default(cuid())
   name                     String
-  isBlocked                Boolean   @default(false)
+  isBlocked                Boolean           @default(false)
   nextPaymentAt            DateTime?
-  settings                 Json      @default("{}")
-  createdAt                DateTime  @default(now())
+  settings                 Json              @default("{}")
+  createdAt                DateTime          @default(now())
   createdByPlatformAdminId String?
-  blockedByMarketerCascade Boolean   @default(false)
+  blockedByMarketerCascade Boolean           @default(false)
+  logoUrl                  String?
+  phone                    String?
+  email                    String?
+  address                  String?
+  legalForm                CompanyLegalForm?
+  directorName             String?
 
   users              User[]
   leads              Lead[]

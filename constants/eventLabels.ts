@@ -87,6 +87,7 @@ const PLATFORM_EVENT_LABELS = {
   MARKETER_ACCESS_ENDED: 'Завершён вход маркетолога в компанию',
   LEAD_QUALIFIED: 'Лид помечен целевым',
   LEAD_DISQUALIFIED: 'Лид помечен нецелевым',
+  COMPANY_PROFILE_UPDATED: 'Реквизиты компании обновлены',
 } satisfies Record<EventType, string>;
 
 export function getPlatformEventLabel(type: EventType): string {
