@@ -36,6 +36,28 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-11 — Phase 15, Таск 2: UI блока «Задачи» в карточке на реальном API + чистка мок-каркаса
+
+**Статус:** ✅ Завершён (код, статические проверки и живая проверка в headless-браузере — Playwright, 1280×720, реальный dev-сервер и БД)
+
+**Что было сделано:**
+
+- `components/tasks/TaskBlock.tsx` — переписан на `GET /api/leads/:id/tasks` при монтировании (loading/error как в `ReminderBlock`); разбивка на активные/историю по реальному `status`; клиентская сортировка повторяет серверную (`compareActiveTasks`/`compareInactiveTasks`); обновление стейта после `POST`/`PATCH`/`DELETE`; цикл статусов по клику на кружок — async `PATCH` с обработкой ошибок; пустое состояние «Нет задач по этому лиду»
+- `components/tasks/TaskItem.tsx` — `TaskData` под реальный шейп API (`assignedTo: { id, name }`, ISO-даты, `createdById`); проп `canEdit` скрывает карандаш и интерактивный кружок статуса для не-автора и не-ADMIN; просроченные активные задачи (`dueDate < now`) визуально выделены
+- `components/tasks/AddTaskModal.tsx` — единый datetime-picker; исполнители из `GET /api/users/assignable`; клиентская Zod-валидация (`createTaskSchema`); сам делает `POST` и вызывает `onCreated(task)`; при пустом сроке ключ `dueDate` не отправляется
+- `components/tasks/EditTaskModal.tsx` — реальные исполнители, `updateTaskSchema`, сам делает `PATCH`/`DELETE`; «Изменить»/«Отменить» — автор или ADMIN; «Удалить» — только ADMIN, независимо от статуса задачи
+- `components/tasks/taskConstants.ts` — убраны `ASSIGNEE_OPTIONS`/`ASSIGNEE_LABELS`; `formatDueDateLabel`/`formatCompletedAtLabel` на `Date`/ISO; добавлены `compareActiveTasks`/`compareInactiveTasks`/`isTaskOverdue`; оставлены `ACTIVE_STATUSES`/`INACTIVE_STATUSES`/`isTaskEditable`
+- `app/(company)/(app)/leads/[id]/page.tsx` — `<TaskBlock>` обёрнут в `actor.actor === 'user'`; переданы `currentUserId` и `canDelete={hasMinRole(actor.role, 'ADMIN')}`
+- Удалены мёртвые моки: `TasksBoard.tsx`, `TaskGroup.tsx`, `TaskRow.tsx`, `PrioritySegment.tsx`, `CreateTaskModal.tsx`
+
+**Out of scope (не делалось):** CRUD API и `GET /api/users/assignable` (Таск 1); промпт при смене этапа, колонка «Следующее действие», `getNextActions.ts` (Таск 3); инлайн-действия из строки списка лидов (Таск 4); `QuickTaskTypeButtons`; интеграция риска (`computeRisk`) — Phase 16
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; живая проверка в headless Chromium (Playwright): создание → отображение → цикл статусов TODO→IN_PROGRESS→DONE (по PATCH-ответам) → отмена → появление в истории → удаление (ADMIN); MANAGER видит чужую (ADMIN) задачу без карандаша/интерактивного кружка, клик не открывает модалку; свою задачу может редактировать; пустое состояние на лиде без задач; в консоли — только предсуществующий шум (`[sse] connection error`, hydration-warning в `LeadComments`)
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-11 — Phase 15, Таск 1: CRUD API задач + assignable-список + события
 
 **Статус:** ✅ Завершён

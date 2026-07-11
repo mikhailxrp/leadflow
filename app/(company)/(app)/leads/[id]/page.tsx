@@ -157,7 +157,14 @@ export default async function LeadDetailPage({
             comments={serializedComments}
             canComment={actor.actor === 'user'}
           />
-          <TaskBlock leadId={lead.id} highlightTaskId={taskId} />
+          {actor.actor === 'user' && (
+            <TaskBlock
+              leadId={lead.id}
+              currentUserId={actor.userId}
+              canDelete={hasMinRole(actor.role, 'ADMIN')}
+              highlightTaskId={taskId}
+            />
+          )}
           {actor.actor === 'user' && (
             <ReminderBlock
               leadId={lead.id}

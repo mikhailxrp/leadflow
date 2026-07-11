@@ -1,25 +1,24 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "@iconify/react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import IconButton from "@/components/ui/IconButton";
-import { ASSIGNEE_OPTIONS } from "@/components/tasks/taskConstants";
+import { createTaskSchema } from "@/lib/validations/tasks";
+import { toIsoFromLocalParts } from "@/components/tasks/taskConstants";
+import { type TaskData } from "@/components/tasks/TaskItem";
 
-export interface CreateTaskPayload {
-  title: string;
-  assignedToId: string;
-  dueDate: string;
-  dueTime: string;
-  description: string;
+interface AssignableUser {
+  id: string;
+  name: string;
 }
 
 interface AddTaskModalProps {
   leadId: string;
   onClose: () => void;
-  onCreate: (data: CreateTaskPayload) => void;
+  onCreated: (task: TaskData) => void;
 }
 
 const selectClass = `
@@ -29,6 +28,7 @@ const selectClass = `
   text-[14px] text-[var(--color-text-primary)]
   outline-none transition-all duration-150
   focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]
+  disabled:cursor-not-allowed disabled:opacity-60
 `;
 
 interface ModalSelectProps {
@@ -37,6 +37,8 @@ interface ModalSelectProps {
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
+  disabled?: boolean;
+  placeholder?: string;
 }
 
 function ModalSelect({
@@ -45,6 +47,8 @@ function ModalSelect({
   value,
   onChange,
   options,
+  disabled = false,
+  placeholder,
 }: ModalSelectProps): ReactNode {
   return (
     <div className="flex flex-col gap-1.5">
@@ -58,9 +62,13 @@ function ModalSelect({
         <select
           id={id}
           value={value}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           className={selectClass}
         >
+          {options.length === 0 && (
+            <option value="">{placeholder ?? "Нет доступных вариантов"}</option>
+          )}
           {options.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
@@ -83,28 +91,95 @@ function ModalSelect({
 export default function AddTaskModal({
   leadId,
   onClose,
-  onCreate,
+  onCreated,
 }: AddTaskModalProps): ReactNode {
+  const [assignees, setAssignees] = useState<AssignableUser[] | null>(null);
+  const [assigneesError, setAssigneesError] = useState<string | null>(null);
+
   const [title, setTitle] = useState("");
-  const [assignedToId, setAssignedToId] = useState("alexey");
-  const [dueDate, setDueDate] = useState("");
-  const [dueTime, setDueTime] = useState("");
+  const [assignedToId, setAssignedToId] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
   const [description, setDescription] = useState("");
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const isValid = title.trim().length > 0;
+  useEffect(() => {
+    let cancelled = false;
 
-  function handleCreate(): void {
+    async function load(): Promise<void> {
+      try {
+        const res = await fetch("/api/users/assignable");
+        if (!res.ok) throw new Error("failed");
+        const data = (await res.json()) as AssignableUser[];
+        if (cancelled) return;
+        setAssignees(data);
+        setAssignedToId((prev) => prev || (data[0]?.id ?? ""));
+      } catch {
+        if (!cancelled) setAssigneesError("Не удалось загрузить исполнителей");
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isValid = title.trim().length > 0 && assignedToId.length > 0;
+
+  async function handleCreate(): Promise<void> {
     if (!isValid) return;
 
-    // TODO: POST /api/leads/[leadId]/tasks
-    onCreate({
+    setFieldError(null);
+    setFormError(null);
+
+    const dueDate = toIsoFromLocalParts(date, time);
+    const payload = {
       title: title.trim(),
       assignedToId,
-      dueDate,
-      dueTime,
-      description: description.trim(),
-    });
-    onClose();
+      ...(dueDate ? { dueDate } : {}),
+      ...(description.trim() ? { description: description.trim() } : {}),
+    };
+
+    const parsed = createTaskSchema.safeParse(payload);
+    if (!parsed.success) {
+      setFieldError(parsed.error.issues[0]?.message ?? "Проверьте заполненные поля");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const res = await fetch(`/api/leads/${leadId}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed.data),
+      });
+
+      if (!res.ok) {
+        if (res.status === 400) {
+          const body = (await res.json().catch(() => null)) as { error?: string } | null;
+          setFormError(
+            body?.error === "ASSIGNEE_INVALID"
+              ? "Исполнитель недоступен — выберите другого"
+              : "Проверьте заполненные поля",
+          );
+        } else {
+          setFormError("Не удалось создать задачу");
+        }
+        return;
+      }
+
+      const created = (await res.json()) as TaskData;
+      onCreated(created);
+      onClose();
+    } catch {
+      setFormError("Ошибка сети");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -124,8 +199,6 @@ export default function AddTaskModal({
         />
       </div>
 
-      <input type="hidden" name="leadId" value={leadId} />
-
       <div className="mt-5 flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <label
@@ -140,6 +213,7 @@ export default function AddTaskModal({
             placeholder="Что нужно сделать?"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            maxLength={200}
             className="
               w-full resize-none rounded-[6px]
               border border-[var(--color-border)] border-[0.5px] p-3
@@ -156,7 +230,9 @@ export default function AddTaskModal({
           id="add-task-assignee"
           value={assignedToId}
           onChange={setAssignedToId}
-          options={[...ASSIGNEE_OPTIONS]}
+          disabled={assignees === null}
+          placeholder={assigneesError ?? "Загрузка..."}
+          options={(assignees ?? []).map((user) => ({ value: user.id, label: user.name }))}
         />
 
         <div className="flex flex-col gap-1.5">
@@ -169,8 +245,8 @@ export default function AddTaskModal({
                 type="date"
                 placeholder="Дата"
                 icon={<Icon icon="tabler:calendar" className="h-4 w-4" />}
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
                 aria-label="Дата"
               />
             </div>
@@ -178,8 +254,8 @@ export default function AddTaskModal({
               <Input
                 type="time"
                 placeholder="Время"
-                value={dueTime}
-                onChange={(e) => setDueTime(e.target.value)}
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
                 aria-label="Время"
               />
             </div>
@@ -199,6 +275,7 @@ export default function AddTaskModal({
             placeholder="Дополнительные детали..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            maxLength={2000}
             className="
               w-full resize-none rounded-[6px]
               border border-[var(--color-border)] border-[0.5px] p-3
@@ -209,6 +286,10 @@ export default function AddTaskModal({
             "
           />
         </div>
+
+        {(fieldError || formError) && (
+          <p className="text-[12px] text-[#EF4444]">{fieldError ?? formError}</p>
+        )}
       </div>
 
       <div
@@ -219,8 +300,12 @@ export default function AddTaskModal({
         <Button variant="secondary" onClick={onClose}>
           Отмена
         </Button>
-        <Button variant="primary" disabled={!isValid} onClick={handleCreate}>
-          Создать
+        <Button
+          variant="primary"
+          disabled={!isValid || saving}
+          onClick={() => void handleCreate()}
+        >
+          {saving ? "Создание..." : "Создать"}
         </Button>
       </div>
     </Modal>
