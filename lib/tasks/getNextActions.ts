@@ -4,6 +4,7 @@ export type NextAction = {
   taskId: string;
   title: string;
   dueDate: string | null;
+  createdById: string;
 } | null;
 
 /**
@@ -31,6 +32,7 @@ export async function getNextActions(
       leadId: true,
       title: true,
       dueDate: true,
+      createdById: true,
     },
     orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
   });
@@ -43,6 +45,7 @@ export async function getNextActions(
       taskId: task.id,
       title: task.title,
       dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+      createdById: task.createdById,
     });
   }
 

@@ -30,9 +30,15 @@ function formatDate(iso: string): string {
 
 interface LeadsTableProps {
   leads: Array<LeadListItem & { risk: RiskResult; nextAction: NextAction }>;
+  currentUserId: string | null;
+  isAdmin: boolean;
 }
 
-export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
+export default function LeadsTable({
+  leads,
+  currentUserId,
+  isAdmin,
+}: LeadsTableProps): ReactNode {
   return (
     <div className="overflow-x-auto rounded-[12px] border border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)]">
       <table className="w-full border-collapse text-[13px]">
@@ -148,7 +154,17 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
                   >
                     Открыть
                   </Link>
-                  <LeadRowQuickActions leadId={lead.id} closeType={lead.closeType} />
+                  <LeadRowQuickActions
+                    leadId={lead.id}
+                    closeType={lead.closeType}
+                    nextAction={lead.nextAction}
+                    canEditNextAction={
+                      lead.nextAction
+                        ? isAdmin || lead.nextAction.createdById === currentUserId
+                        : true
+                    }
+                    showActions={currentUserId !== null}
+                  />
                 </div>
               </td>
             </tr>
