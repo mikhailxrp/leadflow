@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { hasMinRole } from '@/constants/roles';
 import { toCompanyActor } from '@/lib/auth/requireCompanyAccess';
 import { getLeadById } from '@/lib/leads/getLeadById';
+import { prisma } from '@/lib/prisma';
 import type { CompanySession } from '@/types/session';
 import { PageContent } from '@/components/layout/AppLayout';
 import LeadHeader from '@/components/leads/LeadHeader';
@@ -18,6 +19,7 @@ import LeadSidebar from '@/components/leads/LeadSidebar';
 import LeadComments from '@/components/leads/LeadComments';
 import LeadHistory from '@/components/leads/LeadHistory';
 import TaskBlock from '@/components/tasks/TaskBlock';
+import ReminderBlock from '@/components/reminders/ReminderBlock';
 import type { HistoryEventItem } from '@/constants/eventLabels';
 
 export const metadata: Metadata = {
@@ -67,6 +69,16 @@ export default async function LeadDetailPage({
   }));
 
   const takenAtStr = lead.takenAt ? lead.takenAt.toISOString() : null;
+
+  const telegramConnected =
+    actor.actor === 'user'
+      ? (
+          await prisma.user.findUnique({
+            where: { id: actor.userId },
+            select: { telegramChatId: true },
+          })
+        )?.telegramChatId != null
+      : false;
 
   return (
     <PageContent>
@@ -146,6 +158,14 @@ export default async function LeadDetailPage({
             canComment={actor.actor === 'user'}
           />
           <TaskBlock leadId={lead.id} highlightTaskId={taskId} />
+          {actor.actor === 'user' && (
+            <ReminderBlock
+              leadId={lead.id}
+              currentUserId={actor.userId}
+              isAdmin={hasMinRole(actor.role, 'ADMIN')}
+              telegramConnected={telegramConnected}
+            />
+          )}
           <LeadHistory events={serializedEvents} />
         </aside>
       </div>

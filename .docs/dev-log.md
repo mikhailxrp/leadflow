@@ -36,6 +36,28 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-11 — Phase 14, Таск 3: UI блока «Напоминания» в карточке лида + чистка мок-блока настроек
+
+**Статус:** ✅ Завершён (код, статические проверки и живая проверка в headless-браузере — Playwright, реальный dev-сервер и БД, throwaway-компания/пользователь/лид удалены после проверки)
+
+**Что было сделано:**
+
+- `components/reminders/ReminderItem.tsx` (новый) — строка активного напоминания (дата, текст, бейджи каналов, «Изменить»/«Отменить»); экспортирует тип `ReminderData` и `ChannelBadge`/`toChannelList()` (гард для `Prisma.JsonValue` → `ReminderChannelName[]`); кнопки действий видны только автору или `ADMIN` (`canManage`)
+- `components/reminders/ReminderHistory.tsx` (новый) — свёрнутый список `FIRED`/`CANCELLED`, без кнопок действий
+- `components/reminders/AddReminderModal.tsx` (новый) — модалка создания/редактирования; `remindAt` собирается из локальных `date`+`time` через `new Date(...).toISOString()` (не ручная склейка `'Z'`); клиентская Zod-валидация (`createReminderSchema`); предупреждение «Telegram не привязан» при выбранном Telegram и `telegramConnected === false`
+- `components/reminders/ReminderBlock.tsx` (новый) — `Card` с `GET /api/leads/:id/reminders` в `useEffect`, разбивка на активные/историю, счётчик, пустое состояние, обновление списка после мутаций
+- `app/(company)/(app)/leads/[id]/page.tsx` — точечный `prisma.user.findUnique` за `telegramChatId` текущего актора; `<ReminderBlock>` вставлен в правую колонку, гейт `actor.actor === 'user'` (маркетолог блок не видит)
+- `components/settings/RemindersSection.tsx` — удалён (мёртвый мок с несуществующими в схеме полями)
+- `components/settings/SettingsClientArea.tsx` — `'reminders'` убран из `DirtyKey`, `dirtyFlags`, `handleSave`
+
+**Out of scope (не делалось):** allow-list маркетолога для напоминаний (по спецификации маркетолог не имеет доступа к напоминаниям вообще); SMS/другие каналы; перевод `TaskBlock` на реальный API (Phase 15)
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; живая проверка в headless Chromium (Playwright) на реальном dev-сервере: логин реального пользователя → карточка лида → пустое состояние → создание напоминания (с видимым предупреждением о непривязанном Telegram) → появление в активном списке → редактирование текста → отмена → перенос в свёрнутую историю со статусом «отменено» и бейджами каналов; `/admin/settings` — блок «Напоминания» отсутствует, `SecuritySection` продолжает рендериться; в консоли браузера — только два предсуществующих предупреждения, не связанные с этим таском (`[sse] connection error` при переподключении под headless, hydration-warning внутри нетронутого `SecuritySection`)
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-10 — Phase 14, Таск 1: Ядро напоминаний — cron-эндпоинт + каналы доставки
 
 **Статус:** ✅ Завершён (код, статические проверки и живая проверка против реального dev-сервера — throwaway-компания/лид/напоминания удалены после проверки)
