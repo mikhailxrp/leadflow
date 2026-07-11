@@ -36,6 +36,95 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-11 — Phase 15, Таск 4: Инлайн быстрые действия по задаче из строки списка лидов
+
+**Статус:** ✅ Завершён (код, статические проверки и живая проверка в headless-браузере — Playwright, 1280×800, реальный dev-сервер и БД, throwaway-компания/пользователи/лиды/задачи удалены после проверки)
+
+**Исправление документации перед реализацией (согласовано с пользователем):** `components/leads/LeadRowQuickActions.tsx` уже существовал (создан в более ранней фазе, оборачивал только `CloseLeadMenu`) — доработан, а не создан заново. Заодно закрыт смежный пробел: компонент рендерился без проверки `actor.actor === 'user'`, из-за чего маркетолог видел нерабочую кнопку «Закрыть лид» (не входит в его allow-list, 403 при клике) — теперь весь компонент гасится для не-`user`-акторов. `lib/tasks/getNextActions.ts` дополнен полем `createdById`, которого не было в исходном плане файлов `phase-15.md`/`tasks.md`, — без него кнопка «Изменить срок» не могла бы соблюдать правило «автор или ADMIN» из `tasks.md` на уровне UI (только через слепой 403 от сервера).
+
+**Что было сделано:**
+
+- `lib/tasks/getNextActions.ts` — `createdById: true` добавлен в `select` и в тип `NextAction`; аддитивное изменение, `lib/pipeline/boardQuery.ts` не затронут (использует только факт наличия записи)
+- `app/(company)/(app)/leads/page.tsx` — вычисляет `currentUserId`/`isAdmin` из `actor` (тот же паттерн, что у `TaskBlock`/`ReminderBlock` в карточке лида) и передаёт их в `LeadsTable`
+- `components/leads/LeadsTable.tsx` — новые пропы `currentUserId`/`isAdmin`; на каждой строке вычисляет `canEditNextAction = isAdmin || nextAction.createdById === currentUserId` (`true`, если открытой задачи нет — тогда действие всегда «создать», а не «править»); передаёт `nextAction`/`canEditNextAction`/`showActions` в `LeadRowQuickActions`
+- `components/leads/LeadRowQuickActions.tsx` — доработан: компактный `IconButton` (kebab) с выпадающим меню на два пункта — «Поставить следующее действие» (открывает `AddTaskModal` как есть) и «Изменить срок» (открывает `EditDueDateModal`, если задача есть и `canEditNextAction`; если задачи нет — сразу ведёт в тот же `AddTaskModal`; если задача есть, но право на правку отсутствует — пункт задизейблен). Весь компонент (включая существующий `CloseLeadMenu`) скрыт при `showActions === false`. После мутации — `router.refresh()`, локальный стейт строки не заводится
+- `components/leads/EditDueDateModal.tsx` (новый) — компактная модалка правки только `dueDate` через `PATCH /api/leads/:id/tasks/:taskId`; переиспользует `toIsoFromLocalParts`/`toLocalDateTimeParts` из `taskConstants.ts`; обрабатывает `400 TASK_NOT_EDITABLE` и `403` отдельными сообщениями (защитный код на случай гонки — кнопка уже скрыта в UI для неавторизованных)
+
+Новых API-роутов, Zod-схем и миграций не потребовалось — использованы существующие `POST /api/leads/:id/tasks` и `PATCH /api/leads/:id/tasks/:taskId`.
+
+**Out of scope (не делалось):** «Назначить ответственного»/«Изменить этап» как быстрые действия из строки (не входят в заголовок таска); возможность снять срок задачи (`dueDate → null`) через компактную модалку (`updateTaskSchema.dueDate` не nullable); изменения логики самого `CloseLeadMenu` кроме гейта видимости.
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; живая проверка в headless Chromium (Playwright, 1280×800) на реальном dev-сервере с throwaway-компанией (ADMIN + MANAGER, лид без задачи + лид с задачей, созданной ADMIN): «Поставить следующее действие» на лиде без задачи → задача создана, колонка «Следующее действие» обновилась после `router.refresh()`; «Изменить срок» от лица ADMIN на задаче, созданной тем же ADMIN, → дата в колонке обновилась; та же задача под сессией MANAGER (не автор, не ADMIN) → пункт «Изменить срок» задизейблен, принудительный клик (`force: true`) модалку не открывает; «Поставить следующее действие» при этом MANAGER доступно без ограничений. Побочно измерено переполнение таблицы по ширине на 1280px (`overflow-x-auto`, уже существовавший паттерн): до таска — 128px переполнения (9 колонок + существующие действия), после добавления компактной kebab-кнопки — 144px (+16px) — рост минимальный, действия остаются доступны прокруткой контейнера. Видимость для маркетолога (`showActions`) проверена по коду/типам (`CompanyActor` отдаёт `userId` только для `actor: 'user'`), сквозной прогон через реальный marketer-access-токен не выполнялся — непропорционально трудозатратно для проверки одного булева гейта. В консоли браузера — только предсуществующий шум (`[sse] connection error` в headless-режиме).
+
+**Definition of Done:** выполнено полностью по `TASK.md`, кроме сквозной live-проверки видимости для маркетолога (заменена проверкой по коду/типам, см. выше)
+
+---
+
+## 2026-07-11 — Phase 15, Таск 3: Промпт при смене этапа + колонка «Следующее действие»
+
+**Статус:** ✅ Завершён (код, статические проверки и живая проверка в headless-браузере — Playwright, 1280×800, реальный dev-сервер и БД, throwaway-компания/пользователь/лиды/задача удалены после проверки)
+
+**Исправление документации перед реализацией:** `.docs/phases/phase-15.md`/`.docs/modules/tasks.md` ссылались на несуществующие `components/pipeline/useKanbanDnd.ts`/`KanbanBoard.tsx` — реальный drag-and-drop живёт инлайн в `handleDragEnd` внутри `components/pipeline/PipelineBoard.tsx`; промпт встроен туда же, отдельный хук не заводился.
+
+**Что было сделано:**
+
+- `lib/tasks/getNextActions.ts` (новый) — батч-резолвер `leadIds → Map<leadId, { taskId, title, dueDate } | null>`; сортировка `orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }]`, идентична `GET /api/leads/:id/tasks`
+- `lib/leads/getLeads.ts` — `getLeadsWithRisk()` подмешивает `nextAction` поверх результата (`LeadListItem & { risk } & { nextAction }`), не в сам интерфейс `LeadListItem` — иначе ломается `toLeadListItem()` в `app/api/leads/[id]/route.ts`, не участвующий в этом таске
+- `lib/pipeline/boardQuery.ts` — `BoardLeadCard.hasOpenTask` (boolean), вычисляется тем же `getNextActions` без отдельного третьего запроса к `Task`
+- `components/leads/LeadsTable.tsx` — колонка «Следующее действие»: название + срок либо «Нет следующего действия» (предупреждающим цветом)
+- `components/pipeline/PipelineBoard.tsx` — в `handleDragEnd`, после успешного `PATCH /api/leads/:id/stage` (внутри `try`, не в `catch`-откате), если у перемещённого лида (снапшот `columns` до перемещения) `!hasOpenTask` → открывается `AddTaskModal` с заголовком «Что делаем дальше и когда?»; по `onCreated` — локальный `hasOpenTask` лида выставляется в `true` (не переспрашивает при повторном перемещении в той же сессии); промпт не встроен ни в reorder внутри колонки, ни в ветку отката при сбое `PATCH`
+- `components/tasks/AddTaskModal.tsx` — новый опциональный проп `title` (по умолчанию «Новая задача») для переиспользования с другим заголовком в промпте
+
+**Out of scope (не делалось):** инлайн быстрые действия из строки списка лидов (`LeadRowQuickActions`, `EditDueDateModal`) — Таск 4; визуальный бейдж `hasOpenTask` на карточке Kanban — поле используется только для логики промпта; интеграция в сквозной риск (`computeRisk`) — Phase 16
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; живая проверка в headless Chromium (Playwright) на реальном dev-сервере с throwaway-компанией (2 этапа, 2 лида — один без задачи, один с заранее созданной открытой задачей): колонка «Следующее действие» показывает заголовок+срок задачи для одного лида и «Нет следующего действия» для другого; drag-and-drop лида без задачи в другую колонку → стадия сменилась → появился промпт «Что делаем дальше и когда?» → создание задачи → промпт закрылся → смена этапа подтверждена после перезагрузки страницы; повторное перемещение того же лида (теперь с задачей) → промпт не появляется; перемещение лида с изначально существующей задачей → промпт не появляется; ошибок в консоли браузера нет
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
+## 2026-07-11 — Phase 15, Таск 2: UI блока «Задачи» в карточке на реальном API + чистка мок-каркаса
+
+**Статус:** ✅ Завершён (код, статические проверки и живая проверка в headless-браузере — Playwright, 1280×720, реальный dev-сервер и БД)
+
+**Что было сделано:**
+
+- `components/tasks/TaskBlock.tsx` — переписан на `GET /api/leads/:id/tasks` при монтировании (loading/error как в `ReminderBlock`); разбивка на активные/историю по реальному `status`; клиентская сортировка повторяет серверную (`compareActiveTasks`/`compareInactiveTasks`); обновление стейта после `POST`/`PATCH`/`DELETE`; цикл статусов по клику на кружок — async `PATCH` с обработкой ошибок; пустое состояние «Нет задач по этому лиду»
+- `components/tasks/TaskItem.tsx` — `TaskData` под реальный шейп API (`assignedTo: { id, name }`, ISO-даты, `createdById`); проп `canEdit` скрывает карандаш и интерактивный кружок статуса для не-автора и не-ADMIN; просроченные активные задачи (`dueDate < now`) визуально выделены
+- `components/tasks/AddTaskModal.tsx` — единый datetime-picker; исполнители из `GET /api/users/assignable`; клиентская Zod-валидация (`createTaskSchema`); сам делает `POST` и вызывает `onCreated(task)`; при пустом сроке ключ `dueDate` не отправляется
+- `components/tasks/EditTaskModal.tsx` — реальные исполнители, `updateTaskSchema`, сам делает `PATCH`/`DELETE`; «Изменить»/«Отменить» — автор или ADMIN; «Удалить» — только ADMIN, независимо от статуса задачи
+- `components/tasks/taskConstants.ts` — убраны `ASSIGNEE_OPTIONS`/`ASSIGNEE_LABELS`; `formatDueDateLabel`/`formatCompletedAtLabel` на `Date`/ISO; добавлены `compareActiveTasks`/`compareInactiveTasks`/`isTaskOverdue`; оставлены `ACTIVE_STATUSES`/`INACTIVE_STATUSES`/`isTaskEditable`
+- `app/(company)/(app)/leads/[id]/page.tsx` — `<TaskBlock>` обёрнут в `actor.actor === 'user'`; переданы `currentUserId` и `canDelete={hasMinRole(actor.role, 'ADMIN')}`
+- Удалены мёртвые моки: `TasksBoard.tsx`, `TaskGroup.tsx`, `TaskRow.tsx`, `PrioritySegment.tsx`, `CreateTaskModal.tsx`
+
+**Out of scope (не делалось):** CRUD API и `GET /api/users/assignable` (Таск 1); промпт при смене этапа, колонка «Следующее действие», `getNextActions.ts` (Таск 3); инлайн-действия из строки списка лидов (Таск 4); `QuickTaskTypeButtons`; интеграция риска (`computeRisk`) — Phase 16
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; живая проверка в headless Chromium (Playwright): создание → отображение → цикл статусов TODO→IN_PROGRESS→DONE (по PATCH-ответам) → отмена → появление в истории → удаление (ADMIN); MANAGER видит чужую (ADMIN) задачу без карандаша/интерактивного кружка, клик не открывает модалку; свою задачу может редактировать; пустое состояние на лиде без задач; в консоли — только предсуществующий шум (`[sse] connection error`, hydration-warning в `LeadComments`)
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
+## 2026-07-11 — Phase 15, Таск 1: CRUD API задач + assignable-список + события
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/tasks.ts` (новый) — `createTaskSchema` (`title` 1–200, `assignedToId`, опциональные `dueDate` ISO-datetime и `description` ≤ 2000), `updateTaskSchema` (все поля партиальные + `status: z.nativeEnum(TaskStatus)`), типы через `z.infer`
+- `app/api/leads/[id]/tasks/route.ts` (новый) — `GET`: лид через `visibilityWhere`-паттерн (как в `reminders/route.ts`) → вне видимости/чужая компания → `404`; два запроса для сортировки — активные (`TODO`/`IN_PROGRESS`) по `dueDate asc` → `createdAt asc`, неактивные (`DONE`/`CANCELLED`) по `completedAt desc`; `assignedTo { id, name }` в ответе. `POST`: явная проверка исполнителя (`companyId` + `isBlocked: false`) → иначе `400 ASSIGNEE_INVALID`; `writeEvent(TASK_CREATED)` с `leadId`, `userId`, `payload.taskId`. Guard — `requireCompanyUser({ minRole: 'MANAGER' })`
+- `app/api/leads/[id]/tasks/[taskId]/route.ts` (новый) — `PATCH`: задача по `{ id: taskId, leadId, companyId }`; `DONE`/`CANCELLED` → `400 TASK_NOT_EDITABLE`; право — автор или `ADMIN`, иначе `403`; переход в `DONE` → `completedAt = now()` + `TASK_DONE`; в `CANCELLED` → `completedAt = null` + `TASK_CANCELLED`; правка полей / `TODO`/`IN_PROGRESS` → `TASK_UPDATED` (одно событие на запрос, даже при одновременной смене `status` и полей). `DELETE`: физическое удаление, строго `hasMinRole(role, 'ADMIN')`, без события
+- `app/api/users/assignable/route.ts` (новый) — `GET` только `{ id, name }` активных (`isBlocked: false`) пользователей компании; guard `requireCompanyUser({ minRole: 'MANAGER' })`
+- `constants/eventLabels.ts` — кейсы `TASK_CREATED`/`TASK_UPDATED`/`TASK_DONE`/`TASK_CANCELLED` в company-side `getEventLabel()` (раньше падали в `default`)
+
+**Out of scope (не делалось):** UI (`TaskBlock`, `AddTaskModal`, `EditTaskModal`, чистка мок-каркаса `components/tasks/*`) — Таск 2; промпт при смене этапа, колонка «Следующее действие», `getNextActions.ts` — Таск 3; инлайн быстрые действия из списка лидов — Таск 4; Prisma-миграция (не нужна); добавление задач/`assignable` в allow-list маркетолога (`constants/marketerAccess.ts`) — по спецификации маркетолог задач не касается; уведомления о дедлайне — Phase 17
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; нет `any`. Guard `requireCompanyUser` (не `requireCompanyAccess`) — маркетолог получает `403` на всех эндпоинтах задач и `assignable` без записи в allow-list
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-11 — Phase 14, Таск 3: UI блока «Напоминания» в карточке лида + чистка мок-блока настроек
 
 **Статус:** ✅ Завершён (код, статические проверки и живая проверка в headless-браузере — Playwright, реальный dev-сервер и БД, throwaway-компания/пользователь/лид удалены после проверки)

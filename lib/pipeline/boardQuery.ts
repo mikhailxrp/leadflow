@@ -5,6 +5,7 @@ import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
 import { computeRiskBatch } from '@/lib/risk/computeRiskBatch';
 import type { RiskLevel } from '@/lib/risk/computeRisk';
+import { getNextActions } from '@/lib/tasks/getNextActions';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -16,6 +17,7 @@ export type BoardLeadCard = {
   closeType: CloseType | null;
   assignedTo: { id: string; name: string } | null;
   risk: { level: RiskLevel; reason: string | null };
+  hasOpenTask: boolean;
 };
 
 export type BoardColumn = {
@@ -108,6 +110,7 @@ function computeAvgDaysOnStage(
 
 function toBoardLeadCard(
   lead: LeadListItem & { risk: { level: RiskLevel; reason: string | null } },
+  hasOpenTaskByLeadId: Map<string, boolean>,
 ): BoardLeadCard {
   return {
     id: lead.id,
@@ -117,6 +120,7 @@ function toBoardLeadCard(
     closeType: lead.closeType,
     assignedTo: lead.assignedTo,
     risk: lead.risk,
+    hasOpenTask: hasOpenTaskByLeadId.get(lead.id) ?? false,
   };
 }
 
@@ -194,12 +198,13 @@ export async function getBoardData(options: BoardQueryOptions): Promise<BoardDat
     stage: lead.stage,
   }));
 
-  const leadsWithRisk = await computeRiskBatch(mappedLeads, companySettings, prisma);
-
   const leadIds = mappedLeads.map((lead) => lead.id);
-  const stageChangedEvents =
+
+  const [leadsWithRisk, nextActions, stageChangedEvents] = await Promise.all([
+    computeRiskBatch(mappedLeads, companySettings, prisma),
+    getNextActions(leadIds, companyId),
     leadIds.length > 0
-      ? await prisma.event.findMany({
+      ? prisma.event.findMany({
           where: {
             leadId: { in: leadIds },
             type: 'STAGE_CHANGED',
@@ -210,7 +215,13 @@ export async function getBoardData(options: BoardQueryOptions): Promise<BoardDat
           },
           orderBy: { createdAt: 'desc' },
         })
-      : [];
+      : Promise.resolve([]),
+  ]);
+
+  const hasOpenTaskByLeadId = new Map<string, boolean>();
+  for (const [leadId, nextAction] of nextActions) {
+    hasOpenTaskByLeadId.set(leadId, nextAction !== null);
+  }
 
   const lastStageChangedAtByLeadId = buildLastStageChangedMap(stageChangedEvents);
 
@@ -235,7 +246,7 @@ export async function getBoardData(options: BoardQueryOptions): Promise<BoardDat
         lastStageChangedAtByLeadId,
         now,
       ),
-      leads: stageLeads.map(toBoardLeadCard),
+      leads: stageLeads.map((lead) => toBoardLeadCard(lead, hasOpenTaskByLeadId)),
     };
   });
 

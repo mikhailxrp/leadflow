@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "@iconify/react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
@@ -10,26 +10,24 @@ import TaskStatusBadge, {
   type TaskStatus,
 } from "@/components/tasks/TaskStatusBadge";
 import {
-  ASSIGNEE_OPTIONS,
   isTaskEditable,
+  toIsoFromLocalParts,
+  toLocalDateTimeParts,
 } from "@/components/tasks/taskConstants";
+import { updateTaskSchema } from "@/lib/validations/tasks";
 import { type TaskData } from "@/components/tasks/TaskItem";
 
-export interface UpdateTaskPayload {
+interface AssignableUser {
   id: string;
-  title: string;
-  assignedToId: string;
-  dueDate: string;
-  dueTime: string;
-  description: string;
-  status: TaskStatus;
+  name: string;
 }
 
 interface EditTaskModalProps {
   task: TaskData;
+  isAdmin: boolean;
   onClose: () => void;
-  onSave: (data: UpdateTaskPayload) => void;
-  onCancelTask: (id: string) => void;
+  onUpdated: (task: TaskData) => void;
+  onDeleted: (taskId: string) => void;
 }
 
 const selectClass = `
@@ -111,45 +109,152 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
 
 export default function EditTaskModal({
   task,
+  isAdmin,
   onClose,
-  onSave,
-  onCancelTask,
+  onUpdated,
+  onDeleted,
 }: EditTaskModalProps): ReactNode {
   const editable = isTaskEditable(task.status);
+  const initialParts = toLocalDateTimeParts(task.dueDate);
+
+  const [assignees, setAssignees] = useState<AssignableUser[] | null>(null);
+  const [assigneesError, setAssigneesError] = useState<string | null>(null);
 
   const [title, setTitle] = useState(task.title);
-  const [assignedToId, setAssignedToId] = useState(task.assigneeId);
-  const [dueDate, setDueDate] = useState(task.dueDate ?? "");
-  const [dueTime, setDueTime] = useState(task.dueTime ?? "");
+  const [assignedToId, setAssignedToId] = useState(task.assignedTo.id);
+  const [date, setDate] = useState(initialParts.date);
+  const [time, setTime] = useState(initialParts.time);
   const [description, setDescription] = useState(task.description ?? "");
   const [status, setStatus] = useState<TaskStatus>(
     task.status === "IN_PROGRESS" ? "IN_PROGRESS" : "TODO",
   );
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load(): Promise<void> {
+      try {
+        const res = await fetch("/api/users/assignable");
+        if (!res.ok) throw new Error("failed");
+        const data = (await res.json()) as AssignableUser[];
+        if (!cancelled) setAssignees(data);
+      } catch {
+        if (!cancelled) setAssigneesError("Не удалось загрузить исполнителей");
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const isValid = title.trim().length > 0;
 
-  function handleSave(): void {
+  async function patchTask(body: Record<string, unknown>): Promise<TaskData | null> {
+    setFormError(null);
+
+    try {
+      const res = await fetch(`/api/leads/${task.leadId}/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        if (res.status === 400) {
+          const errBody = (await res.json().catch(() => null)) as { error?: string } | null;
+          setFormError(
+            errBody?.error === "ASSIGNEE_INVALID"
+              ? "Исполнитель недоступен — выберите другого"
+              : errBody?.error === "TASK_NOT_EDITABLE"
+                ? "Задача уже завершена или отменена — обновите страницу"
+                : "Проверьте заполненные поля",
+          );
+        } else if (res.status === 403) {
+          setFormError("Недостаточно прав для этого действия");
+        } else {
+          setFormError("Не удалось сохранить задачу");
+        }
+        return null;
+      }
+
+      return (await res.json()) as TaskData;
+    } catch {
+      setFormError("Ошибка сети");
+      return null;
+    }
+  }
+
+  async function handleSave(): Promise<void> {
     if (!isValid || !editable) return;
 
-    // TODO: PATCH /api/leads/:leadId/tasks/:taskId
-    onSave({
-      id: task.id,
+    const dueDate = toIsoFromLocalParts(date, time);
+    const payload = {
       title: title.trim(),
       assignedToId,
       dueDate,
-      dueTime,
-      description: description.trim(),
+      description: description.trim() || undefined,
       status,
-    });
-    onClose();
+    };
+
+    const parsed = updateTaskSchema.safeParse(payload);
+    if (!parsed.success) {
+      setFormError(parsed.error.issues[0]?.message ?? "Проверьте заполненные поля");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const updated = await patchTask(parsed.data);
+      if (!updated) return;
+      onUpdated(updated);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleCancelTask(): void {
+  async function handleCancelTask(): Promise<void> {
     if (!editable) return;
 
-    // TODO: PATCH /api/leads/:leadId/tasks/:taskId { status: 'CANCELLED' }
-    onCancelTask(task.id);
-    onClose();
+    setSaving(true);
+    try {
+      const updated = await patchTask({ status: "CANCELLED" });
+      if (!updated) return;
+      onUpdated(updated);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(): Promise<void> {
+    if (!window.confirm("Удалить эту задачу без возможности восстановления?")) return;
+
+    setDeleting(true);
+    setFormError(null);
+
+    try {
+      const res = await fetch(`/api/leads/${task.leadId}/tasks/${task.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        setFormError("Не удалось удалить задачу");
+        return;
+      }
+
+      onDeleted(task.id);
+      onClose();
+    } catch {
+      setFormError("Ошибка сети");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -191,6 +296,7 @@ export default function EditTaskModal({
             rows={2}
             value={title}
             disabled={!editable}
+            maxLength={200}
             onChange={(e) => setTitle(e.target.value)}
             className={textareaClass}
           />
@@ -202,9 +308,13 @@ export default function EditTaskModal({
               label="Исполнитель"
               id="edit-task-assignee"
               value={assignedToId}
-              disabled={!editable}
+              disabled={!editable || assignees === null}
               onChange={setAssignedToId}
-              options={[...ASSIGNEE_OPTIONS]}
+              options={
+                assignees
+                  ? assignees.map((user) => ({ value: user.id, label: user.name }))
+                  : [{ value: task.assignedTo.id, label: task.assignedTo.name }]
+              }
             />
           </div>
           {editable && (
@@ -219,6 +329,9 @@ export default function EditTaskModal({
             </div>
           )}
         </div>
+        {assigneesError && (
+          <p className="text-[12px] text-[#EF4444]">{assigneesError}</p>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <span className="text-[12px] text-[var(--color-text-secondary)]">
@@ -230,8 +343,8 @@ export default function EditTaskModal({
                 type="date"
                 disabled={!editable}
                 icon={<Icon icon="tabler:calendar" className="h-4 w-4" />}
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
                 aria-label="Дата"
               />
             </div>
@@ -239,8 +352,8 @@ export default function EditTaskModal({
               <Input
                 type="time"
                 disabled={!editable}
-                value={dueTime}
-                onChange={(e) => setDueTime(e.target.value)}
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
                 aria-label="Время"
               />
             </div>
@@ -258,11 +371,14 @@ export default function EditTaskModal({
             id="edit-task-description"
             rows={2}
             disabled={!editable}
+            maxLength={2000}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className={textareaClass}
           />
         </div>
+
+        {formError && <p className="text-[12px] text-[#EF4444]">{formError}</p>}
       </div>
 
       <div
@@ -270,21 +386,40 @@ export default function EditTaskModal({
           mt-6 flex items-center justify-between gap-3 pt-4
         "
       >
-        {editable ? (
-          <Button variant="danger" size="sm" onClick={handleCancelTask}>
-            Отменить задачу
-          </Button>
-        ) : (
-          <span />
-        )}
+        <div className="flex items-center gap-3">
+          {editable && (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={saving || deleting}
+              onClick={() => void handleCancelTask()}
+            >
+              Отменить задачу
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={saving || deleting}
+              onClick={() => void handleDelete()}
+            >
+              {deleting ? "Удаление..." : "Удалить"}
+            </Button>
+          )}
+        </div>
 
         <div className="flex gap-3">
           <Button variant="secondary" onClick={onClose}>
-            {editable ? "Закрыть" : "Закрыть"}
+            Закрыть
           </Button>
           {editable && (
-            <Button variant="primary" disabled={!isValid} onClick={handleSave}>
-              Сохранить
+            <Button
+              variant="primary"
+              disabled={!isValid || saving || deleting}
+              onClick={() => void handleSave()}
+            >
+              {saving ? "Сохранение..." : "Сохранить"}
             </Button>
           )}
         </div>
