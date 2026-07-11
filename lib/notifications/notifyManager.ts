@@ -5,6 +5,7 @@ import { DEFAULT_COMPANY_SETTINGS } from '@/constants/defaultCompanyData';
 import {
   telegramTemplates,
   type NewLeadForManagerParams,
+  type ReactionReminderParams,
 } from '@/constants/telegramTemplates';
 import { parseNotificationPreferences } from '@/lib/notifications/preferences';
 import { prisma } from '@/lib/prisma';
@@ -17,18 +18,21 @@ import type { NotificationPreferences } from '@/types/users';
  */
 type ManagerAlertPayloads = {
   NEW_LEAD: NewLeadForManagerParams;
+  REACTION_REMINDED: ReactionReminderParams;
 };
 
 type ManagerAlertType = keyof ManagerAlertPayloads;
 
 const ALERT_PREFERENCE_KEY: Record<ManagerAlertType, keyof NotificationPreferences> = {
   NEW_LEAD: 'assignedLead',
+  REACTION_REMINDED: 'reactionReminder',
 };
 
 const ALERT_TEMPLATES: {
   [K in ManagerAlertType]: (payload: ManagerAlertPayloads[K]) => string;
 } = {
   NEW_LEAD: telegramTemplates.newLeadForManager,
+  REACTION_REMINDED: telegramTemplates.reactionReminder,
 };
 
 export type NotifyManagerUser = {

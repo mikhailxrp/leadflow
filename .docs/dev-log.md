@@ -36,6 +36,126 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-11 — Phase 17, Таск 5: Страница `/control` — счётчик активности менеджеров
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `types/control.ts` (новый) — `ManagerStat` + `ControlStatsResponse`
+- `lib/validations/control.ts` (новый) — `controlPeriodSchema` (7/30/90, по аналогии с `activityPeriodSchema`)
+- `lib/control/getManagerStats.ts` (новый) — один batch-запрос `Lead.findMany` (companyId + `assignedToId != null` + `createdAt >= periodStart`, с событиями `LEAD_TAKEN_IN_WORK`/`LEAD_STAGE_STUCK`) + один запрос `User` по встретившимся `assignedToId`; группировка в JS без N+1 (паттерн `lib/tasks/getNextActions.ts`); строки — все пользователи с назначенными лидами в периоде, не только `role: 'MANAGER'` (явное решение — ручное назначение допускает HEAD/ADMIN); «обработано в срок» — `minutesSinceCreated(lead.createdAt, takenEvent.createdAt, workHours)` (таймстамп события, не `now`) в пределах `resolveApplicableNorm(...).defaultMinutes`
+- `app/api/control/stats/route.ts` (новый) — `GET`, `requireCompanyUser({ minRole: 'HEAD' })` (`try/catch`, паттерн `assign/route.ts`), `?period=7|30|90` (дефолт 30), ответ `{ managers, periodDays }`
+- `app/(company)/(management)/control/page.tsx` — заглушка «Раздел в разработке» заменена на Server Component по паттерну `/team` (прямой вызов `getManagerStats`, без self-fetch через HTTP/`APP_URL`)
+- `components/control/ManagerStatsTable.tsx` (новый) — Client Component: переключатель периода 7/30/90 инлайн (паттерн `CompanyActivityTable`), таблица метрик, пустое состояние
+- Прогнано вживую против реального dev-датасета через временный debug-роут `app/api/devDebugControlStats/route.ts` (создан для проверки, удалён сразу после): агрегация по 4 компаниям без ошибок, включая случай с лидом на `ADMIN`-пользователя (подтверждает, что фильтр строк — не по роли); 401 без сессии на API, 307 → `/login` на странице без сессии
+- `npm run type-check`/`lint`/`build`/`test` — все зелёные
+- `.docs/phases/phase-17.md`, `.docs/phases/_status.md` — таск 5 и фаза 17 в целом отмечены ✅ Завершено
+
+**Out of scope (не делалось):** `/admin/integrations` + health-display API — Phase 18; учёт истории переназначений (`ASSIGNED`) в «получено» — метрика по снапшоту `assignedToId`; реконструкция исторических нормативов реакции — норма берётся текущая.
+
+**Не выполнено в этой сессии:** ручной клик-through в браузере под реальным HEAD/ADMIN-логином — нет тестовых учётных данных и браузерного/Playwright-инструмента. Компенсировано прогоном `getManagerStats` против реальных данных и успешной сборкой (`npm run build`) страницы `/control` и API.
+
+**Definition of Done:** ✅ Все пункты выполнены, кроме визуального браузерного прогона (см. выше)
+
+---
+
+## 2026-07-11 — Phase 17, Таск 4: UI настроек контроля в `/admin/settings`
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `components/settings/ControlSection.tsx` (новый) — карточка «Контроль»: тумблер `controlEnabled` + числовые/временные поля `reactionNorms.defaultMinutes/reminderBeforePercent/escalateAfterPercent`, `stageStuckDaysDefault`, `stuckCheckTime`, `sourceHealthThresholdHours`; каждое поле — независимый мгновенный `PATCH /api/settings` по `blur`/toggle (локальный draft + откат при невалидном/пустом вводе, паттерн `StageRow.commitLimit`), без batch-формы с кнопкой «Сохранить»
+- `components/settings/ReactionNormOverridesTable.tsx` (новый) — общий `OverrideSection` (переиспользован трижды: «По источнику»/«По этапу»/«По сотруднику») поверх `reactionNorms.bySource/byStage/byUser`; добавление — инлайн-строка (Select для этапа/сотрудника из серверных пропсов, текст с `<datalist>`-подсказками из `IntegrationSource.type` для источника); удаление отправляет `{ [key]: null }` (глубокий мёрж из Таска 1 не тронут); запись со ссылкой на уже удалённый этап/заблокированного сотрудника рендерится с фолбэк-подписью и остаётся удаляемой
+- `components/settings/WorkHoursForm.tsx` (новый) — `reactionNorms.workHoursOnly` + `workHours.start/end/days`; включение тумблера без ранее сохранённого расписания сразу сохраняет дефолт (09:00–18:00, Пн–Пт), чтобы гейт не оставался тихим no-op; UI блокирует снятие последнего оставшегося рабочего дня (схема не допускает пустой `days`)
+- `app/(company)/(admin)/admin/settings/page.tsx` — заменены самодельные `readAssignMode`/`readTelegramEnabled` на `getSettings(companyId)`; добавлены запросы `pipelineStage` и `distinct IntegrationSource.type` для новых секций; три новые карточки вставлены рядом с `AssignmentRulesSection`, вне `SettingsDirtyProvider` (та же мгновенная модель сохранения)
+- Бэкенд не менялся — `lib/settings/getSettings.ts`/`updateSettings.ts`, `lib/validations/settings.ts`, `app/api/settings/route.ts` уже покрывали все поля с Таска 1
+- Проверено вживую через Playwright (headless Chromium, временно `npm install --no-save playwright`, без изменений `package.json`/lock-файла) против одноразовой тестовой компании (создана и удалена скриптами `scripts/tmpVerifyTask4*.ts` + `scripts/deleteCompany.ts`, оба временных скрипта удалены после проверки): тумблер и числовое поле переживают reload; добавление всех трёх override одновременно не стирает соседние; удаление одного override не возвращается после reload и не задевает остальные; включение `workHoursOnly` без сохранённого расписания сразу проставляет дефолт; последний рабочий день нельзя снять; существующие секции (`LossReasonsSection`, `AssignModeSection`, `AssignmentRulesSection`, `NotificationsSection`, `SystemSection`) не регрессировали
+- `.docs/phases/phase-17.md`, `.docs/phases/_status.md` — таск 4 отмечен ✅
+
+**Out of scope (не делалось):** страница `/control` + `GET /api/control/stats` — Таск 5; `/admin/integrations`, health-display API — Phase 18; кросс-валидация `reminderBeforePercent < escalateAfterPercent` на клиенте — схема её не требует; живой сценарий с реально удалённым этапом/заблокированным сотрудником в overrides проверен код-ревью, не отдельным browser-прогоном.
+
+**Definition of Done:** ✅ Все пункты выполнены
+
+---
+
+## 2026-07-11 — Phase 17, Таск 3: Зависшие лиды, конец дня, здоровье источников
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` + миграция `20260711185904_phase_17_control_summary_event` — `CONTROL_SUMMARY_SENT` в `enum EventType` (company-level маркер дневной сводки, `leadId: null`, различается по `payload.kind: 'stuck' | 'endOfDay'`)
+- `constants/eventLabels.ts` — `CONTROL_SUMMARY_SENT` в `PLATFORM_EVENT_LABELS`
+- `lib/control/controlSummaryMarker.ts` (новый) — `hasSentSummaryToday(companyId, kind, now)` + `markSummarySent(companyId, kind)`; общий для обеих дневных сводок, фильтр по `payload.kind` в одном месте
+- `lib/control/checkStuckLeads.ts` (новый) — компании `controlEnabled && !isBlocked`, час(now) == час(`stuckCheckTime`), `!hasSentSummaryToday('stuck')`; лимит = `stageTimeLimitDays ?? stageStuckDaysDefault`; «завис» по дням с последнего `STAGE_CHANGED` (или `createdAt`); `LEAD_STAGE_STUCK` — once per episode (сравнение с последним `STAGE_CHANGED`, не `sent.has` навсегда); непустой список → `notifyManagement(STUCK_LEADS_SUMMARY)`; в конце — `markSummarySent('stuck')` даже при пустом списке
+- `lib/control/checkEndOfDaySummary.ts` (новый) — час(now) == час(`workHours.end ?? '18:00'`), `!hasSentSummaryToday('endOfDay')`; лиды, созданные сегодня, без `LEAD_TAKEN_IN_WORK`; непустой список → `notifyManagement(END_OF_DAY_SUMMARY)`; `markSummarySent('endOfDay')` всегда
+- `lib/control/checkSourceHealth.ts` (новый) — по компаниям `controlEnabled && !isBlocked`; `IntegrationSource` с `lastUsedAt != null`; `SOURCE_DOWN` once per problem (сравнение таймстампов `SOURCE_DOWN`/`SOURCE_RECOVERED`, без `alertedDown`); `SOURCE_RECOVERED` только после незакрытого `SOURCE_DOWN` (не на каждый здоровый час)
+- `lib/notifications/notifyManagement.ts` — расширены `ManagementAlertPayloads`/`ALERT_TEMPLATES`: `STUCK_LEADS_SUMMARY`, `END_OF_DAY_SUMMARY`, `SOURCE_DOWN`
+- `constants/telegramTemplates.ts` — шаблоны `stuckLeadsSummary`, `endOfDaySummary`, `sourceDown`
+- `app/api/cron/control/daily/route.ts` (новый) — `verifyCronSecret` → `checkStuckLeads()` + `checkEndOfDaySummary()` через `Promise.allSettled` (сбой одной проверки не роняет вторую)
+- `app/api/cron/control/source-health/route.ts` (новый) — `verifyCronSecret` → `checkSourceHealth()`
+- `.docs/phases/phase-17.md` — уточнён контекст (аддитивная миграция в Таске 3), таск 3 ✅
+- `.docs/modules/notifications.md` — исправлен баг примера `SOURCE_RECOVERED`; `CONTROL_SUMMARY_SENT` вместо `alertedDown`/абстрактного маркера
+- `.docs/phases/_status.md` — отметка по таску 3
+
+**Out of scope (не делалось):** UI `/admin/settings` (`ControlSection` и др.) — Таск 4; страница `/control` + `GET /api/control/stats` — Таск 5; `/admin/integrations`, health-display API — Phase 18; изменение алгоритма риска в `computeRisk`/`computeRiskBatch`; регистрация crontab (`daily`, `source-health`) — ручной ops-шаг после деплоя
+
+**Проверено:** `npm test` (37/37), `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; миграция применена (`prisma migrate dev`); нет `any`
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
+## 2026-07-11 — Phase 17, Таск 2: Трёхступенчатая эскалация первого ответа (`checkReactionTime` + cron + управленческие алерты)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/notifications/managementRecipients.ts` (новый) — `getManagementRecipients(companyId)`: активные `HEAD+` пользователи компании с `telegramChatId`/`notificationPreferences` (аналог `recipients.ts`, но по роли)
+- `lib/notifications/notifyManagement.ts` (новый) — рассылка управленческого алерта всем `HEAD+` с тройным гейтом (`company.telegramEnabled` + `telegramChatId` + `managementAlerts`); сбой одного получателя не прерывает остальных
+- `lib/notifications/notifyManager.ts` — ключ `REACTION_REMINDED` → `reactionReminder` в `ManagerAlertPayloads`/`ALERT_PREFERENCE_KEY`/`ALERT_TEMPLATES` (по существующему generic-паттерну)
+- `types/users.ts` + `lib/notifications/preferences.ts` — `reactionReminder`/`managementAlerts` в `NotificationPreferences` и `DEFAULT_NOTIFICATION_PREFERENCES` (дефолт `true`); оба поля парсятся в `parseNotificationPreferences`
+- `constants/telegramTemplates.ts` — шаблоны `reactionReminder({ name, minutes })` и `reactionEscalated({ name, minutes, manager })`
+- `lib/control/checkReactionTime.ts` (новый) — компании `!isBlocked` + `parseCompanySettings().controlEnabled === true` (не JSON-`where`); лиды `closeType: null, assignedToId != null`; норматив/проценты через `resolveApplicableNorm`, рабочее время — один раз на компанию; `LEAD_TAKEN_IN_WORK` останавливает цепочку; ступени `else if` сверху вниз (133% → 100% → 66%), once-per-lead по наличию события; `writeEvent(LEAD_REACTION_*, { userId: null, leadId })` + `notifyManager`/`notifyManagement`; сводка `{ checked, reminded, overdue, escalated }`
+- `app/api/cron/control/reaction-time/route.ts` (новый) — `POST`, `verifyCronSecret` → `401`, иначе `checkReactionTime()` → JSON-сводка; не в matcher `proxy.ts`
+- `components/profile/ProfileNotifications.tsx` — список переключателей отвязан от `keyof NotificationPreferences` (`PROFILE_PREFERENCE_KEYS`); `reactionReminder`/`managementAlerts` в профиле не показываются
+
+**Out of scope (не делалось):** `checkStuckLeads`/`checkEndOfDaySummary`/`checkSourceHealth` — Таск 3; UI настроек контроля в `/admin/settings` — Таск 4; страница `/control` + `GET /api/control/stats` — Таск 5; провязка `ASSIGNMENT_FAILED` к `notifyManagement`; отображение здоровья источников — Phase 18; миграции БД; регистрация crontab-записи — ручной ops-шаг после деплоя
+
+**Проверено:** `npm test` (37/37), `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
+## 2026-07-11 — Phase 17, Таск 1: Настройки контроля — схема + глубокий мёрж + резолвер норматива + рабочее время
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/settings.ts` — расширен `updateSettingsSchema`: `controlEnabled`, частичный `reactionNorms` (`defaultMinutes`, `reminderBeforePercent`, `escalateAfterPercent`, `workHoursOnly`, карты `bySource`/`byStage`/`byUser` с `null` = удалить ключ), `workHours` (`start`/`end` `HH:MM`, `days` 1..7), `stageStuckDaysDefault`, `stuckCheckTime`, `sourceHealthThresholdHours`; `.refine` — хотя бы одно поле; `roundRobinCursor` по-прежнему не в схеме
+- `lib/settings/getSettings.ts` (новый) — `parseCompanySettings()` с наложением `DEFAULT_COMPANY_SETTINGS`; `getSettings(companyId)` и `toPublicSettings()` без служебного `roundRobinCursor` в ответе
+- `lib/settings/updateSettings.ts` (новый) — глубокий мёрж **только** `reactionNorms` (карты по ключам, `null` удаляет ключ); остальные поля (включая `workHours`) — плоская замена; запись в `Company.settings`
+- `app/api/settings/route.ts` — `GET` через `getSettings()`, `PATCH` через `updateSettings()` вместо инлайнового плоского мёржа; ADMIN-only и `companyId` из сессии без изменений
+- `lib/risk/computeRisk.ts` — `ReactionNorms` дополнен `escalateAfterPercent`; `minutesSinceCreated` получает `workHours | null` (при `workHoursOnly` — расписание компании, иначе `null`)
+- `lib/risk/resolveApplicableNorm.ts` — возвращает также `escalateAfterPercent` из настроек
+- `lib/risk/workHoursUtils.ts` — переписан `minutesSinceCreated(createdAt, now, workHours | null)`: при `null` — прежняя простая разница минут; иначе вычитание нерабочих часов/дней; мэппинг дней 1=пн..7=вс ↔ JS `getDay()`
+- `lib/risk/resolveApplicableNorm.test.ts` — `escalateAfterPercent` в фикстурах + тест на проброс
+- `lib/risk/computeRisk.test.ts` — `escalateAfterPercent: 133` в `buildInput()` (механический фикс фикстуры)
+- `lib/risk/workHoursUtils.test.ts` (новый) — 8 кейсов: Пт 19:00 → отсчёт с Пн 09:00, выходные, границы окна, `workHours = null` = простая разница
+
+**Out of scope (не делалось):** трёхступенчатая эскалация (`checkReactionTime`, cron) — Таск 2; `checkStuckLeads`/`checkEndOfDaySummary`/`checkSourceHealth` — Таск 3; UI `/admin/settings` (`ControlSection` и др.) — Таск 4; страница `/control` + `GET /api/control/stats` — Таск 5; `yandexMode`; миграции БД; изменения `lib/events.ts`
+
+**Проверено:** `npm test` (37/37), `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`; `computeRisk.test.ts`/`computeRiskBatch.test.ts` зелёные — поведение риска не изменилось при `workHoursOnly: false`
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-11 — Phase 16: Индикатор риска — верификация и затвердевание (оба таска)
 
 **Статус:** ✅ Завершена

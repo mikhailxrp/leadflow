@@ -49,6 +49,7 @@ function buildInput(overrides: InputOverrides = {}): RiskInput {
       reactionNorms: {
         defaultMinutes: overrides.defaultMinutes ?? 30,
         reminderBeforePercent: overrides.reminderBeforePercent ?? 66,
+        escalateAfterPercent: 133,
         workHoursOnly: false,
       },
     },

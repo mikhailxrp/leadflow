@@ -6,6 +6,7 @@ export function resolveApplicableNorm(
 ): {
   defaultMinutes: number;
   reminderBeforePercent: number;
+  escalateAfterPercent: number;
   workHoursOnly: boolean;
 } {
   const minutes =
@@ -17,6 +18,7 @@ export function resolveApplicableNorm(
   return {
     defaultMinutes: minutes,
     reminderBeforePercent: norms.reminderBeforePercent,
+    escalateAfterPercent: norms.escalateAfterPercent,
     workHoursOnly: norms.workHoursOnly,
   };
 }

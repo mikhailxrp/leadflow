@@ -4,12 +4,16 @@ export type NotificationPreferences = {
   assignedLead: boolean;
   commentOnLead: boolean;
   reminders: boolean;
+  reactionReminder: boolean;
+  managementAlerts: boolean;
 };
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   assignedLead: true,
   commentOnLead: true,
   reminders: true,
+  reactionReminder: true,
+  managementAlerts: true,
 };
 
 export type UserProfileDetail = {
