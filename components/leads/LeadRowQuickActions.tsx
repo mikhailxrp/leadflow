@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@iconify/react';
 import type { CloseType } from '@prisma/client';
@@ -29,7 +30,27 @@ export default function LeadRowQuickActions({
 }: LeadRowQuickActionsProps): ReactNode {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+
+  const MENU_WIDTH = 220;
+  const MENU_HEIGHT = 90;
+
+  function toggleMenu(event: MouseEvent<HTMLButtonElement>): void {
+    if (menuOpen) {
+      setMenuOpen(false);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top =
+      spaceBelow < MENU_HEIGHT + 8
+        ? rect.top - MENU_HEIGHT - 4
+        : rect.bottom + 4;
+    const left = Math.max(8, rect.right - MENU_WIDTH);
+    setMenuPos({ top, left });
+    setMenuOpen(true);
+  }
 
   if (!showActions || closeType !== null) {
     return null;
@@ -65,56 +86,59 @@ export default function LeadRowQuickActions({
         <IconButton
           size="sm"
           aria-label="Быстрые действия по задаче"
-          onClick={() => setMenuOpen((v) => !v)}
+          onClick={toggleMenu}
           icon={<Icon icon="tabler:clipboard-check" className="h-4 w-4" aria-hidden="true" />}
         />
 
-        {menuOpen && (
-          <>
-            <button
-              type="button"
-              className="fixed inset-0 z-10 cursor-default"
-              aria-label="Закрыть меню"
-              onClick={() => setMenuOpen(false)}
-            />
-            <div
-              className="
-                absolute right-0 top-full z-20 mt-1 w-[220px] overflow-hidden
-                rounded-[8px] border border-[0.5px] border-[var(--color-border)]
-                bg-[var(--color-bg-surface)] shadow-lg
-              "
-            >
+        {menuOpen && menuPos &&
+          createPortal(
+            <>
               <button
                 type="button"
+                className="fixed inset-0 z-[60] cursor-default"
+                aria-label="Закрыть меню"
+                onClick={() => setMenuOpen(false)}
+              />
+              <div
+                style={{ top: menuPos.top, left: menuPos.left, width: MENU_WIDTH }}
                 className="
-                  w-full px-4 py-2.5 text-left text-[13px]
-                  text-[var(--color-text-primary)]
-                  transition-colors hover:bg-[var(--color-bg-surface-2)]
+                  fixed z-[61] overflow-hidden
+                  rounded-[8px] border border-[0.5px] border-[var(--color-border)]
+                  bg-[var(--color-bg-surface)] shadow-lg
                 "
-                onClick={() => {
-                  setMenuOpen(false);
-                  setActiveModal('add-task');
-                }}
               >
-                Поставить следующее действие
-              </button>
-              <button
-                type="button"
-                disabled={!canChangeDueDate}
-                className="
-                  w-full px-4 py-2.5 text-left text-[13px]
-                  text-[var(--color-text-primary)]
-                  transition-colors hover:bg-[var(--color-bg-surface-2)]
-                  disabled:cursor-not-allowed disabled:opacity-50
-                  disabled:hover:bg-transparent
-                "
-                onClick={handleDueDateClick}
-              >
-                Изменить срок
-              </button>
-            </div>
-          </>
-        )}
+                <button
+                  type="button"
+                  className="
+                    w-full px-4 py-2.5 text-left text-[13px]
+                    text-[var(--color-text-primary)]
+                    transition-colors hover:bg-[var(--color-bg-surface-2)]
+                  "
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setActiveModal('add-task');
+                  }}
+                >
+                  Поставить следующее действие
+                </button>
+                <button
+                  type="button"
+                  disabled={!canChangeDueDate}
+                  className="
+                    w-full px-4 py-2.5 text-left text-[13px]
+                    text-[var(--color-text-primary)]
+                    transition-colors hover:bg-[var(--color-bg-surface-2)]
+                    disabled:cursor-not-allowed disabled:opacity-50
+                    disabled:hover:bg-transparent
+                  "
+                  onClick={handleDueDateClick}
+                >
+                  Изменить срок
+                </button>
+              </div>
+            </>,
+            document.body
+          )}
       </div>
 
       {activeModal === 'add-task' && (
