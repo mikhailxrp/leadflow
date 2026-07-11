@@ -6,26 +6,36 @@ import TaskStatusBadge, {
   type TaskStatus,
 } from "@/components/tasks/TaskStatusBadge";
 import IconButton from "@/components/ui/IconButton";
+import {
+  formatCompletedAtLabel,
+  formatDueDateLabel,
+  isTaskOverdue,
+} from "@/components/tasks/taskConstants";
+
+export interface TaskAssignee {
+  id: string;
+  name: string;
+}
 
 export interface TaskData {
   id: string;
   leadId: string;
   title: string;
-  assigneeName: string;
-  assigneeId: string;
-  dueDateLabel: string;
-  dueDate?: string;
-  dueTime?: string;
-  description?: string;
-  completedAtLabel?: string;
+  description: string | null;
   status: TaskStatus;
-  isOverdue: boolean;
+  dueDate: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  createdById: string;
+  assignedTo: TaskAssignee;
 }
 
 interface TaskItemProps {
   task: TaskData;
   variant?: "card" | "list";
   highlighted?: boolean;
+  /** Автор задачи или ADMIN — только им доступны правка полей и смена статуса. */
+  canEdit: boolean;
   onStatusCycle: (id: string) => void;
   onSelect?: (id: string) => void;
   onEdit?: (id: string) => void;
@@ -36,6 +46,7 @@ export default function TaskItem({
   task,
   variant = "list",
   highlighted = false,
+  canEdit,
   onStatusCycle,
   onSelect,
   onEdit,
@@ -45,14 +56,15 @@ export default function TaskItem({
   const isCancelled = task.status === "CANCELLED";
   const isInactive = isDone || isCancelled;
   const isInProgress = task.status === "IN_PROGRESS";
+  const overdue = isTaskOverdue(task);
+  const canToggleStatus = canEdit && !isCancelled;
+  const isInteractiveCard = variant === "card" && canEdit;
 
   function handleCircleClick(event: MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation();
     event.preventDefault();
 
-    if (isCancelled) return;
-
-    // TODO: PATCH /api/leads/:leadId/tasks/:taskId { status }
+    if (!canToggleStatus) return;
     onStatusCycle(task.id);
   }
 
@@ -61,7 +73,7 @@ export default function TaskItem({
 
     if (variant === "card") {
       onSelect?.(task.id);
-      onEdit?.(task.id);
+      if (canEdit) onEdit?.(task.id);
       return;
     }
 
@@ -79,9 +91,9 @@ export default function TaskItem({
     onLeadClick?.(task.leadId);
   }
 
-  const metaDateLabel =
-    isDone && task.completedAtLabel ? task.completedAtLabel : task.dueDateLabel;
-
+  const dueDateLabel = formatDueDateLabel(task.dueDate);
+  const completedAtLabel = formatCompletedAtLabel(task.completedAt);
+  const metaDateLabel = isDone && completedAtLabel ? completedAtLabel : dueDateLabel;
   const metaPrefix = isDone ? "выполнено" : "до";
 
   return (
@@ -95,13 +107,13 @@ export default function TaskItem({
       <button
         type="button"
         onClick={handleCircleClick}
-        disabled={isCancelled}
-        aria-disabled={isCancelled}
+        disabled={!canToggleStatus}
+        aria-disabled={!canToggleStatus}
         className={`
           mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center
           rounded-full border-[1.5px] transition-colors duration-150
           ${
-            isCancelled
+            !canToggleStatus
               ? "pointer-events-none cursor-default opacity-50"
               : "cursor-pointer hover:border-[var(--color-primary)]"
           }
@@ -140,15 +152,16 @@ export default function TaskItem({
       </button>
 
       <div
-        role={variant === "card" ? "button" : undefined}
-        tabIndex={variant === "card" ? 0 : undefined}
-        onClick={variant === "card" ? handleContentClick : undefined}
+        role={isInteractiveCard ? "button" : undefined}
+        tabIndex={isInteractiveCard ? 0 : undefined}
+        onClick={isInteractiveCard ? handleContentClick : undefined}
         onKeyDown={
-          variant === "card"
+          isInteractiveCard
             ? (event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   onSelect?.(task.id);
+                  onEdit?.(task.id);
                 }
               }
             : undefined
@@ -156,7 +169,7 @@ export default function TaskItem({
         className={`
           min-w-0 flex-1 rounded-[4px]
           ${
-            variant === "card"
+            isInteractiveCard
               ? "cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-primary)]"
               : ""
           }
@@ -173,18 +186,20 @@ export default function TaskItem({
           </p>
           {variant === "card" && (
             <div className="flex shrink-0 items-center gap-1.5">
-              <IconButton
-                size="sm"
-                onClick={handleEditClick}
-                aria-label="Редактировать задачу"
-                icon={
-                  <Icon
-                    icon="tabler:pencil"
-                    className="h-3.5 w-3.5"
-                    aria-hidden="true"
-                  />
-                }
-              />
+              {canEdit && (
+                <IconButton
+                  size="sm"
+                  onClick={handleEditClick}
+                  aria-label="Редактировать задачу"
+                  icon={
+                    <Icon
+                      icon="tabler:pencil"
+                      className="h-3.5 w-3.5"
+                      aria-hidden="true"
+                    />
+                  }
+                />
+              )}
               <TaskStatusBadge status={task.status} />
             </div>
           )}
@@ -195,13 +210,13 @@ export default function TaskItem({
             mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5
             text-[12px]
             ${
-              task.isOverdue && !isInactive
+              overdue && !isInactive
                 ? "text-[#EF4444]"
                 : "text-[var(--color-text-tertiary)]"
             }
           `}
         >
-          <span>{task.assigneeName}</span>
+          <span>{task.assignedTo.name}</span>
           {metaDateLabel && (
             <>
               <span aria-hidden="true">·</span>
@@ -230,7 +245,7 @@ export default function TaskItem({
                 className="h-3.5 w-3.5 shrink-0"
                 aria-hidden="true"
               />
-              {task.assigneeName}
+              {task.assignedTo.name}
             </button>
             <TaskStatusBadge status={task.status} />
           </div>

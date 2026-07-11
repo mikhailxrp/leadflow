@@ -4,10 +4,12 @@ import { type ReactNode } from "react";
 import Link from "next/link";
 import type { LeadListItem } from "@/lib/leads/getLeads";
 import type { RiskResult } from "@/lib/risk/computeRisk";
+import type { NextAction } from "@/lib/tasks/getNextActions";
 import RiskBadge from "@/components/leads/RiskBadge";
 import DuplicateBadge from "@/components/leads/DuplicateBadge";
 import LeadRowQuickActions from "@/components/leads/LeadRowQuickActions";
 import QualificationBadge from "@/components/leads/QualificationBadge";
+import { formatDueDateLabel } from "@/components/tasks/taskConstants";
 
 const SOURCE_LABELS: Record<string, string> = {
   tilda: "Tilda",
@@ -27,10 +29,16 @@ function formatDate(iso: string): string {
 }
 
 interface LeadsTableProps {
-  leads: Array<LeadListItem & { risk: RiskResult }>;
+  leads: Array<LeadListItem & { risk: RiskResult; nextAction: NextAction }>;
+  currentUserId: string | null;
+  isAdmin: boolean;
 }
 
-export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
+export default function LeadsTable({
+  leads,
+  currentUserId,
+  isAdmin,
+}: LeadsTableProps): ReactNode {
   return (
     <div className="overflow-x-auto rounded-[12px] border border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)]">
       <table className="w-full border-collapse text-[13px]">
@@ -42,6 +50,7 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
               "Ответственный",
               "Этап",
               "Риск",
+              "Следующее действие",
               "Квалификация",
               "Создан",
               "",
@@ -111,6 +120,25 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
               </td>
 
               <td className="px-4 py-3">
+                {lead.nextAction ? (
+                  <div className="max-w-[200px]">
+                    <p className="truncate text-[13px] text-[var(--color-text-primary)]">
+                      {lead.nextAction.title}
+                    </p>
+                    {lead.nextAction.dueDate && (
+                      <p className="mt-0.5 text-[12px] text-[var(--color-text-tertiary)]">
+                        до {formatDueDateLabel(lead.nextAction.dueDate)}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-[12px] font-medium text-[#F59E0B]">
+                    Нет следующего действия
+                  </span>
+                )}
+              </td>
+
+              <td className="px-4 py-3">
                 <QualificationBadge qualification={lead.qualification} />
               </td>
 
@@ -126,7 +154,17 @@ export default function LeadsTable({ leads }: LeadsTableProps): ReactNode {
                   >
                     Открыть
                   </Link>
-                  <LeadRowQuickActions leadId={lead.id} closeType={lead.closeType} />
+                  <LeadRowQuickActions
+                    leadId={lead.id}
+                    closeType={lead.closeType}
+                    nextAction={lead.nextAction}
+                    canEditNextAction={
+                      lead.nextAction
+                        ? isAdmin || lead.nextAction.createdById === currentUserId
+                        : true
+                    }
+                    showActions={currentUserId !== null}
+                  />
                 </div>
               </td>
             </tr>

@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { toCompanyActor } from '@/lib/auth/requireCompanyAccess';
+import { hasMinRole } from '@/constants/roles';
 import { getLeadsWithRisk } from '@/lib/leads/getLeads';
 import { getManagers } from '@/lib/leads/getManagers';
 import { leadsQuerySchema } from '@/lib/validations/leads';
@@ -56,6 +57,9 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
     getManagers(actor.companyId),
   ]);
 
+  const currentUserId = actor.actor === 'user' ? actor.userId : null;
+  const isAdmin = actor.actor === 'user' && hasMinRole(actor.role, 'ADMIN');
+
   return (
     <>
       <PageHeader
@@ -89,7 +93,7 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
               <p className="text-[14px] text-[var(--color-text-secondary)]">Лиды не найдены</p>
             </div>
           ) : (
-            <LeadsTable leads={leads} />
+            <LeadsTable leads={leads} currentUserId={currentUserId} isAdmin={isAdmin} />
           )}
 
           {total > 0 && (
