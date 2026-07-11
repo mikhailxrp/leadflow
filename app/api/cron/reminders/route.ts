@@ -1,5 +1,5 @@
 import { verifyCronSecret } from '@/lib/cron/verifyCronSecret';
-import { sendSubscriptionDigest } from '@/lib/platform/subscriptionReminders';
+import { processReminders } from '@/lib/reminders/processReminders';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,16 +9,12 @@ async function handle(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await sendSubscriptionDigest();
+    const result = await processReminders();
     return Response.json(result);
   } catch (error) {
-    console.error('Failed to send subscription digest:', error);
+    console.error('Failed to process reminders:', error);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
-
-export async function GET(request: Request): Promise<Response> {
-  return handle(request);
 }
 
 export async function POST(request: Request): Promise<Response> {
