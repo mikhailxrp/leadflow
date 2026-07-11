@@ -124,14 +124,6 @@ export const platformLogsLeadSearchSchema = z.object({
   q: z.string().min(1),
 });
 
-export const cronSubscriptionAuthSchema = z
-  .object({
-    authorization: z.string().optional(),
-    xCronSecret: z.string().optional(),
-    key: z.string().optional(),
-  })
-  .strict();
-
 export type PlatformLoginInput = z.infer<typeof loginSchema>;
 export type CreateCompanyInput = z.infer<typeof createCompanySchema>;
 export type BlockCompanyInput = z.infer<typeof blockCompanySchema>;
@@ -164,9 +156,6 @@ export type PlatformForgotPasswordInput = z.infer<
 >;
 export type PlatformResetPasswordInput = z.infer<
   typeof platformResetPasswordSchema
->;
-export type CronSubscriptionAuthInput = z.infer<
-  typeof cronSubscriptionAuthSchema
 >;
 export type PlatformLogsQueryInput = z.infer<typeof platformLogsQuerySchema>;
 export type PlatformLogsLeadSearchInput = z.infer<

@@ -36,6 +36,53 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-11 — Phase 14, Таск 3: UI блока «Напоминания» в карточке лида + чистка мок-блока настроек
+
+**Статус:** ✅ Завершён (код, статические проверки и живая проверка в headless-браузере — Playwright, реальный dev-сервер и БД, throwaway-компания/пользователь/лид удалены после проверки)
+
+**Что было сделано:**
+
+- `components/reminders/ReminderItem.tsx` (новый) — строка активного напоминания (дата, текст, бейджи каналов, «Изменить»/«Отменить»); экспортирует тип `ReminderData` и `ChannelBadge`/`toChannelList()` (гард для `Prisma.JsonValue` → `ReminderChannelName[]`); кнопки действий видны только автору или `ADMIN` (`canManage`)
+- `components/reminders/ReminderHistory.tsx` (новый) — свёрнутый список `FIRED`/`CANCELLED`, без кнопок действий
+- `components/reminders/AddReminderModal.tsx` (новый) — модалка создания/редактирования; `remindAt` собирается из локальных `date`+`time` через `new Date(...).toISOString()` (не ручная склейка `'Z'`); клиентская Zod-валидация (`createReminderSchema`); предупреждение «Telegram не привязан» при выбранном Telegram и `telegramConnected === false`
+- `components/reminders/ReminderBlock.tsx` (новый) — `Card` с `GET /api/leads/:id/reminders` в `useEffect`, разбивка на активные/историю, счётчик, пустое состояние, обновление списка после мутаций
+- `app/(company)/(app)/leads/[id]/page.tsx` — точечный `prisma.user.findUnique` за `telegramChatId` текущего актора; `<ReminderBlock>` вставлен в правую колонку, гейт `actor.actor === 'user'` (маркетолог блок не видит)
+- `components/settings/RemindersSection.tsx` — удалён (мёртвый мок с несуществующими в схеме полями)
+- `components/settings/SettingsClientArea.tsx` — `'reminders'` убран из `DirtyKey`, `dirtyFlags`, `handleSave`
+
+**Out of scope (не делалось):** allow-list маркетолога для напоминаний (по спецификации маркетолог не имеет доступа к напоминаниям вообще); SMS/другие каналы; перевод `TaskBlock` на реальный API (Phase 15)
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; живая проверка в headless Chromium (Playwright) на реальном dev-сервере: логин реального пользователя → карточка лида → пустое состояние → создание напоминания (с видимым предупреждением о непривязанном Telegram) → появление в активном списке → редактирование текста → отмена → перенос в свёрнутую историю со статусом «отменено» и бейджами каналов; `/admin/settings` — блок «Напоминания» отсутствует, `SecuritySection` продолжает рендериться; в консоли браузера — только два предсуществующих предупреждения, не связанные с этим таском (`[sse] connection error` при переподключении под headless, hydration-warning внутри нетронутого `SecuritySection`)
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
+## 2026-07-10 — Phase 14, Таск 1: Ядро напоминаний — cron-эндпоинт + каналы доставки
+
+**Статус:** ✅ Завершён (код, статические проверки и живая проверка против реального dev-сервера — throwaway-компания/лид/напоминания удалены после проверки)
+
+**Что было сделано:**
+
+- `lib/reminders/channels/types.ts` (новый) — интерфейс `ReminderChannel`, тип `ReminderWithContext` (`Reminder` + `lead` + `createdBy`)
+- `lib/reminders/channels/telegram.ts` — `deliver()` через `sendTelegramMessage`; пустой `telegramChatId` → `throw`; `false` от `sendTelegramMessage` → `throw` (иначе сбой не попадёт в `Promise.allSettled`)
+- `lib/reminders/channels/email.ts` — `deliver()` через `sendEmail`/`isEmailConfigured`; без настроенного SMTP — `throw` до вызова `sendEmail`
+- `lib/reminders/channels/index.ts` (новый) — реестр `{ telegram, email }`, `deliverChannels()` с явной привязкой результата к имени канала (`ChannelDeliveryResult`)
+- `lib/reminders/processReminders.ts` (новый) — выборка due `PENDING` по всем компаниям (без `companyId`, без фильтра `isBlocked`); guard идемпотентности через `updateMany` (`count === 0` → `continue`); `writeEvent(REMINDER_FIRED)` / `writeEvent(REMINDER_FAILED)` с `leadId` и `payload.reminderId` (+ `payload.channel`); `try/catch` на каждую итерацию; сводка `{ processed, delivered, failed }`
+- `lib/cron/verifyCronSecret.ts` (новый) + `lib/validations/cron.ts` (новый) — проверка `CRON_SECRET` в трёх равнозначных форматах (`Authorization: Bearer`, `x-cron-secret`, `?key=`)
+- `app/api/cron/reminders/route.ts` (новый) — `POST` без сессии, `dynamic = 'force-dynamic'`, `verifyCronSecret` → `401`, иначе `processReminders()` → JSON-сводка; не в matcher `proxy.ts`
+- `app/api/platform/cron/subscription-reminders/route.ts` — локальная проверка секрета заменена на `verifyCronSecret` (механический рефакторинг, поведение не менялось)
+- `lib/reminders/scheduler.ts` — удалён (неиспользуемый стаб, заменён cron-эндпоинтом)
+- `.docs/modules/reminders.md` — до реализации исправлены примеры `writeEvent()` (сигнатура `lib/events.ts`, нельзя вызывать внутри `$transaction`)
+
+**Out of scope (не делалось):** CRUD `/api/leads/:id/reminders*` (Таск 2); UI блока «Напоминания» в карточке лида + удаление мока `RemindersSection.tsx` (Таск 3); регистрация записи в VPS crontab — ручной ops-шаг после деплоя; новые ENV (используется существующий `CRON_SECRET` из Phase 3)
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; живая проверка на dev: `401` без/с неверным секретом (все 3 формата по отдельности), `200` с верным секретом; due-напоминание в заблокированной компании (`isBlocked: true`) → `FIRED`; повторный вызов → `processed: 0` (без дублей доставки); упавшее напоминание не блокирует остальные в батче; `REMINDER_FIRED`/`REMINDER_FAILED` с корректным `leadId` и `payload`; напоминание с `remindAt` в будущем не трогается; `node-cron` не добавлен, `instrumentation.ts` не создан
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-10 — Phase 13, Таск 3: UI привязки Telegram + admin-тумблер `telegramEnabled` + доки
 
 **Статус:** ✅ Завершён (код и статические проверки; живая проверка через бота — не проводилась)
