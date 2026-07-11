@@ -261,7 +261,7 @@ export async function getLeadsWithRisk(
   const { leads, total, page, pageSize, companySettings } = await getLeads(params, actor);
 
   const [leadsWithRisk, nextActions] = await Promise.all([
-    computeRiskBatch(leads, companySettings, prisma),
+    computeRiskBatch(leads, actor.companyId, companySettings, prisma),
     getNextActions(leads.map((lead) => lead.id), actor.companyId),
   ]);
 

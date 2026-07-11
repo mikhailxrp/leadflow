@@ -92,6 +92,7 @@ function buildTaskMaps(
 
 export async function computeRiskBatch(
   leads: LeadListItem[],
+  companyId: string,
   companySettings: Prisma.JsonValue,
   prisma: PrismaLike,
 ): Promise<Array<LeadListItem & { risk: RiskResult }>> {
@@ -106,6 +107,7 @@ export async function computeRiskBatch(
   const [events, tasks] = await Promise.all([
     prisma.event.findMany({
       where: {
+        companyId,
         leadId: { in: leadIds },
         type: { in: ['LEAD_TAKEN_IN_WORK', 'STAGE_CHANGED'] },
       },
@@ -118,6 +120,7 @@ export async function computeRiskBatch(
     }),
     prisma.task.findMany({
       where: {
+        companyId,
         leadId: { in: leadIds },
         status: { in: ['TODO', 'IN_PROGRESS'] },
       },

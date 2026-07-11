@@ -18,6 +18,7 @@ export type ApiUser = {
   email: string;
   role: PrismaUserRole;
   isBlocked: boolean;
+  avatarUrl: string | null;
   createdAt: string;
 };
 
@@ -32,6 +33,7 @@ export interface User {
   email: string;
   role: PrismaUserRole;
   isBlocked: boolean;
+  avatarUrl: string | null;
   createdAt: string;
 }
 
@@ -89,6 +91,7 @@ function mapApiUserToUser(user: ApiUser): User {
     email: user.email,
     role: user.role,
     isBlocked: user.isBlocked,
+    avatarUrl: user.avatarUrl,
     createdAt: new Date(user.createdAt).toLocaleDateString('ru-RU'),
   };
 }
@@ -200,7 +203,11 @@ export default function UsersTable(props: UsersTableProps): ReactNode {
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <Avatar initials={getInitials(user.name)} size="md" />
+                          <Avatar
+                            initials={getInitials(user.name)}
+                            src={user.avatarUrl ?? undefined}
+                            size="md"
+                          />
                           <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                             {user.name}
                           </span>

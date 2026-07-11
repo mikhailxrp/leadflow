@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { computeRiskBatch } from '@/lib/risk/computeRiskBatch';
 import type { LeadListItem } from '@/lib/leads/getLeads';
 
-type PrismaLike = Parameters<typeof computeRiskBatch>[2];
+type PrismaLike = Parameters<typeof computeRiskBatch>[3];
+
+const COMPANY_ID = 'company-1';
 
 type FakeEvent = {
   leadId: string | null;
@@ -98,7 +100,7 @@ describe('computeRiskBatch', () => {
       [{ leadId: 'lead-1', title: 'Позвонить', dueDate: minutesAgo(-60) }],
     );
 
-    const [result] = await computeRiskBatch([lead], baseSettings, prisma);
+    const [result] = await computeRiskBatch([lead], COMPANY_ID, baseSettings, prisma);
 
     // Если бы был ошибочно выбран STAGE_CHANGED месячной давности, лид считался бы зависшим (red).
     expect(result.risk).toEqual({ level: 'green', reason: null });
@@ -126,6 +128,7 @@ describe('computeRiskBatch', () => {
 
     const results = await computeRiskBatch(
       [leadWithoutResponse, leadWithResponse],
+      COMPANY_ID,
       baseSettings,
       prisma,
     );
@@ -149,7 +152,7 @@ describe('computeRiskBatch', () => {
       [{ leadId: 'lead-4', title: 'Отправить КП', dueDate: minutesAgo(120) }],
     );
 
-    const [result] = await computeRiskBatch([lead], baseSettings, prisma);
+    const [result] = await computeRiskBatch([lead], COMPANY_ID, baseSettings, prisma);
     expect(result.risk).toEqual({ level: 'yellow', reason: 'Просрочена задача: Отправить КП' });
   });
 
@@ -164,7 +167,7 @@ describe('computeRiskBatch', () => {
       [],
     );
 
-    const [result] = await computeRiskBatch([lead], baseSettings, prisma);
+    const [result] = await computeRiskBatch([lead], COMPANY_ID, baseSettings, prisma);
     expect(result.risk).toEqual({ level: 'yellow', reason: 'Нет следующего шага' });
   });
 
@@ -179,7 +182,7 @@ describe('computeRiskBatch', () => {
       [],
     );
 
-    const [result] = await computeRiskBatch([lead], baseSettings, prisma);
+    const [result] = await computeRiskBatch([lead], COMPANY_ID, baseSettings, prisma);
     expect(result.risk).toEqual({ level: 'red', reason: '10 дней на этапе' });
   });
 
@@ -190,7 +193,7 @@ describe('computeRiskBatch', () => {
       [{ leadId: 'lead-8', title: 'Задача', dueDate: minutesAgo(-60) }],
     );
 
-    await computeRiskBatch(leads, baseSettings, prisma);
+    await computeRiskBatch(leads, COMPANY_ID, baseSettings, prisma);
 
     expect(eventFindMany).toHaveBeenCalledTimes(1);
     expect(taskFindMany).toHaveBeenCalledTimes(1);
@@ -199,7 +202,7 @@ describe('computeRiskBatch', () => {
   it('пустой список лидов не делает запросов к prisma и возвращает пустой массив', async () => {
     const { prisma, eventFindMany, taskFindMany } = makeFakePrisma([], []);
 
-    const result = await computeRiskBatch([], baseSettings, prisma);
+    const result = await computeRiskBatch([], COMPANY_ID, baseSettings, prisma);
 
     expect(result).toEqual([]);
     expect(eventFindMany).not.toHaveBeenCalled();
