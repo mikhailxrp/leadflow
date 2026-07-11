@@ -36,6 +36,29 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-11 — Phase 17, Таск 2: Трёхступенчатая эскалация первого ответа (`checkReactionTime` + cron + управленческие алерты)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/notifications/managementRecipients.ts` (новый) — `getManagementRecipients(companyId)`: активные `HEAD+` пользователи компании с `telegramChatId`/`notificationPreferences` (аналог `recipients.ts`, но по роли)
+- `lib/notifications/notifyManagement.ts` (новый) — рассылка управленческого алерта всем `HEAD+` с тройным гейтом (`company.telegramEnabled` + `telegramChatId` + `managementAlerts`); сбой одного получателя не прерывает остальных
+- `lib/notifications/notifyManager.ts` — ключ `REACTION_REMINDED` → `reactionReminder` в `ManagerAlertPayloads`/`ALERT_PREFERENCE_KEY`/`ALERT_TEMPLATES` (по существующему generic-паттерну)
+- `types/users.ts` + `lib/notifications/preferences.ts` — `reactionReminder`/`managementAlerts` в `NotificationPreferences` и `DEFAULT_NOTIFICATION_PREFERENCES` (дефолт `true`); оба поля парсятся в `parseNotificationPreferences`
+- `constants/telegramTemplates.ts` — шаблоны `reactionReminder({ name, minutes })` и `reactionEscalated({ name, minutes, manager })`
+- `lib/control/checkReactionTime.ts` (новый) — компании `!isBlocked` + `parseCompanySettings().controlEnabled === true` (не JSON-`where`); лиды `closeType: null, assignedToId != null`; норматив/проценты через `resolveApplicableNorm`, рабочее время — один раз на компанию; `LEAD_TAKEN_IN_WORK` останавливает цепочку; ступени `else if` сверху вниз (133% → 100% → 66%), once-per-lead по наличию события; `writeEvent(LEAD_REACTION_*, { userId: null, leadId })` + `notifyManager`/`notifyManagement`; сводка `{ checked, reminded, overdue, escalated }`
+- `app/api/cron/control/reaction-time/route.ts` (новый) — `POST`, `verifyCronSecret` → `401`, иначе `checkReactionTime()` → JSON-сводка; не в matcher `proxy.ts`
+- `components/profile/ProfileNotifications.tsx` — список переключателей отвязан от `keyof NotificationPreferences` (`PROFILE_PREFERENCE_KEYS`); `reactionReminder`/`managementAlerts` в профиле не показываются
+
+**Out of scope (не делалось):** `checkStuckLeads`/`checkEndOfDaySummary`/`checkSourceHealth` — Таск 3; UI настроек контроля в `/admin/settings` — Таск 4; страница `/control` + `GET /api/control/stats` — Таск 5; провязка `ASSIGNMENT_FAILED` к `notifyManagement`; отображение здоровья источников — Phase 18; миграции БД; регистрация crontab-записи — ручной ops-шаг после деплоя
+
+**Проверено:** `npm test` (37/37), `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-11 — Phase 17, Таск 1: Настройки контроля — схема + глубокий мёрж + резолвер норматива + рабочее время
 
 **Статус:** ✅ Завершён

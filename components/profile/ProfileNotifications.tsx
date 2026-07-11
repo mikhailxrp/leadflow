@@ -12,7 +12,12 @@ interface ProfileNotificationsProps {
   telegramConnected: boolean;
 }
 
-type PreferenceKey = keyof NotificationPreferences;
+// Профиль показывает только операционные переключатели самого пользователя;
+// управленческие ключи (reactionReminder/managementAlerts, Phase 17) сюда не входят —
+// список умышленно не выводится из keyof NotificationPreferences целиком.
+const PROFILE_PREFERENCE_KEYS = ['assignedLead', 'commentOnLead', 'reminders'] as const;
+
+type PreferenceKey = (typeof PROFILE_PREFERENCE_KEYS)[number];
 
 const PREFERENCE_LABELS: Record<PreferenceKey, string> = {
   assignedLead: 'Новый лид назначен на меня',
@@ -59,7 +64,7 @@ export default function ProfileNotifications({
       title="Мои уведомления"
       subtitle="Персональные настройки, перекрывают общие"
     >
-      {(Object.keys(PREFERENCE_LABELS) as PreferenceKey[]).map((key) => (
+      {PROFILE_PREFERENCE_KEYS.map((key) => (
         <ProfileRow key={key} label={PREFERENCE_LABELS[key]}>
           <div className="flex flex-1 justify-end">
             <Toggle

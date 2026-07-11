@@ -26,5 +26,13 @@ export function parseNotificationPreferences(
       typeof record.reminders === 'boolean'
         ? record.reminders
         : DEFAULT_NOTIFICATION_PREFERENCES.reminders,
+    reactionReminder:
+      typeof record.reactionReminder === 'boolean'
+        ? record.reactionReminder
+        : DEFAULT_NOTIFICATION_PREFERENCES.reactionReminder,
+    managementAlerts:
+      typeof record.managementAlerts === 'boolean'
+        ? record.managementAlerts
+        : DEFAULT_NOTIFICATION_PREFERENCES.managementAlerts,
   };
 }
