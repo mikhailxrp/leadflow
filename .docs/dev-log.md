@@ -36,6 +36,54 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-11 — Phase 17, Таск 4: UI настроек контроля в `/admin/settings`
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `components/settings/ControlSection.tsx` (новый) — карточка «Контроль»: тумблер `controlEnabled` + числовые/временные поля `reactionNorms.defaultMinutes/reminderBeforePercent/escalateAfterPercent`, `stageStuckDaysDefault`, `stuckCheckTime`, `sourceHealthThresholdHours`; каждое поле — независимый мгновенный `PATCH /api/settings` по `blur`/toggle (локальный draft + откат при невалидном/пустом вводе, паттерн `StageRow.commitLimit`), без batch-формы с кнопкой «Сохранить»
+- `components/settings/ReactionNormOverridesTable.tsx` (новый) — общий `OverrideSection` (переиспользован трижды: «По источнику»/«По этапу»/«По сотруднику») поверх `reactionNorms.bySource/byStage/byUser`; добавление — инлайн-строка (Select для этапа/сотрудника из серверных пропсов, текст с `<datalist>`-подсказками из `IntegrationSource.type` для источника); удаление отправляет `{ [key]: null }` (глубокий мёрж из Таска 1 не тронут); запись со ссылкой на уже удалённый этап/заблокированного сотрудника рендерится с фолбэк-подписью и остаётся удаляемой
+- `components/settings/WorkHoursForm.tsx` (новый) — `reactionNorms.workHoursOnly` + `workHours.start/end/days`; включение тумблера без ранее сохранённого расписания сразу сохраняет дефолт (09:00–18:00, Пн–Пт), чтобы гейт не оставался тихим no-op; UI блокирует снятие последнего оставшегося рабочего дня (схема не допускает пустой `days`)
+- `app/(company)/(admin)/admin/settings/page.tsx` — заменены самодельные `readAssignMode`/`readTelegramEnabled` на `getSettings(companyId)`; добавлены запросы `pipelineStage` и `distinct IntegrationSource.type` для новых секций; три новые карточки вставлены рядом с `AssignmentRulesSection`, вне `SettingsDirtyProvider` (та же мгновенная модель сохранения)
+- Бэкенд не менялся — `lib/settings/getSettings.ts`/`updateSettings.ts`, `lib/validations/settings.ts`, `app/api/settings/route.ts` уже покрывали все поля с Таска 1
+- Проверено вживую через Playwright (headless Chromium, временно `npm install --no-save playwright`, без изменений `package.json`/lock-файла) против одноразовой тестовой компании (создана и удалена скриптами `scripts/tmpVerifyTask4*.ts` + `scripts/deleteCompany.ts`, оба временных скрипта удалены после проверки): тумблер и числовое поле переживают reload; добавление всех трёх override одновременно не стирает соседние; удаление одного override не возвращается после reload и не задевает остальные; включение `workHoursOnly` без сохранённого расписания сразу проставляет дефолт; последний рабочий день нельзя снять; существующие секции (`LossReasonsSection`, `AssignModeSection`, `AssignmentRulesSection`, `NotificationsSection`, `SystemSection`) не регрессировали
+- `.docs/phases/phase-17.md`, `.docs/phases/_status.md` — таск 4 отмечен ✅
+
+**Out of scope (не делалось):** страница `/control` + `GET /api/control/stats` — Таск 5; `/admin/integrations`, health-display API — Phase 18; кросс-валидация `reminderBeforePercent < escalateAfterPercent` на клиенте — схема её не требует; живой сценарий с реально удалённым этапом/заблокированным сотрудником в overrides проверен код-ревью, не отдельным browser-прогоном.
+
+**Definition of Done:** ✅ Все пункты выполнены
+
+---
+
+## 2026-07-11 — Phase 17, Таск 3: Зависшие лиды, конец дня, здоровье источников
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` + миграция `20260711185904_phase_17_control_summary_event` — `CONTROL_SUMMARY_SENT` в `enum EventType` (company-level маркер дневной сводки, `leadId: null`, различается по `payload.kind: 'stuck' | 'endOfDay'`)
+- `constants/eventLabels.ts` — `CONTROL_SUMMARY_SENT` в `PLATFORM_EVENT_LABELS`
+- `lib/control/controlSummaryMarker.ts` (новый) — `hasSentSummaryToday(companyId, kind, now)` + `markSummarySent(companyId, kind)`; общий для обеих дневных сводок, фильтр по `payload.kind` в одном месте
+- `lib/control/checkStuckLeads.ts` (новый) — компании `controlEnabled && !isBlocked`, час(now) == час(`stuckCheckTime`), `!hasSentSummaryToday('stuck')`; лимит = `stageTimeLimitDays ?? stageStuckDaysDefault`; «завис» по дням с последнего `STAGE_CHANGED` (или `createdAt`); `LEAD_STAGE_STUCK` — once per episode (сравнение с последним `STAGE_CHANGED`, не `sent.has` навсегда); непустой список → `notifyManagement(STUCK_LEADS_SUMMARY)`; в конце — `markSummarySent('stuck')` даже при пустом списке
+- `lib/control/checkEndOfDaySummary.ts` (новый) — час(now) == час(`workHours.end ?? '18:00'`), `!hasSentSummaryToday('endOfDay')`; лиды, созданные сегодня, без `LEAD_TAKEN_IN_WORK`; непустой список → `notifyManagement(END_OF_DAY_SUMMARY)`; `markSummarySent('endOfDay')` всегда
+- `lib/control/checkSourceHealth.ts` (новый) — по компаниям `controlEnabled && !isBlocked`; `IntegrationSource` с `lastUsedAt != null`; `SOURCE_DOWN` once per problem (сравнение таймстампов `SOURCE_DOWN`/`SOURCE_RECOVERED`, без `alertedDown`); `SOURCE_RECOVERED` только после незакрытого `SOURCE_DOWN` (не на каждый здоровый час)
+- `lib/notifications/notifyManagement.ts` — расширены `ManagementAlertPayloads`/`ALERT_TEMPLATES`: `STUCK_LEADS_SUMMARY`, `END_OF_DAY_SUMMARY`, `SOURCE_DOWN`
+- `constants/telegramTemplates.ts` — шаблоны `stuckLeadsSummary`, `endOfDaySummary`, `sourceDown`
+- `app/api/cron/control/daily/route.ts` (новый) — `verifyCronSecret` → `checkStuckLeads()` + `checkEndOfDaySummary()` через `Promise.allSettled` (сбой одной проверки не роняет вторую)
+- `app/api/cron/control/source-health/route.ts` (новый) — `verifyCronSecret` → `checkSourceHealth()`
+- `.docs/phases/phase-17.md` — уточнён контекст (аддитивная миграция в Таске 3), таск 3 ✅
+- `.docs/modules/notifications.md` — исправлен баг примера `SOURCE_RECOVERED`; `CONTROL_SUMMARY_SENT` вместо `alertedDown`/абстрактного маркера
+- `.docs/phases/_status.md` — отметка по таску 3
+
+**Out of scope (не делалось):** UI `/admin/settings` (`ControlSection` и др.) — Таск 4; страница `/control` + `GET /api/control/stats` — Таск 5; `/admin/integrations`, health-display API — Phase 18; изменение алгоритма риска в `computeRisk`/`computeRiskBatch`; регистрация crontab (`daily`, `source-health`) — ручной ops-шаг после деплоя
+
+**Проверено:** `npm test` (37/37), `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; миграция применена (`prisma migrate dev`); нет `any`
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-11 — Phase 17, Таск 2: Трёхступенчатая эскалация первого ответа (`checkReactionTime` + cron + управленческие алерты)
 
 **Статус:** ✅ Завершён

@@ -3,7 +3,10 @@ import 'server-only';
 import { DEFAULT_COMPANY_SETTINGS } from '@/constants/defaultCompanyData';
 import {
   telegramTemplates,
+  type EndOfDaySummaryParams,
   type ReactionEscalatedParams,
+  type SourceDownParams,
+  type StuckLeadsSummaryParams,
 } from '@/constants/telegramTemplates';
 import { getManagementRecipients } from '@/lib/notifications/managementRecipients';
 import { parseNotificationPreferences } from '@/lib/notifications/preferences';
@@ -11,11 +14,14 @@ import { prisma } from '@/lib/prisma';
 import { sendTelegramMessage } from '@/lib/telegram';
 
 /**
- * Ключи управленческих Telegram-алертов (HEAD+). Реестр растёт в Таске 3 (зависшие лиды,
- * конец дня, тишина источника) — namespace отдельный от EventType/ManagerAlertType.
+ * Ключи управленческих Telegram-алертов (HEAD+) — эскалация, зависшие лиды, конец дня,
+ * тишина источника (Phase 17). Namespace отдельный от EventType/ManagerAlertType.
  */
 type ManagementAlertPayloads = {
   ESCALATED: ReactionEscalatedParams;
+  STUCK_LEADS_SUMMARY: StuckLeadsSummaryParams;
+  END_OF_DAY_SUMMARY: EndOfDaySummaryParams;
+  SOURCE_DOWN: SourceDownParams;
 };
 
 type ManagementAlertType = keyof ManagementAlertPayloads;
@@ -24,6 +30,9 @@ const ALERT_TEMPLATES: {
   [K in ManagementAlertType]: (payload: ManagementAlertPayloads[K]) => string;
 } = {
   ESCALATED: telegramTemplates.reactionEscalated,
+  STUCK_LEADS_SUMMARY: telegramTemplates.stuckLeadsSummary,
+  END_OF_DAY_SUMMARY: telegramTemplates.endOfDaySummary,
+  SOURCE_DOWN: telegramTemplates.sourceDown,
 };
 
 function getTelegramEnabled(settings: unknown): boolean {
