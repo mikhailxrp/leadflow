@@ -36,6 +36,14 @@ export function getEventLabel(
       return 'Лид помечен целевым';
     case 'LEAD_DISQUALIFIED':
       return 'Лид помечен нецелевым';
+    case 'TASK_CREATED':
+      return `${event.userName ?? 'Пользователь'} создал задачу`;
+    case 'TASK_UPDATED':
+      return 'Задача обновлена';
+    case 'TASK_DONE':
+      return 'Задача выполнена';
+    case 'TASK_CANCELLED':
+      return 'Задача отменена';
     default:
       return 'Событие в журнале';
   }

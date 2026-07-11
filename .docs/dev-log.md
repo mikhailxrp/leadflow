@@ -36,6 +36,26 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-11 — Phase 15, Таск 1: CRUD API задач + assignable-список + события
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/tasks.ts` (новый) — `createTaskSchema` (`title` 1–200, `assignedToId`, опциональные `dueDate` ISO-datetime и `description` ≤ 2000), `updateTaskSchema` (все поля партиальные + `status: z.nativeEnum(TaskStatus)`), типы через `z.infer`
+- `app/api/leads/[id]/tasks/route.ts` (новый) — `GET`: лид через `visibilityWhere`-паттерн (как в `reminders/route.ts`) → вне видимости/чужая компания → `404`; два запроса для сортировки — активные (`TODO`/`IN_PROGRESS`) по `dueDate asc` → `createdAt asc`, неактивные (`DONE`/`CANCELLED`) по `completedAt desc`; `assignedTo { id, name }` в ответе. `POST`: явная проверка исполнителя (`companyId` + `isBlocked: false`) → иначе `400 ASSIGNEE_INVALID`; `writeEvent(TASK_CREATED)` с `leadId`, `userId`, `payload.taskId`. Guard — `requireCompanyUser({ minRole: 'MANAGER' })`
+- `app/api/leads/[id]/tasks/[taskId]/route.ts` (новый) — `PATCH`: задача по `{ id: taskId, leadId, companyId }`; `DONE`/`CANCELLED` → `400 TASK_NOT_EDITABLE`; право — автор или `ADMIN`, иначе `403`; переход в `DONE` → `completedAt = now()` + `TASK_DONE`; в `CANCELLED` → `completedAt = null` + `TASK_CANCELLED`; правка полей / `TODO`/`IN_PROGRESS` → `TASK_UPDATED` (одно событие на запрос, даже при одновременной смене `status` и полей). `DELETE`: физическое удаление, строго `hasMinRole(role, 'ADMIN')`, без события
+- `app/api/users/assignable/route.ts` (новый) — `GET` только `{ id, name }` активных (`isBlocked: false`) пользователей компании; guard `requireCompanyUser({ minRole: 'MANAGER' })`
+- `constants/eventLabels.ts` — кейсы `TASK_CREATED`/`TASK_UPDATED`/`TASK_DONE`/`TASK_CANCELLED` в company-side `getEventLabel()` (раньше падали в `default`)
+
+**Out of scope (не делалось):** UI (`TaskBlock`, `AddTaskModal`, `EditTaskModal`, чистка мок-каркаса `components/tasks/*`) — Таск 2; промпт при смене этапа, колонка «Следующее действие», `getNextActions.ts` — Таск 3; инлайн быстрые действия из списка лидов — Таск 4; Prisma-миграция (не нужна); добавление задач/`assignable` в allow-list маркетолога (`constants/marketerAccess.ts`) — по спецификации маркетолог задач не касается; уведомления о дедлайне — Phase 17
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — без ошибок; нет `any`. Guard `requireCompanyUser` (не `requireCompanyAccess`) — маркетолог получает `403` на всех эндпоинтах задач и `assignable` без записи в allow-list
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-11 — Phase 14, Таск 3: UI блока «Напоминания» в карточке лида + чистка мок-блока настроек
 
 **Статус:** ✅ Завершён (код, статические проверки и живая проверка в headless-браузере — Playwright, реальный dev-сервер и БД, throwaway-компания/пользователь/лид удалены после проверки)
