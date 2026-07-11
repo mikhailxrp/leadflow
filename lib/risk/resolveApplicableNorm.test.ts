@@ -13,6 +13,7 @@ const baseLead: LeadInput = {
 const baseNorms: ReactionNorms = {
   defaultMinutes: 30,
   reminderBeforePercent: 66,
+  escalateAfterPercent: 133,
   workHoursOnly: false,
 };
 
@@ -77,5 +78,13 @@ describe('resolveApplicableNorm', () => {
     });
     expect(result.reminderBeforePercent).toBe(80);
     expect(result.workHoursOnly).toBe(true);
+  });
+
+  it('пробрасывает escalateAfterPercent без изменений', () => {
+    const result = resolveApplicableNorm(baseLead, {
+      ...baseNorms,
+      escalateAfterPercent: 150,
+    });
+    expect(result.escalateAfterPercent).toBe(150);
   });
 });

@@ -1,20 +1,8 @@
-import type { Prisma } from '@prisma/client';
 import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { getSettings } from '@/lib/settings/getSettings';
+import { updateSettings } from '@/lib/settings/updateSettings';
 import { updateSettingsSchema } from '@/lib/validations/settings';
-
-function asRecord(settings: unknown): Record<string, unknown> {
-  return settings && typeof settings === 'object' && !Array.isArray(settings)
-    ? (settings as Record<string, unknown>)
-    : {};
-}
-
-function withoutCursor(settings: Record<string, unknown>): Record<string, unknown> {
-  const rest = { ...settings };
-  delete rest.roundRobinCursor;
-  return rest;
-}
 
 export async function GET(): Promise<Response> {
   const session = await auth();
@@ -26,12 +14,7 @@ export async function GET(): Promise<Response> {
   const { companyId } = session.user;
 
   try {
-    const company = await prisma.company.findUniqueOrThrow({
-      where: { id: companyId },
-      select: { settings: true },
-    });
-
-    return Response.json(withoutCursor(asRecord(company.settings)));
+    return Response.json(await getSettings(companyId));
   } catch (error) {
     console.error('[GET /api/settings] failed:', error);
     return Response.json({ error: 'INTERNAL_ERROR' }, { status: 500 });
@@ -64,21 +47,7 @@ export async function PATCH(request: Request): Promise<Response> {
   }
 
   try {
-    const company = await prisma.company.findUniqueOrThrow({
-      where: { id: companyId },
-      select: { settings: true },
-    });
-
-    const current = asRecord(company.settings);
-    const merged = { ...current, ...parsed.data };
-
-    const updated = await prisma.company.update({
-      where: { id: companyId },
-      data: { settings: merged as Prisma.InputJsonValue },
-      select: { settings: true },
-    });
-
-    return Response.json(withoutCursor(asRecord(updated.settings)));
+    return Response.json(await updateSettings(companyId, parsed.data));
   } catch (error) {
     console.error('[PATCH /api/settings] failed:', error);
     return Response.json({ error: 'INTERNAL_ERROR' }, { status: 500 });

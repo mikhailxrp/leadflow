@@ -13,6 +13,7 @@ export interface RiskResult {
 export interface ReactionNorms {
   defaultMinutes: number;
   reminderBeforePercent: number;
+  escalateAfterPercent: number;
   bySource?: Record<string, number>;
   byStage?: Record<string, number>;
   byUser?: Record<string, number>;
@@ -60,7 +61,7 @@ export function computeRisk(input: RiskInput): RiskResult {
   const elapsedMinutes = minutesSinceCreated(
     input.lead.createdAt,
     now,
-    norm.workHoursOnly,
+    norm.workHoursOnly ? input.companySettings.workHours ?? null : null,
   );
 
   if (!input.hasTakenInWork && elapsedMinutes > norm.defaultMinutes) {

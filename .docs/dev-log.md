@@ -36,6 +36,31 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-11 — Phase 17, Таск 1: Настройки контроля — схема + глубокий мёрж + резолвер норматива + рабочее время
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/settings.ts` — расширен `updateSettingsSchema`: `controlEnabled`, частичный `reactionNorms` (`defaultMinutes`, `reminderBeforePercent`, `escalateAfterPercent`, `workHoursOnly`, карты `bySource`/`byStage`/`byUser` с `null` = удалить ключ), `workHours` (`start`/`end` `HH:MM`, `days` 1..7), `stageStuckDaysDefault`, `stuckCheckTime`, `sourceHealthThresholdHours`; `.refine` — хотя бы одно поле; `roundRobinCursor` по-прежнему не в схеме
+- `lib/settings/getSettings.ts` (новый) — `parseCompanySettings()` с наложением `DEFAULT_COMPANY_SETTINGS`; `getSettings(companyId)` и `toPublicSettings()` без служебного `roundRobinCursor` в ответе
+- `lib/settings/updateSettings.ts` (новый) — глубокий мёрж **только** `reactionNorms` (карты по ключам, `null` удаляет ключ); остальные поля (включая `workHours`) — плоская замена; запись в `Company.settings`
+- `app/api/settings/route.ts` — `GET` через `getSettings()`, `PATCH` через `updateSettings()` вместо инлайнового плоского мёржа; ADMIN-only и `companyId` из сессии без изменений
+- `lib/risk/computeRisk.ts` — `ReactionNorms` дополнен `escalateAfterPercent`; `minutesSinceCreated` получает `workHours | null` (при `workHoursOnly` — расписание компании, иначе `null`)
+- `lib/risk/resolveApplicableNorm.ts` — возвращает также `escalateAfterPercent` из настроек
+- `lib/risk/workHoursUtils.ts` — переписан `minutesSinceCreated(createdAt, now, workHours | null)`: при `null` — прежняя простая разница минут; иначе вычитание нерабочих часов/дней; мэппинг дней 1=пн..7=вс ↔ JS `getDay()`
+- `lib/risk/resolveApplicableNorm.test.ts` — `escalateAfterPercent` в фикстурах + тест на проброс
+- `lib/risk/computeRisk.test.ts` — `escalateAfterPercent: 133` в `buildInput()` (механический фикс фикстуры)
+- `lib/risk/workHoursUtils.test.ts` (новый) — 8 кейсов: Пт 19:00 → отсчёт с Пн 09:00, выходные, границы окна, `workHours = null` = простая разница
+
+**Out of scope (не делалось):** трёхступенчатая эскалация (`checkReactionTime`, cron) — Таск 2; `checkStuckLeads`/`checkEndOfDaySummary`/`checkSourceHealth` — Таск 3; UI `/admin/settings` (`ControlSection` и др.) — Таск 4; страница `/control` + `GET /api/control/stats` — Таск 5; `yandexMode`; миграции БД; изменения `lib/events.ts`
+
+**Проверено:** `npm test` (37/37), `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`; `computeRisk.test.ts`/`computeRiskBatch.test.ts` зелёные — поведение риска не изменилось при `workHoursOnly: false`
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-11 — Phase 16: Индикатор риска — верификация и затвердевание (оба таска)
 
 **Статус:** ✅ Завершена
