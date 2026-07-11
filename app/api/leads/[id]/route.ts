@@ -234,6 +234,7 @@ export async function GET(
 
     const [leadWithRisk] = await computeRiskBatch(
       [toLeadListItem(lead)],
+      actor.companyId,
       companySettings,
       prisma,
     );

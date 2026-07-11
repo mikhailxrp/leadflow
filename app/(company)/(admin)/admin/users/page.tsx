@@ -13,6 +13,7 @@ const USER_PUBLIC_SELECT = {
   email: true,
   role: true,
   isBlocked: true,
+  avatarUrl: true,
   createdAt: true,
 } as const;
 

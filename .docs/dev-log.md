@@ -36,6 +36,33 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-11 — Phase 16: Индикатор риска — верификация и затвердевание (оба таска)
+
+**Статус:** ✅ Завершена
+
+**Переопределение фазы (согласовано с пользователем перед планированием):** исходный роадмап описывал Phase 16 как «создать и интегрировать риск», но `lib/risk/computeRisk.ts`/`computeRiskBatch.ts`/`resolveApplicableNorm.ts` уже существовали и были встроены в список/карточку/Kanban ещё в фазах 6/9. Фаза переопределена в тонкую верификацию: тест-харнесс + аудит `companyId`-инварианта + правки доков под реальную модель (`green/yellow/red/grey`, без `none/low/medium/high` и «оранжевого» из устаревшего описания в `_status.md`).
+
+**Таск 1 — тест-харнесс:**
+
+- `package.json`/`vitest.config.ts` (новые) — первый юнит-тест-харнесс проекта (`vitest`, environment `node`, алиас `@/`)
+- `lib/risk/computeRisk.test.ts`, `lib/risk/resolveApplicableNorm.test.ts`, `lib/risk/computeRiskBatch.test.ts` (новые) — по кейсу на каждую ветку приоритета причин + порядок применения норматива + инвариант «без N+1» на фейковом `PrismaLike`
+
+**Таск 2 — `companyId` в batch-запросах + аудит + доки:**
+
+- `lib/risk/computeRiskBatch.ts` — добавлен обязательный параметр `companyId`; добавлен в `where` `event.findMany`/`task.findMany` (defense-in-depth, раньше фильтр был только по `leadId in [...]`)
+- `lib/leads/getLeads.ts`, `lib/leads/getLeadById.ts`, `lib/pipeline/boardQuery.ts` — передают `companyId` в `computeRiskBatch`; `boardQuery.ts` дополнительно получил `companyId` в отдельном запросе `STAGE_CHANGED`-событий для `avgDaysOnStage`
+- `app/api/leads/[id]/route.ts` — четвёртый вызов `computeRiskBatch`, не учтённый в исходном плане `phase-16.md` (собственный `GET`-хендлер, отдельный от `getLeadById.ts`); обязательность нового параметра сразу подсветила пропуск через `tsc` — обновлён
+- `.docs/phases/_status.md` — секция Phase 16 переписана под реальную модель риска, фаза и оба таска отмечены ✅
+- `.docs/modules/risk.md` — пометки: `workHoursOnly` — no-op до Phase 17, потребитель «Сегодня» — Phase 19
+
+**Out of scope (не делалось):** изменение алгоритма/приоритета причин риска; учёт рабочего времени и настройка нормативов (`reactionNorms`, `workHours`) — Phase 17; эскалация/алерты по риску — Phase 17; экран «Сегодня» — Phase 19; интеграционные/e2e-тесты API-роутов.
+
+**Проверено:** `npm test` (28/28), `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; живая проверка бейджа риска в headless Chromium (Playwright) на реальном dev-сервере и dev-БД — throwaway ADMIN-пользователь в существующей компании с лидами без ответственного, для одного и того же лида во всех трёх точках (`/leads`, `/leads/:id`, `/pipeline`) — идентично `Риск` / `Нет ответственного`; тестовый пользователь и служебные скрипты удалены после проверки, dev-сервер остановлен.
+
+**Definition of Done:** выполнено полностью по `TASK.md`/`phase-16.md` (оба таска)
+
+---
+
 ## 2026-07-11 — Phase 15, Таск 4: Инлайн быстрые действия по задаче из строки списка лидов
 
 **Статус:** ✅ Завершён (код, статические проверки и живая проверка в headless-браузере — Playwright, 1280×800, реальный dev-сервер и БД, throwaway-компания/пользователи/лиды/задачи удалены после проверки)

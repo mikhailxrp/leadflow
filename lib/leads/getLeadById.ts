@@ -203,6 +203,7 @@ export async function getLeadById(
           stage: lead.stage,
         },
       ],
+      companyId,
       company.settings,
       prisma,
     ),
