@@ -8,26 +8,13 @@ import LossReasonsSection from '@/components/settings/LossReasonsSection';
 import AssignModeSection from '@/components/settings/AssignModeSection';
 import AssignmentRulesSection from '@/components/settings/AssignmentRulesSection';
 import NotificationsSection from '@/components/settings/NotificationsSection';
+import ControlSection from '@/components/settings/ControlSection';
+import ReactionNormOverridesTable from '@/components/settings/ReactionNormOverridesTable';
+import WorkHoursForm from '@/components/settings/WorkHoursForm';
 import { hasMinRole } from '@/constants/roles';
-import { DEFAULT_COMPANY_SETTINGS } from '@/constants/defaultCompanyData';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
-function readAssignMode(settings: unknown): 'MANUAL' | 'ROUND_ROBIN' {
-  if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
-    const mode = (settings as Record<string, unknown>).assignMode;
-    if (mode === 'ROUND_ROBIN') return 'ROUND_ROBIN';
-  }
-  return 'MANUAL'; // отсутствующие/битые настройки → MANUAL, не исключение
-}
-
-function readTelegramEnabled(settings: unknown): boolean {
-  if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
-    const value = (settings as Record<string, unknown>).telegramEnabled;
-    if (typeof value === 'boolean') return value;
-  }
-  return DEFAULT_COMPANY_SETTINGS.telegramEnabled;
-}
+import { getSettings } from '@/lib/settings/getSettings';
 
 export const metadata: Metadata = {
   title: 'Настройки',
@@ -47,10 +34,10 @@ export default async function AdminSettingsPage() {
 
   const ASSIGNEE_SELECT = { id: true, name: true } as const;
 
-  const [company, lossReasonsRaw, assignmentRules, users] = await Promise.all([
+  const [company, lossReasonsRaw, assignmentRules, users, stages, sourceRows, settings] = await Promise.all([
     prisma.company.findUniqueOrThrow({
       where: { id: companyId },
-      select: { name: true, nextPaymentAt: true, settings: true },
+      select: { name: true, nextPaymentAt: true },
     }),
     prisma.lossReason.findMany({
       where: { companyId },
@@ -80,12 +67,25 @@ export default async function AdminSettingsPage() {
       orderBy: { name: 'asc' },
       select: { id: true, name: true, isBlocked: true },
     }),
+    prisma.pipelineStage.findMany({
+      where: { companyId },
+      orderBy: { order: 'asc' },
+      select: { id: true, name: true },
+    }),
+    prisma.integrationSource.findMany({
+      where: { companyId },
+      distinct: ['type'],
+      select: { type: true },
+    }),
+    getSettings(companyId),
   ]);
 
   const lossReasons = lossReasonsRaw.map(({ _count, ...rest }) => ({
     ...rest,
     inUse: _count.leads > 0,
   }));
+
+  const knownSources = sourceRows.map((row) => row.type);
 
   return (
     <>
@@ -106,9 +106,32 @@ export default async function AdminSettingsPage() {
       <PageContent>
         <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
           <LossReasonsSection initialReasons={lossReasons} />
-          <AssignModeSection initialAssignMode={readAssignMode(company.settings)} />
+          <AssignModeSection initialAssignMode={settings.assignMode} />
           <AssignmentRulesSection initialRules={assignmentRules} users={users} />
-          <NotificationsSection initialTelegramEnabled={readTelegramEnabled(company.settings)} />
+          <NotificationsSection initialTelegramEnabled={settings.telegramEnabled} />
+          <ControlSection
+            initialFields={{
+              controlEnabled: settings.controlEnabled,
+              defaultMinutes: settings.reactionNorms.defaultMinutes,
+              reminderBeforePercent: settings.reactionNorms.reminderBeforePercent,
+              escalateAfterPercent: settings.reactionNorms.escalateAfterPercent,
+              stageStuckDaysDefault: settings.stageStuckDaysDefault,
+              stuckCheckTime: settings.stuckCheckTime,
+              sourceHealthThresholdHours: settings.sourceHealthThresholdHours,
+            }}
+          />
+          <ReactionNormOverridesTable
+            initialBySource={settings.reactionNorms.bySource ?? {}}
+            initialByStage={settings.reactionNorms.byStage ?? {}}
+            initialByUser={settings.reactionNorms.byUser ?? {}}
+            stages={stages}
+            users={users}
+            knownSources={knownSources}
+          />
+          <WorkHoursForm
+            initialWorkHoursOnly={settings.reactionNorms.workHoursOnly}
+            initialWorkHours={settings.workHours ?? null}
+          />
           <SettingsDirtyProvider>
             <SettingsSections />
             <SystemSection companyName={company.name} nextPaymentAt={company.nextPaymentAt} />

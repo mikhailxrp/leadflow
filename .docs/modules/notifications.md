@@ -185,17 +185,17 @@ for (const lead of candidates) {
 Лимит для конкретного лида = PipelineStage.stageTimeLimitDays ?? Company.settings.stageStuckDaysDefault
 ```
 
-Раньше лимит был только компанийским; теперь — переопределяемым по этапу (см. `.docs/modules/pipeline.md`). Cron (`checkStuckLeads.ts`) запускается раз в день в `stuckCheckTime`, собирает сводку — механика сборки сообщения не изменилась.
+Раньше лимит был только компанийским; теперь — переопределяемым по этапу (см. `.docs/modules/pipeline.md`). `lib/control/checkStuckLeads.ts` перебирает компании с `controlEnabled && !isBlocked`, срабатывает раз в день — когда серверный час `now.getHours()` совпадает с часом `stuckCheckTime` компании. «Завис» = дней с последнего `STAGE_CHANGED` (или `createdAt`, если смены этапа не было) превышает лимит. `LEAD_STAGE_STUCK` — **once per episode**: не пишется повторно для лида, пока не появится новый `STAGE_CHANGED` (сравнение `createdAt` последнего `LEAD_STAGE_STUCK` с последним `STAGE_CHANGED`, не факт существования события когда-либо в истории лида).
 
 ### Дополнено: конец дня — отдельная сводка необработанных (FR-152)
 
-```
-Отдельный cron, раз в день (например, в 18:00 или конец рабочего дня компании, если задан workHours):
-  → выбрать лиды компании без LEAD_TAKEN_IN_WORK, созданные сегодня
-  → если есть хотя бы один → Telegram руководителю: сводный список
-```
+`lib/control/checkEndOfDaySummary.ts` — отдельный cron, раз в день, в конце рабочего дня компании (`workHours.end`, иначе дефолт `18:00`, если `workHours` не задан — поле опционально): выбирает лиды компании, созданные сегодня, без `LEAD_TAKEN_IN_WORK`; если есть хотя бы один — Telegram руководителю/администратору: сводный список.
 
 Это не дублирует трёхступенчатую эскалацию (которая идёт по каждому лиду индивидуально и в реальном времени) — это отдельный «итог дня», управленческий, не операционный.
+
+### Идемпотентность «раз в день»: `CONTROL_SUMMARY_SENT`
+
+Обе дневные сводки используют общий company-level маркер `EventType.CONTROL_SUMMARY_SENT` (`leadId: null`), различаемый по `payload.kind: 'stuck' | 'endOfDay'` (`lib/control/controlSummaryMarker.ts`, `hasSentSummaryToday`/`markSummarySent`). Перед запуском проверяется наличие сегодняшнего маркера нужного `kind` для компании; после прогона (даже если сводка пустая) маркер пишется — это гарантирует «ровно раз в день», даже если внешний ежечасный crontab случайно сработает дважды в тот же час. Один `EventType` осознанно используется для обоих маркеров: фильтр по `payload.kind` обязателен в `hasSentSummaryToday`, чтобы `checkStuckLeads`/`checkEndOfDaySummary` не подавляли друг друга.
 
 ---
 
@@ -207,28 +207,34 @@ for (const lead of candidates) {
 
 ### Логика
 
+`lib/control/checkSourceHealth.ts` — cron, раз в час, по компаниям с `controlEnabled && !isBlocked`:
+
 ```typescript
-// lib/control/checkSourceHealth.ts — cron, раз в час
 const sources = await prisma.integrationSource.findMany({
   where: { companyId, lastUsedAt: { not: null } }, // только те, что хоть раз были активны — новый, ещё не настроенный источник не считается "замолчавшим"
 });
 
-for (const source of sources) {
-  const threshold = company.settings.sourceHealthThresholdHours; // дефолт 3
-  const hoursSinceLastUse = diffHours(now(), source.lastUsedAt);
+// последние SOURCE_DOWN/SOURCE_RECOVERED компании (за окно ~90 дней) сгруппированы в JS
+// по (type, label) из payload — без Prisma JSON-path фильтров
 
-  if (hoursSinceLastUse > threshold && !source.alertedDown) {
-    await writeEvent(companyId, "SOURCE_DOWN", { type: source.type, label: source.label, hoursSilent: hoursSinceLastUse });
-    await notifyManagement(companyId, `Источник "${source.type}" не передаёт заявки последние ${hoursSinceLastUse} часов`);
-    // отметить как уже сообщённый — реализация: поле или отдельная проверка по последнему SOURCE_DOWN-событию
-  }
-  if (hoursSinceLastUse <= threshold /* источник снова используется после того, как был отмечен молчащим */) {
-    await writeEvent(companyId, "SOURCE_RECOVERED", { type: source.type, label: source.label });
+for (const source of sources) {
+  const threshold = settings.sourceHealthThresholdHours; // дефолт 3
+  const hoursSinceLastUse = (now.getTime() - source.lastUsedAt.getTime()) / MS_PER_HOUR;
+  const isMarkedDown = lastDown && (!lastRecovered || lastDown > lastRecovered);
+
+  if (hoursSinceLastUse > threshold) {
+    if (isMarkedDown) continue; // уже сообщённая проблема — once per problem
+    await writeEvent(companyId, "SOURCE_DOWN", { payload: { type: source.type, label: source.label, hoursSilent } });
+    await notifyManagement(companyId, "SOURCE_DOWN", { type: source.type, label: source.label, hours: hoursSilent });
+  } else if (isMarkedDown) {
+    // источник снова используется — но SOURCE_RECOVERED пишется, только если до этого
+    // был незакрытый SOURCE_DOWN, а не на каждый час, где источник просто здоров
+    await writeEvent(companyId, "SOURCE_RECOVERED", { payload: { type: source.type, label: source.label } });
   }
 }
 ```
 
-«Уже сообщённый» — проверяется по наличию более позднего `SOURCE_DOWN`, чем последний `SOURCE_RECOVERED`/`lastUsedAt`-обновление, чтобы не слать алерт каждый час подряд об одном и том же молчании — аналогичный принцип «once per problem», что и у `LEAD_REACTION_ESCALATED`.
+«Уже сообщённый» (`isMarkedDown`) — проверяется сравнением таймстампов последних `SOURCE_DOWN`/`SOURCE_RECOVERED` по конкретному `(type, label)`, **без поля `alertedDown`** (в схеме `IntegrationSource` такого поля нет). Важно: `SOURCE_RECOVERED` не пишется на каждый здоровый час — только когда есть незакрытый `SOURCE_DOWN`, иначе журнал событий заполнился бы бессмысленными «восстановлениями» здорового источника. Тот же принцип «once per problem», что и у `LEAD_REACTION_ESCALATED`.
 
 ### Статус на странице интеграций
 
