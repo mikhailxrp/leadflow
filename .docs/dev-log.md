@@ -36,6 +36,30 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-11 — Phase 17, Таск 5: Страница `/control` — счётчик активности менеджеров
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `types/control.ts` (новый) — `ManagerStat` + `ControlStatsResponse`
+- `lib/validations/control.ts` (новый) — `controlPeriodSchema` (7/30/90, по аналогии с `activityPeriodSchema`)
+- `lib/control/getManagerStats.ts` (новый) — один batch-запрос `Lead.findMany` (companyId + `assignedToId != null` + `createdAt >= periodStart`, с событиями `LEAD_TAKEN_IN_WORK`/`LEAD_STAGE_STUCK`) + один запрос `User` по встретившимся `assignedToId`; группировка в JS без N+1 (паттерн `lib/tasks/getNextActions.ts`); строки — все пользователи с назначенными лидами в периоде, не только `role: 'MANAGER'` (явное решение — ручное назначение допускает HEAD/ADMIN); «обработано в срок» — `minutesSinceCreated(lead.createdAt, takenEvent.createdAt, workHours)` (таймстамп события, не `now`) в пределах `resolveApplicableNorm(...).defaultMinutes`
+- `app/api/control/stats/route.ts` (новый) — `GET`, `requireCompanyUser({ minRole: 'HEAD' })` (`try/catch`, паттерн `assign/route.ts`), `?period=7|30|90` (дефолт 30), ответ `{ managers, periodDays }`
+- `app/(company)/(management)/control/page.tsx` — заглушка «Раздел в разработке» заменена на Server Component по паттерну `/team` (прямой вызов `getManagerStats`, без self-fetch через HTTP/`APP_URL`)
+- `components/control/ManagerStatsTable.tsx` (новый) — Client Component: переключатель периода 7/30/90 инлайн (паттерн `CompanyActivityTable`), таблица метрик, пустое состояние
+- Прогнано вживую против реального dev-датасета через временный debug-роут `app/api/devDebugControlStats/route.ts` (создан для проверки, удалён сразу после): агрегация по 4 компаниям без ошибок, включая случай с лидом на `ADMIN`-пользователя (подтверждает, что фильтр строк — не по роли); 401 без сессии на API, 307 → `/login` на странице без сессии
+- `npm run type-check`/`lint`/`build`/`test` — все зелёные
+- `.docs/phases/phase-17.md`, `.docs/phases/_status.md` — таск 5 и фаза 17 в целом отмечены ✅ Завершено
+
+**Out of scope (не делалось):** `/admin/integrations` + health-display API — Phase 18; учёт истории переназначений (`ASSIGNED`) в «получено» — метрика по снапшоту `assignedToId`; реконструкция исторических нормативов реакции — норма берётся текущая.
+
+**Не выполнено в этой сессии:** ручной клик-through в браузере под реальным HEAD/ADMIN-логином — нет тестовых учётных данных и браузерного/Playwright-инструмента. Компенсировано прогоном `getManagerStats` против реальных данных и успешной сборкой (`npm run build`) страницы `/control` и API.
+
+**Definition of Done:** ✅ Все пункты выполнены, кроме визуального браузерного прогона (см. выше)
+
+---
+
 ## 2026-07-11 — Phase 17, Таск 4: UI настроек контроля в `/admin/settings`
 
 **Статус:** ✅ Завершён
