@@ -201,11 +201,12 @@ export async function getBoardData(options: BoardQueryOptions): Promise<BoardDat
   const leadIds = mappedLeads.map((lead) => lead.id);
 
   const [leadsWithRisk, nextActions, stageChangedEvents] = await Promise.all([
-    computeRiskBatch(mappedLeads, companySettings, prisma),
+    computeRiskBatch(mappedLeads, companyId, companySettings, prisma),
     getNextActions(leadIds, companyId),
     leadIds.length > 0
       ? prisma.event.findMany({
           where: {
+            companyId,
             leadId: { in: leadIds },
             type: 'STAGE_CHANGED',
           },
