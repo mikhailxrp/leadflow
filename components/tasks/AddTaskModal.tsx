@@ -17,6 +17,7 @@ interface AssignableUser {
 
 interface AddTaskModalProps {
   leadId: string;
+  title?: string;
   onClose: () => void;
   onCreated: (task: TaskData) => void;
 }
@@ -90,6 +91,7 @@ function ModalSelect({
 
 export default function AddTaskModal({
   leadId,
+  title: modalTitle = "Новая задача",
   onClose,
   onCreated,
 }: AddTaskModalProps): ReactNode {
@@ -189,7 +191,7 @@ export default function AddTaskModal({
     >
       <div className="flex items-center justify-between">
         <h2 className="text-[20px] font-medium text-[var(--color-text-primary)]">
-          Новая задача
+          {modalTitle}
         </h2>
         <IconButton
           size="sm"

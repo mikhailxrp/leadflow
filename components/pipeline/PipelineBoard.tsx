@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { PipelineCardOverlay } from '@/components/pipeline/PipelineCard';
 import PipelineColumn from '@/components/pipeline/PipelineColumn';
 import Toast from '@/components/ui/Toast';
+import AddTaskModal from '@/components/tasks/AddTaskModal';
 import type { ManagerOption } from '@/lib/leads/getManagers';
 import type { BoardColumn, BoardLeadCard } from '@/lib/pipeline/boardQuery';
 
@@ -124,6 +125,7 @@ export default function PipelineBoard({
   const [includeClosed, setIncludeClosed] = useState(false);
   const [selectedManagerId, setSelectedManagerId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ title: string; message?: string } | null>(null);
+  const [taskPromptLeadId, setTaskPromptLeadId] = useState<string | null>(null);
 
   const managerOptions = [
     { value: '', label: 'Ответственный' },
@@ -155,6 +157,7 @@ export default function PipelineBoard({
     const activeId = String(active.id);
     const overId = String(over.id);
 
+    const movedLead = findLead(columns, activeId);
     const prevColId = findColumnIdByLeadId(columns, activeId);
     const nextColumns = moveLead(columns, activeId, overId);
     const nextColId = findColumnIdByLeadId(nextColumns, activeId);
@@ -178,11 +181,27 @@ export default function PipelineBoard({
       });
 
       if (!res.ok) throw new Error('stage-update-failed');
+
+      if (movedLead && !movedLead.hasOpenTask) {
+        setTaskPromptLeadId(activeId);
+      }
     } catch {
       setColumns(prevColumns);
       setToast({ title: 'Не удалось переместить лид', message: 'Попробуйте ещё раз' });
     }
   }, [columns, readOnly]);
+
+  const handleTaskPromptCreated = useCallback((): void => {
+    setColumns((prevColumns) =>
+      prevColumns.map((col) => ({
+        ...col,
+        leads: col.leads.map((lead) =>
+          lead.id === taskPromptLeadId ? { ...lead, hasOpenTask: true } : lead,
+        ),
+      })),
+    );
+    setTaskPromptLeadId(null);
+  }, [taskPromptLeadId]);
 
   const handleDragCancel = useCallback((): void => {
     setActiveLead(null);
@@ -315,6 +334,15 @@ export default function PipelineBoard({
           title={toast.title}
           message={toast.message}
           onClose={() => setToast(null)}
+        />
+      )}
+
+      {taskPromptLeadId && (
+        <AddTaskModal
+          leadId={taskPromptLeadId}
+          title="Что делаем дальше и когда?"
+          onClose={() => setTaskPromptLeadId(null)}
+          onCreated={handleTaskPromptCreated}
         />
       )}
     </>

@@ -7,6 +7,7 @@ import { UNASSIGNED_MANAGER_ID } from '@/constants/leads';
 import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { computeRiskBatch } from '@/lib/risk/computeRiskBatch';
 import type { RiskResult } from '@/lib/risk/computeRisk';
+import { getNextActions, type NextAction } from '@/lib/tasks/getNextActions';
 import { prisma } from '@/lib/prisma';
 import type { LeadsQueryInput } from '@/lib/validations/leads';
 import type { CompanyActor } from '@/lib/auth/requireCompanyAccess';
@@ -45,7 +46,7 @@ export type GetLeadsResult = {
 };
 
 export type GetLeadsWithRiskResult = {
-  leads: Array<LeadListItem & { risk: RiskResult }>;
+  leads: Array<LeadListItem & { risk: RiskResult; nextAction: NextAction }>;
   total: number;
   page: number;
   pageSize: number;
@@ -259,10 +260,16 @@ export async function getLeadsWithRisk(
 ): Promise<GetLeadsWithRiskResult> {
   const { leads, total, page, pageSize, companySettings } = await getLeads(params, actor);
 
-  const leadsWithRisk = await computeRiskBatch(leads, companySettings, prisma);
+  const [leadsWithRisk, nextActions] = await Promise.all([
+    computeRiskBatch(leads, companySettings, prisma),
+    getNextActions(leads.map((lead) => lead.id), actor.companyId),
+  ]);
 
   return {
-    leads: leadsWithRisk,
+    leads: leadsWithRisk.map((lead) => ({
+      ...lead,
+      nextAction: nextActions.get(lead.id) ?? null,
+    })),
     total,
     page,
     pageSize,
