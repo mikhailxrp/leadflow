@@ -36,6 +36,25 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-12 — Phase 18, Таск 4: Режим Яндекса (UTM/FULL) + доступ маркетолога
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/settings.ts` — `yandexMode: z.enum(['UTM', 'FULL']).optional()` в `updateSettingsSchema` (плоское поле, `updateSettings.ts` без изменений)
+- `components/integrations/YandexDirectCard.tsx` — переписан: убран OAuth-мок (`oauthConnected`/`handleConnect`/`console.log`); тип `'UTM' | 'FULL'` (было `"utm" | "api"`); `PATCH /api/settings { yandexMode }` с оптимистичным обновлением и откатом; пропы `initialMode`/`readOnly`; кнопка «Подключить кабинет» в FULL всегда `disabled` («Полный режим появится в следующей фазе»)
+- `constants/marketerAccess.ts` — `/admin/integrations` в `MARKETER_ALLOWED_PAGES`; в `MARKETER_ALLOWED_API`: `/api/api-keys` (`GET`, `POST`), `/api/api-keys/:id` (`DELETE`), `/api/admin/integrations/health` (`GET`); `PATCH /api/settings` намеренно не добавлен
+- `app/(company)/(admin)/admin/integrations/page.tsx` — гейт через `toCompanyActor(session)`; для `user` — `hasMinRole(ADMIN)` + запрос `dbUser`/аватара; для `marketer` — без `dbUser`, без падения на `session.user`; `getSettings().yandexMode` → `YandexDirectCard`; `readOnly={actor.actor === 'marketer'}`; шапка без `Avatar`/`NotificationBell` для маркетолога; webhook-URL и здоровье по-прежнему серверно через `getWebhookUrls`/`getSourceHealth` (без `/api/settings/webhook-urls` в allow-list)
+
+**Out of scope (не делалось):** реальный OAuth Яндекса, токены, `GET/DELETE /api/integrations/yandex` — Phase 22; экспорт в Метрику — Phase 22.5; правки `ApiKeysTable`/`CreateApiKeyModal`/`SourceHealthIndicator` (уже работают через `requireCompanyAccess`); `/api/settings/webhook-urls` в allow-list маркетолога; миграции БД; изменения `proxy.ts` (достаточно allow-list страницы)
+
+**Проверено:** `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`; сквозной прогон под сессией маркетолога (marketer-access-токен) в браузере — не зафиксирован в `TASK.md` (DoD-чекбоксы не отмечены)
+
+**Definition of Done:** выполнено по коду и статическим проверкам; пункты DoD с ручным browser-прогоном ADMIN/маркетолог — на стороне поставщика
+
+---
+
 ## 2026-07-12 — Phase 18, Таск 3: Страница интеграций на реальных данных
 
 **Статус:** ✅ Завершён

@@ -12,9 +12,12 @@ import Avatar from '@/components/ui/Avatar';
 import { hasMinRole } from '@/constants/roles';
 import { listApiKeys } from '@/lib/apiKeys/listApiKeys';
 import { auth } from '@/lib/auth';
+import { toCompanyActor } from '@/lib/auth/requireCompanyAccess';
 import { getSourceHealth, type SourceHealthEntry } from '@/lib/integrations/getSourceHealth';
 import { getWebhookUrls } from '@/lib/integrations/getWebhookUrls';
 import { prisma } from '@/lib/prisma';
+import { getSettings } from '@/lib/settings/getSettings';
+import type { CompanySession } from '@/types/session';
 
 function computeInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -160,27 +163,34 @@ function isConnected(entry: SourceHealthEntry | undefined): boolean {
 
 export default async function AdminIntegrationsPage() {
   const session = await auth();
-  if (!session || session.kind !== 'company' || !session.user) {
+  if (!session || session.kind !== 'company') {
     redirect('/login');
   }
 
-  if (!hasMinRole(session.user.role, 'ADMIN')) {
+  const actor = toCompanyActor(session as CompanySession);
+
+  if (actor.actor === 'user' && !hasMinRole(actor.role, 'ADMIN')) {
     redirect('/today');
   }
 
-  const { id, companyId } = session.user;
+  const { companyId } = actor;
 
-  const [dbUser, apiKeys, sourceHealth] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id, companyId },
-      select: { name: true, avatarUrl: true },
-    }),
+  const [dbUser, apiKeys, sourceHealth, settings] = await Promise.all([
+    actor.actor === 'user'
+      ? prisma.user.findUnique({
+          where: { id: actor.userId, companyId },
+          select: { name: true, avatarUrl: true },
+        })
+      : Promise.resolve(null),
     listApiKeys(companyId),
     getSourceHealth(companyId),
+    getSettings(companyId),
   ]);
 
   const userName = dbUser?.name ?? '';
   const userInitials = computeInitials(userName);
+  const yandexMode = settings.yandexMode ?? 'UTM';
+  const isMarketer = actor.actor === 'marketer';
 
   const initialApiKeys = apiKeys.map((key) => ({
     ...key,
@@ -210,8 +220,10 @@ export default async function AdminIntegrationsPage() {
 
         <div className="flex items-center gap-3">
           <IconButton aria-label="Поиск" icon={<SearchIcon />} />
-          <NotificationBell />
-          <Avatar initials={userInitials} src={dbUser?.avatarUrl ?? undefined} size="sm" />
+          {!isMarketer && <NotificationBell />}
+          {!isMarketer && (
+            <Avatar initials={userInitials} src={dbUser?.avatarUrl ?? undefined} size="sm" />
+          )}
         </div>
       </header>
 
@@ -283,7 +295,7 @@ export default async function AdminIntegrationsPage() {
             )}
           </IntegrationCard>
 
-          <YandexDirectCard />
+          <YandexDirectCard initialMode={yandexMode} readOnly={isMarketer} />
 
           <IntegrationCard
             icon={<WebhookIcon />}
