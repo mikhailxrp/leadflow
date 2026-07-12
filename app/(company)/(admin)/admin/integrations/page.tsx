@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import IntegrationCard from '@/components/integrations/IntegrationCard';
 import ApiKeysTable from '@/components/integrations/ApiKeysTable';
+import SourceHealthIndicator from '@/components/integrations/SourceHealthIndicator';
 import WebhookUrl from '@/components/integrations/WebhookUrl';
 import YandexDirectCard from '@/components/integrations/YandexDirectCard';
 import { PageContent } from '@/components/layout/AppLayout';
@@ -9,7 +10,10 @@ import NotificationBell from '@/components/notifications/NotificationBell';
 import IconButton from '@/components/ui/IconButton';
 import Avatar from '@/components/ui/Avatar';
 import { hasMinRole } from '@/constants/roles';
+import { listApiKeys } from '@/lib/apiKeys/listApiKeys';
 import { auth } from '@/lib/auth';
+import { getSourceHealth, type SourceHealthEntry } from '@/lib/integrations/getSourceHealth';
+import { getWebhookUrls } from '@/lib/integrations/getWebhookUrls';
 import { prisma } from '@/lib/prisma';
 
 function computeInitials(name: string): string {
@@ -22,9 +26,6 @@ function computeInitials(name: string): string {
 export const metadata: Metadata = {
   title: 'Интеграции',
 };
-
-const WEBHOOK_TILDA_URL = 'https://lidkanal.ru/api/webhooks/tilda';
-const WEBHOOK_WORDPRESS_URL = 'https://lidkanal.ru/api/webhooks/wordpress';
 
 function SearchIcon() {
   return (
@@ -153,6 +154,10 @@ function NotConfiguredBadge() {
   );
 }
 
+function isConnected(entry: SourceHealthEntry | undefined): boolean {
+  return entry !== undefined && entry.status !== 'not_configured';
+}
+
 export default async function AdminIntegrationsPage() {
   const session = await auth();
   if (!session || session.kind !== 'company' || !session.user) {
@@ -165,13 +170,27 @@ export default async function AdminIntegrationsPage() {
 
   const { id, companyId } = session.user;
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id, companyId },
-    select: { name: true, avatarUrl: true },
-  });
+  const [dbUser, apiKeys, sourceHealth] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id, companyId },
+      select: { name: true, avatarUrl: true },
+    }),
+    listApiKeys(companyId),
+    getSourceHealth(companyId),
+  ]);
 
   const userName = dbUser?.name ?? '';
   const userInitials = computeInitials(userName);
+
+  const initialApiKeys = apiKeys.map((key) => ({
+    ...key,
+    createdAt: key.createdAt.toISOString(),
+  }));
+
+  const webhookUrls = getWebhookUrls(companyId);
+  const tildaHealth = sourceHealth.find((entry) => entry.type === 'tilda');
+  const wordpressHealth = sourceHealth.find((entry) => entry.type === 'wordpress');
+  const apiHealth = sourceHealth.filter((entry) => entry.type === 'api');
 
   return (
     <>
@@ -210,24 +229,58 @@ export default async function AdminIntegrationsPage() {
           <IntegrationCard
             icon={<TildaIcon />}
             title="Tilda"
-            badge={<ConnectedBadge />}
+            badge={isConnected(tildaHealth) ? <ConnectedBadge /> : <NotConfiguredBadge />}
             description="В настройках формы Tilda укажите адрес вебхука:"
+            footer={
+              tildaHealth && (
+                <div className="mt-3">
+                  <SourceHealthIndicator
+                    status={tildaHealth.status}
+                    hoursSinceLastUse={tildaHealth.hoursSinceLastUse}
+                    thresholdHours={tildaHealth.thresholdHours}
+                  />
+                </div>
+              )
+            }
           >
-            <WebhookUrl url={WEBHOOK_TILDA_URL} />
+            {webhookUrls ? (
+              <WebhookUrl url={webhookUrls.tildaUrl} />
+            ) : (
+              <p className="text-[13px] text-[#DC2626]">
+                Не удалось получить URL вебхука — обратитесь к администратору сервера.
+              </p>
+            )}
           </IntegrationCard>
 
           <IntegrationCard
             icon={<WordPressIcon />}
             title="WordPress"
-            badge={<NotConfiguredBadge />}
+            badge={isConnected(wordpressHealth) ? <ConnectedBadge /> : <NotConfiguredBadge />}
             description="Установите плагин Contact Form 7, WPForms или Gravity Forms и укажите вебхук:"
             footer={
-              <p className="mt-3 text-[12px] text-[var(--color-text-tertiary)]">
-                Поддерживаются: Contact Form 7, WPForms, Gravity Forms
-              </p>
+              <>
+                <p className="mt-3 text-[12px] text-[var(--color-text-tertiary)]">
+                  Поддерживаются: Contact Form 7, WPForms, Gravity Forms
+                </p>
+                {wordpressHealth && (
+                  <div className="mt-2">
+                    <SourceHealthIndicator
+                      status={wordpressHealth.status}
+                      hoursSinceLastUse={wordpressHealth.hoursSinceLastUse}
+                      thresholdHours={wordpressHealth.thresholdHours}
+                    />
+                  </div>
+                )}
+              </>
             }
           >
-            <WebhookUrl url={WEBHOOK_WORDPRESS_URL} />
+            {webhookUrls ? (
+              <WebhookUrl url={webhookUrls.wordpressUrl} />
+            ) : (
+              <p className="text-[13px] text-[#DC2626]">
+                Не удалось получить URL вебхука — обратитесь к администратору сервера.
+              </p>
+            )}
           </IntegrationCard>
 
           <YandexDirectCard />
@@ -237,7 +290,7 @@ export default async function AdminIntegrationsPage() {
             title="Универсальный Webhook"
             subtitle="Подключите любой сайт или форму через API-ключ"
           >
-            <ApiKeysTable />
+            <ApiKeysTable initialApiKeys={initialApiKeys} sourceHealth={apiHealth} />
           </IntegrationCard>
         </div>
       </PageContent>

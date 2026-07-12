@@ -1,16 +1,26 @@
 'use client';
 
 import { Icon } from '@iconify/react';
+import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import Button from '@/components/ui/Button';
 import IconButton from '@/components/ui/IconButton';
+import Toast from '@/components/ui/Toast';
+import CreateApiKeyModal, { type CreatedApiKey } from '@/components/integrations/CreateApiKeyModal';
+import SourceHealthIndicator from '@/components/integrations/SourceHealthIndicator';
+import type { SourceHealthEntry } from '@/lib/integrations/getSourceHealth';
 
-interface ApiKeyRow {
+export interface ApiKeyRow {
   id: string;
   name: string;
-  source: string;
-  key: string;
-  created: string;
+  sourceLabel: string;
+  mask: string;
+  createdAt: string;
+}
+
+interface ApiKeysTableProps {
+  initialApiKeys: ApiKeyRow[];
+  sourceHealth: SourceHealthEntry[];
 }
 
 function PlusIcon(): ReactNode {
@@ -27,35 +37,59 @@ function PlusIcon(): ReactNode {
   );
 }
 
-export default function ApiKeysTable(): ReactNode {
-  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
-  const [apiKeys] = useState<ApiKeyRow[]>([]);
+export default function ApiKeysTable({
+  initialApiKeys,
+  sourceHealth,
+}: ApiKeysTableProps): ReactNode {
+  const router = useRouter();
+  const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>(initialApiKeys);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
-  function handleToggleVisibility(id: string): void {
-    // TODO: показ полного ключа через API (одноразовый reveal)
-    setVisibleKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
+  function handleCreated(key: CreatedApiKey): void {
+    setApiKeys((prev) => [key, ...prev]);
   }
 
-  function handleDelete(id: string): void {
-    // TODO: удаление ключа через API
-    void id;
+  function handleDeleteRequest(id: string): void {
+    setPendingDeleteId(id);
+  }
+
+  function handleDeleteCancel(): void {
+    setPendingDeleteId(null);
+  }
+
+  async function handleDeleteConfirm(id: string): Promise<void> {
+    const snapshot = apiKeys;
+    setPendingDeleteId(null);
+    setApiKeys((prev) => prev.filter((key) => key.id !== id));
+
+    try {
+      const response = await fetch(`/api/api-keys/${id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        setApiKeys(snapshot);
+        setToast('Не удалось удалить ключ');
+        return;
+      }
+      router.refresh();
+    } catch (error) {
+      console.error('Failed to delete API key:', error);
+      setApiKeys(snapshot);
+      setToast('Не удалось удалить ключ');
+    }
+  }
+
+  function findHealth(sourceLabel: string): SourceHealthEntry | undefined {
+    return sourceHealth.find((entry) => entry.type === 'api' && entry.label === sourceLabel);
   }
 
   return (
     <div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left">
+        <table className="w-full min-w-[720px] text-left">
           <thead>
             <tr className="border-b border-[var(--color-border)] border-[0.5px]">
-              {['Название', 'Источник', 'Ключ', 'Создан', 'Действия'].map((header) => (
+              {['Название', 'Источник', 'Ключ', 'Здоровье', 'Создан', 'Действия'].map((header) => (
                 <th
                   key={header}
                   className="
@@ -72,47 +106,78 @@ export default function ApiKeysTable(): ReactNode {
             {apiKeys.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="px-3 py-8 text-center text-[14px] text-[var(--color-text-secondary)]"
                 >
                   Нет API-ключей
                 </td>
               </tr>
             ) : (
-              apiKeys.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-[var(--color-border)] border-[0.5px] last:border-0"
-                >
-                  <td className="whitespace-nowrap px-3 py-3 text-[13px] font-medium text-[var(--color-text-primary)]">
-                    {row.name}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
-                    {row.source}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 font-mono text-[13px] text-[var(--color-text-secondary)]">
-                    {visibleKeys.has(row.id) ? row.key : '••••••••••••'}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
-                    {row.created}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3">
-                    <div className="flex items-center gap-1">
-                      <IconButton
-                        aria-label={`Показать ключ «${row.name}»`}
-                        onClick={() => handleToggleVisibility(row.id)}
-                        icon={<Icon icon="lucide:eye" className="h-4 w-4" />}
-                      />
-                      <IconButton
-                        className="hover:text-[#DC2626]"
-                        aria-label={`Удалить ключ «${row.name}»`}
-                        onClick={() => handleDelete(row.id)}
-                        icon={<Icon icon="lucide:trash-2" className="h-4 w-4" />}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))
+              apiKeys.map((row) => {
+                const health = findHealth(row.sourceLabel);
+                const isPendingDelete = pendingDeleteId === row.id;
+
+                return (
+                  <tr
+                    key={row.id}
+                    className="border-b border-[var(--color-border)] border-[0.5px] last:border-0"
+                  >
+                    <td className="whitespace-nowrap px-3 py-3 text-[13px] font-medium text-[var(--color-text-primary)]">
+                      {row.name}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
+                      {row.sourceLabel}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 font-mono text-[13px] text-[var(--color-text-secondary)]">
+                      {row.mask}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      {health ? (
+                        <SourceHealthIndicator
+                          status={health.status}
+                          hoursSinceLastUse={health.hoursSinceLastUse}
+                          thresholdHours={health.thresholdHours}
+                        />
+                      ) : (
+                        <span className="text-[12px] text-[var(--color-text-tertiary)]">—</span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
+                      {new Date(row.createdAt).toLocaleDateString('ru-RU')}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      {isPendingDelete ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[12px] text-[var(--color-text-secondary)]">
+                            Удалить?
+                          </span>
+                          <button
+                            type="button"
+                            className="text-[12px] font-medium text-[#DC2626] hover:underline"
+                            onClick={() => handleDeleteConfirm(row.id)}
+                          >
+                            Да
+                          </button>
+                          <button
+                            type="button"
+                            className="text-[12px] text-[var(--color-text-secondary)] hover:underline"
+                            onClick={handleDeleteCancel}
+                          >
+                            Нет
+                          </button>
+                        </div>
+                      ) : (
+                        <IconButton
+                          className="hover:text-[#DC2626]"
+                          aria-label={`Удалить ключ «${row.name}»`}
+                          onClick={() => handleDeleteRequest(row.id)}
+                          icon={<Icon icon="lucide:trash-2" className="h-4 w-4" />}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -124,9 +189,16 @@ export default function ApiKeysTable(): ReactNode {
         size="md"
         icon={<PlusIcon />}
         className="mt-4"
+        onClick={() => setIsCreateOpen(true)}
       >
         Создать новый ключ
       </Button>
+
+      {isCreateOpen && (
+        <CreateApiKeyModal onClose={() => setIsCreateOpen(false)} onCreated={handleCreated} />
+      )}
+
+      {toast && <Toast title={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }

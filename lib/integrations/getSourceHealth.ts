@@ -15,6 +15,7 @@ export type SourceHealthEntry = {
   lastErrorAt: string | null;
   errorCount: number;
   hoursSinceLastUse: number | null;
+  thresholdHours: number;
 };
 
 type Candidate = { type: string; label: string; apiKeyName: string | null };
@@ -93,6 +94,7 @@ export async function getSourceHealth(
       lastErrorAt: source?.lastErrorAt?.toISOString() ?? null,
       errorCount: source?.errorCount ?? 0,
       hoursSinceLastUse,
+      thresholdHours: settings.sourceHealthThresholdHours,
     };
   });
 }

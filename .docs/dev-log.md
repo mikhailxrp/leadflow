@@ -36,6 +36,30 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-12 — Phase 18, Таск 3: Страница интеграций на реальных данных
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/integrations/getWebhookUrls.ts` (новый, server-only) — единый источник построения `{ tildaUrl, wordpressUrl }`; `null` + `console.error` при отсутствии `APP_URL`; `.replace(/\/$/, '')` на базе URL
+- `app/api/settings/webhook-urls/route.ts` — рефактор на `getWebhookUrls()`; при `null` → `500`
+- `lib/apiKeys/listApiKeys.ts` (новый, server-only) — общий `listApiKeys(companyId)` с `maskApiKey`; `keyHash` не покидает функцию
+- `app/api/api-keys/route.ts` — `GET` через `listApiKeys()`; `POST` дополнительно возвращает `mask` (из `keyHash` до отбрасывания) рядом с `plaintext`
+- `lib/integrations/getSourceHealth.ts` — `thresholdHours` добавлен в `SourceHealthEntry` и в возврат функции
+- `components/integrations/SourceHealthIndicator.tsx` (новый, Server Component) — эмодзи+лейбл из `SOURCE_HEALTH_LABELS` + количественный текст; без фразы про «отправлен алерт»
+- `components/integrations/CreateApiKeyModal.tsx` (новый, Client) — двухшаговая модалка (`form` → `success`); Zod `createApiKeySchema`; `POST /api/api-keys`; read-only plaintext с копированием и предупреждением «ключ больше не будет показан»; `onCreated` + `router.refresh()`
+- `components/integrations/ApiKeysTable.tsx` — переписан с мока: пропсы `initialApiKeys`/`sourceHealth`; убраны кнопка-глаз и `visibleKeys`; колонка «Здоровье» — сопоставление по `sourceLabel` (не по `id`); инлайн-подтверждение удаления → `DELETE` + откат + `Toast`; `colSpan={6}` в пустом состоянии
+- `app/(company)/(admin)/admin/integrations/page.tsx` — Server Component: параллельно `getWebhookUrls`/`listApiKeys`/`getSourceHealth`; бейджи Tilda/WordPress из `status !== 'not_configured'`; `SourceHealthIndicator` под карточками; при `getWebhookUrls() === null` — инлайн-сообщение вместо падения страницы; guard без изменений (`session.user` + `hasMinRole(ADMIN)`); `YandexDirectCard` не тронут
+
+**Out of scope (не делалось):** `YandexDirectCard`, `yandexMode`, OAuth Яндекса — Таск 4 / Phase 22; доступ маркетолога (`marketerAccess`, `requireCompanyAccess` на странице) — Таск 4; алгоритм/алертинг `checkSourceHealth` — Phase 17 (здесь только отображение); общий `error.tsx` для `(company)`
+
+**Проверено:** `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`; ручной прогон в браузере (1024×700+) по DoD — не зафиксирован в `TASK.md` отдельным прогоном в этой сессии
+
+**Definition of Done:** выполнено по коду и статическим проверкам; пункт DoD с ручным browser-прогоном адаптивности — на стороне поставщика
+
+---
+
 ## 2026-07-12 — Phase 18, Таск 2: Webhook-URL + API здоровья источников
 
 **Статус:** ✅ Завершён

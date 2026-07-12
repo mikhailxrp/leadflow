@@ -1,4 +1,5 @@
 import { generateApiKey, maskApiKey } from '@/lib/apiKeys/generateApiKey';
+import { listApiKeys } from '@/lib/apiKeys/listApiKeys';
 import { requireCompanyAccess } from '@/lib/auth/requireCompanyAccess';
 import { prisma } from '@/lib/prisma';
 import { createApiKeySchema } from '@/lib/validations/apiKeys';
@@ -17,15 +18,8 @@ export async function GET(): Promise<Response> {
   }
 
   try {
-    const keys = await prisma.apiKey.findMany({
-      where: { companyId: actor.companyId },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, name: true, sourceLabel: true, keyHash: true, createdAt: true },
-    });
-
-    return Response.json(
-      keys.map(({ keyHash, ...key }) => ({ ...key, mask: maskApiKey(keyHash) })),
-    );
+    const keys = await listApiKeys(actor.companyId);
+    return Response.json(keys);
   } catch (error) {
     console.error('[GET /api/api-keys] failed:', error);
     return Response.json({ error: 'INTERNAL_ERROR' }, { status: 500 });
@@ -67,7 +61,7 @@ export async function POST(request: Request): Promise<Response> {
       select: { id: true, name: true, sourceLabel: true, createdAt: true },
     });
 
-    return Response.json({ ...created, plaintext }, { status: 201 });
+    return Response.json({ ...created, mask: maskApiKey(keyHash), plaintext }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/api-keys] failed:', error);
     return Response.json({ error: 'INTERNAL_ERROR' }, { status: 500 });

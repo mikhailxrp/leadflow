@@ -1,4 +1,5 @@
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
+import { getWebhookUrls } from '@/lib/integrations/getWebhookUrls';
 
 export async function GET(): Promise<Response> {
   let actor;
@@ -9,16 +10,10 @@ export async function GET(): Promise<Response> {
     throw error;
   }
 
-  const appUrl = process.env.APP_URL;
-  if (!appUrl) {
-    console.error('APP_URL is not configured');
+  const urls = getWebhookUrls(actor.companyId);
+  if (!urls) {
     return Response.json({ error: 'Server configuration error' }, { status: 500 });
   }
 
-  const baseUrl = appUrl.replace(/\/$/, '');
-
-  return Response.json({
-    tildaUrl: `${baseUrl}/api/webhooks/tilda/${actor.companyId}`,
-    wordpressUrl: `${baseUrl}/api/webhooks/wordpress/${actor.companyId}`,
-  });
+  return Response.json(urls);
 }
