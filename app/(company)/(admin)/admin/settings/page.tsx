@@ -104,7 +104,7 @@ export default async function AdminSettingsPage() {
       </header>
 
       <PageContent>
-        <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
+        <div className="flex w-full flex-col gap-4">
           <LossReasonsSection initialReasons={lossReasons} />
           <AssignModeSection initialAssignMode={settings.assignMode} />
           <AssignmentRulesSection initialRules={assignmentRules} users={users} />

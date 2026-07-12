@@ -44,16 +44,15 @@ export default function LeadsTable({
       <table className="w-full border-collapse text-[13px]">
         <thead>
           <tr className="border-b border-[0.5px] border-[var(--color-border)]">
+            <th className="sticky left-0 z-10 border-r border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] px-4 py-3 text-left font-medium text-[var(--color-text-secondary)]">
+              Клиент
+            </th>
             {[
-              "Клиент",
               "Источник",
               "Ответственный",
               "Этап",
               "Риск",
               "Следующее действие",
-              "Квалификация",
-              "Создан",
-              "",
             ].map((col) => (
               <th
                 key={col}
@@ -62,15 +61,22 @@ export default function LeadsTable({
                 {col}
               </th>
             ))}
+            <th className="hidden px-4 py-3 text-left font-medium text-[var(--color-text-secondary)] xl:table-cell">
+              Квалификация
+            </th>
+            <th className="hidden px-4 py-3 text-left font-medium text-[var(--color-text-secondary)] xl:table-cell">
+              Создан
+            </th>
+            <th className="px-4 py-3 text-left font-medium text-[var(--color-text-secondary)]" />
           </tr>
         </thead>
         <tbody>
           {leads.map((lead) => (
             <tr
               key={lead.id}
-              className="border-b border-[0.5px] border-[var(--color-border)] last:border-0 hover:bg-[var(--color-bg-surface-2)] transition-colors duration-100"
+              className="group border-b border-[0.5px] border-[var(--color-border)] last:border-0 hover:bg-[var(--color-bg-surface-2)] transition-colors duration-100"
             >
-              <td className="px-4 py-3">
+              <td className="sticky left-0 z-10 border-r border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] px-4 py-3 group-hover:bg-[var(--color-bg-surface-2)]">
                 <div className="flex items-center gap-1.5">
                   <Link
                     href={`/leads/${lead.id}`}
@@ -103,7 +109,7 @@ export default function LeadsTable({
 
               <td className="px-4 py-3">
                 <span
-                  className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium text-white"
+                  className="inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium text-white"
                   style={{ backgroundColor: lead.stage.color }}
                 >
                   {lead.stage.name}
@@ -138,11 +144,11 @@ export default function LeadsTable({
                 )}
               </td>
 
-              <td className="px-4 py-3">
+              <td className="hidden px-4 py-3 xl:table-cell">
                 <QualificationBadge qualification={lead.qualification} />
               </td>
 
-              <td className="px-4 py-3 text-[var(--color-text-tertiary)]">
+              <td className="hidden px-4 py-3 text-[var(--color-text-tertiary)] xl:table-cell">
                 {formatDate(lead.createdAt)}
               </td>
 

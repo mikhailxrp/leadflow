@@ -34,7 +34,7 @@ export default function RiskBadge({ level, reason }: RiskBadgeProps): ReactNode 
   return (
     <span
       title={reason ?? undefined}
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${className}`}
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium ${className}`}
     >
       {label}
     </span>

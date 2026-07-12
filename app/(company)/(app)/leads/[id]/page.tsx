@@ -88,7 +88,7 @@ export default async function LeadDetailPage({
         closeType={lead.closeType}
       />
 
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex flex-col gap-6 xl:flex-row">
         {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col gap-6">
           <div className="flex items-center gap-3">
@@ -137,7 +137,7 @@ export default async function LeadDetailPage({
         </div>
 
         {/* Right column */}
-        <aside className="flex w-full shrink-0 flex-col gap-6 lg:w-[440px]">
+        <aside className="flex w-full shrink-0 flex-col gap-6 xl:w-[360px] 2xl:w-[440px]">
           <LeadSidebar
             leadId={lead.id}
             hasTakenInWork={lead.hasTakenInWork}

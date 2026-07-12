@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Icon } from '@iconify/react';
 import IconButton from '@/components/ui/IconButton';
 import ThemeToggle from '@/components/ui/ThemeToggle';
+import { useSidebarCollapse } from '@/components/providers/SidebarCollapseProvider';
 
 interface NavItem {
   label: string;
@@ -31,6 +32,8 @@ interface SidebarContentProps {
   userAvatarUrl?: string | null;
   profileHref?: string;
   onNavigate?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 function SidebarContent({
@@ -41,6 +44,8 @@ function SidebarContent({
   userAvatarUrl,
   profileHref,
   onNavigate,
+  collapsed = false,
+  onToggleCollapse,
 }: SidebarContentProps): ReactNode {
   function isActive(item: NavItem): boolean {
     if (item.active !== undefined) return item.active;
@@ -49,9 +54,10 @@ function SidebarContent({
   }
 
   const linkClassName = (active: boolean): string => `
-    flex items-center gap-3 px-3 py-[7px] rounded-[6px]
+    flex items-center gap-3 rounded-[6px] px-3 py-[7px]
     text-[13px] font-medium
     transition-colors duration-150
+    ${collapsed ? 'justify-center px-0' : ''}
     ${active
       ? 'bg-[rgba(16,185,129,0.15)] text-[#34D399]'
       : 'text-[#94A3B8] hover:bg-[rgba(255,255,255,0.06)]'
@@ -60,10 +66,35 @@ function SidebarContent({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 px-6 py-6">
-        <div className="h-2.5 w-2.5 rounded-full bg-[#10B981]" />
-        <span className="text-base font-medium tracking-wide text-white">Лид-Канал</span>
+      <div className={`flex items-center gap-2 py-6 ${collapsed ? 'justify-center px-2' : 'px-6'}`}>
+        <div className="h-2.5 w-2.5 flex-shrink-0 rounded-full bg-[#10B981]" />
+        {!collapsed && (
+          <span className="flex-1 truncate text-base font-medium tracking-wide text-white">
+            Лид-Канал
+          </span>
+        )}
+        {onToggleCollapse && !collapsed && (
+          <IconButton
+            onClick={onToggleCollapse}
+            aria-label="Свернуть меню"
+            className="text-[#94A3B8] hover:bg-white/[0.06] hover:text-white"
+            size="sm"
+            icon={<Icon icon="lucide:panel-left-close" className="h-4 w-4" />}
+          />
+        )}
       </div>
+
+      {onToggleCollapse && collapsed && (
+        <div className="px-3 pb-2">
+          <IconButton
+            onClick={onToggleCollapse}
+            aria-label="Развернуть меню"
+            className="w-full text-[#94A3B8] hover:bg-white/[0.06] hover:text-white"
+            size="sm"
+            icon={<Icon icon="lucide:panel-left-open" className="h-4 w-4" />}
+          />
+        </div>
+      )}
 
       <nav className="mt-2 flex-1 space-y-1 px-3">
         {items.map((item) => {
@@ -76,10 +107,12 @@ function SidebarContent({
                 key={item.label}
                 type="button"
                 onClick={item.onClick}
+                title={collapsed ? item.label : undefined}
+                aria-label={item.label}
                 className={className}
               >
                 <Icon icon={item.icon} className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                {item.label}
+                {!collapsed && item.label}
               </button>
             );
           }
@@ -92,35 +125,46 @@ function SidebarContent({
                 item.onClick?.();
                 onNavigate?.();
               }}
+              title={collapsed ? item.label : undefined}
+              aria-label={item.label}
               className={className}
             >
               <Icon icon={item.icon} className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-              {item.label}
+              {!collapsed && item.label}
             </Link>
           );
         })}
       </nav>
 
       <div className="border-t border-white/5 p-4">
-        <div className="flex items-center gap-2 rounded-[6px] px-2 py-3">
+        <div className={`flex items-center gap-2 rounded-[6px] ${collapsed ? 'flex-col-reverse py-1' : 'px-2 py-3'}`}>
           {profileHref ? (
             <Link
               href={profileHref}
               onClick={onNavigate}
               aria-label="Профиль пользователя"
+              title={collapsed ? userName : undefined}
               className="flex min-w-0 flex-1 items-center gap-2 rounded-[6px] transition-colors duration-150 hover:bg-white/[0.06]"
             >
               <SidebarAvatar initials={userInitials} avatarUrl={userAvatarUrl} />
-              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">
-                {userName}
-              </span>
+              {!collapsed && (
+                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">
+                  {userName}
+                </span>
+              )}
             </Link>
           ) : (
-            <div aria-label="Профиль пользователя" className="flex min-w-0 flex-1 items-center gap-2">
+            <div
+              aria-label="Профиль пользователя"
+              title={collapsed ? userName : undefined}
+              className="flex min-w-0 flex-1 items-center gap-2"
+            >
               <SidebarAvatar initials={userInitials} avatarUrl={userAvatarUrl} />
-              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">
-                {userName}
-              </span>
+              {!collapsed && (
+                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">
+                  {userName}
+                </span>
+              )}
             </div>
           )}
           <ThemeToggle className="text-[#94A3B8] hover:bg-white/[0.06] hover:text-white" />
@@ -159,6 +203,7 @@ function SidebarAvatar({
 export default function Sidebar({ items, userInitials, userName, userAvatarUrl, profileHref }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+  const { collapsed, toggleCollapsed } = useSidebarCollapse();
 
   function closeMobile(): void {
     setMobileOpen(false);
@@ -166,7 +211,9 @@ export default function Sidebar({ items, userInitials, userName, userAvatarUrl, 
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-[220px] flex-shrink-0 flex-col bg-[var(--color-sidebar-bg)] lg:flex">
+      <aside
+        className={`fixed inset-y-0 left-0 z-20 hidden flex-shrink-0 flex-col bg-[var(--color-sidebar-bg)] transition-[width] duration-200 lg:flex ${collapsed ? 'w-[64px]' : 'w-[220px]'}`}
+      >
         <SidebarContent
           items={items}
           pathname={pathname}
@@ -174,6 +221,8 @@ export default function Sidebar({ items, userInitials, userName, userAvatarUrl, 
           userName={userName}
           userAvatarUrl={userAvatarUrl}
           profileHref={profileHref}
+          collapsed={collapsed}
+          onToggleCollapse={toggleCollapsed}
         />
       </aside>
 
