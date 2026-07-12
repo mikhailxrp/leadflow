@@ -8,9 +8,16 @@ import CloseAsLostModal from '@/components/leads/CloseAsLostModal';
 interface CloseLeadMenuProps {
   leadId: string;
   isClosed: boolean;
+  size?: 'sm' | 'md';
+  fullWidth?: boolean;
 }
 
-export default function CloseLeadMenu({ leadId, isClosed }: CloseLeadMenuProps) {
+export default function CloseLeadMenu({
+  leadId,
+  isClosed,
+  size = 'md',
+  fullWidth = true,
+}: CloseLeadMenuProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [showLostModal, setShowLostModal] = useState(false);
@@ -53,8 +60,8 @@ export default function CloseLeadMenu({ leadId, isClosed }: CloseLeadMenuProps) 
     <div ref={menuRef} className="relative flex flex-col gap-1">
       <Button
         variant="secondary"
-        size="md"
-        className="w-full"
+        size={size}
+        className={fullWidth ? 'w-full' : 'whitespace-nowrap'}
         disabled={closing}
         onClick={() => setOpen((v) => !v)}
       >
@@ -71,7 +78,14 @@ export default function CloseLeadMenu({ leadId, isClosed }: CloseLeadMenuProps) 
             className="fixed inset-0 z-10"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-[8px] border border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] shadow-lg">
+          <div
+            className={`
+              absolute top-full z-20 mt-1 overflow-hidden
+              rounded-[8px] border border-[0.5px] border-[var(--color-border)]
+              bg-[var(--color-bg-surface)] shadow-lg
+              ${fullWidth ? 'left-0 right-0' : 'left-0 w-[190px]'}
+            `}
+          >
             <button
               className="w-full px-4 py-2.5 text-left text-[13px] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface-2)] transition-colors"
               onClick={handleWon}

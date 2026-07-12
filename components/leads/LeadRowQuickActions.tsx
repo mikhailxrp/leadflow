@@ -80,7 +80,7 @@ export default function LeadRowQuickActions({
 
   return (
     <div className="flex items-center gap-2">
-      <CloseLeadMenu leadId={leadId} isClosed={false} />
+      <CloseLeadMenu leadId={leadId} isClosed={false} size="sm" fullWidth={false} />
 
       <div className="relative">
         <IconButton
