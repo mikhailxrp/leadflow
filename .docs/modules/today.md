@@ -90,17 +90,19 @@ where: { companyId: session.companyId, assignedToId: session.user.id }
 
 ### `GET /api/today`
 
+Каждый блок ограничен 20 записями (сортировка «новее/срочнее — выше») и отдаёт `total` — полный размер до среза, чтобы UI мог предложить переход в `/leads`/`/pipeline` вместо неограниченного списка на одном экране.
+
 **Response 200:**
 
 ```json
 {
-  "newLeads": [ { "id": "...", "name": "...", "risk": { "level": "yellow", "reason": "..." } } ],
-  "unprocessedLeads": [ ... ],
-  "tasksToday": [ ... ],
-  "overdueTasks": [ ... ],
-  "leadsWithoutNextAction": [ ... ],
-  "leadsApproachingDeadline": [ ... ],
-  "leadsAtRisk": [ ... ]
+  "newLeads": { "items": [ { "id": "...", "name": "...", "risk": { "level": "yellow", "reason": "..." } } ], "total": 3 },
+  "unprocessedLeads": { "items": [ ... ], "total": 12 },
+  "tasksToday": { "items": [ ... ], "total": 4 },
+  "overdueTasks": { "items": [ ... ], "total": 1 },
+  "leadsWithoutNextAction": { "items": [ ... ], "total": 2 },
+  "leadsApproachingDeadline": { "items": [ ... ], "total": 5 },
+  "leadsAtRisk": { "items": [ ... ], "total": 1 }
 }
 ```
 
