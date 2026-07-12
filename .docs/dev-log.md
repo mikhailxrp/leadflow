@@ -36,6 +36,31 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-12 — Phase 19, Таск 2: UI `/today` + переиспользование риска/задач + чистка старой заглушки
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `app/(company)/(app)/today/page.tsx` — переписан: Server Component; `auth()` → редирект на `/login` при `!session || session.kind !== 'company' || !session.user`; прямой вызов `getTodayData(companyId, currentUserId)` (без self-fetch к `/api/today`); параллельно — 4 личных счётчика по `assignedToId` (всего / новых сегодня / в работе / сделок); `PageHeader title="Сегодня"` + `NotificationBell`; `TodayStatsRow` + `TodayBoard` с `currentUserId` и `isAdmin={hasMinRole(role, 'ADMIN')}`
+- `components/today/TodayBoard.tsx` (новый) — Server Component; 7 секций в порядке из `today.md`; при сумме `total` по всем блокам = 0 — стейт «На сегодня всё сделано»; лид-блоки — `layout="grid"`, задачные — построчный список
+- `components/today/TodaySection.tsx` (новый) — Server Component; `items.length === 0` → `null`; футер «Показать все N» только при `moreHref` (лид-блоки → `/leads`, задачные без ссылки)
+- `components/today/TodayLeadRow.tsx` (новый) — Server Component; имя/телефон → `/leads/:id`, `RiskBadge`, `LeadRowQuickActions` (`canEditNextAction = isAdmin || nextAction.createdById === currentUserId`)
+- `components/today/TodayTaskRow.tsx` (новый) — Server Component; название, `formatDueDateLabel`, имя лида, ссылка `/leads/:leadId`
+- `components/today/TodayStatsRow.tsx` — перенесён из `components/dashboard/StatsRow.tsx`; счётчики строго по текущему пользователю; переиспользует `components/blocks/StatCard.tsx`
+- Удалены: `components/dashboard/LeadsChart.tsx`, `components/dashboard/RecentLeads.tsx`, `components/dashboard/StatsRow.tsx`; папка `components/dashboard/` пуста и убрана
+- `.docs/modules/today.md` — описание UI: личные счётчики, структура компонентов, порядок блоков
+
+**Отклонения от TASK.md:** `StatCard.tsx` не удалён — оставлен как общий UI-блок для `TodayStatsRow` (в TASK — «удалить» вместе с заглушкой); в `PageHeader` сохранены дата/аватар/`LogoutButton` из прежней страницы дашборда (в TASK — только `NotificationBell`, т.к. остальное в `AppShell`)
+
+**Out of scope (не делалось):** правки `getTodayData` / `GET /api/today` / `types/today.ts`; новая SSE-логика (переиспользуется `SseProvider` → `router.refresh()`); доступ маркетолога к `/today`; `/control`; отдельный список задач; query-фильтры на `/leads`
+
+**Проверено:** `npm run type-check`, `npm run lint` — без ошибок; нет `any`; ручной прогон `/today` (MANAGER/HEAD/ADMIN, пустой стейт, SSE-обновление, 1024×700) — не зафиксирован в `TASK.md` (DoD-чекбоксы не отмечены)
+
+**Definition of Done:** выполнено по коду и статическим проверкам; пункты DoD с browser-прогоном и `npm run build` — на стороне поставщика
+
+---
+
 ## 2026-07-12 — Phase 19, Таск 1: API `GET /api/today` — агрегатор данных по блокам
 
 **Статус:** ✅ Завершён
