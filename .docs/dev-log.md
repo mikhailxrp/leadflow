@@ -36,6 +36,25 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-12 — Phase 18, Таск 2: Webhook-URL + API здоровья источников
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `constants/integrations.ts` (новый) — `SOURCE_HEALTH_WARNING_RATIO = 0.66`, тип `SourceHealthStatus`, `SOURCE_HEALTH_LABELS` (эмодзи/подписи) — единый источник для API и будущего UI (Таск 3)
+- `lib/integrations/getSourceHealth.ts` (новый, server-only) — `getSourceHealth(companyId)`: кандидаты = 2 фиксированных (`tilda`/`wordpress`) + по одному на каждый `ApiKey.sourceLabel` (дедуп по `sourceLabel`); порог из `getSettings().sourceHealthThresholdHours`; статус только по `lastUsedAt` vs threshold и `SOURCE_HEALTH_WARNING_RATIO` (`active`/`silent`/`down`/`not_configured`); `lastErrorAt`/`errorCount` в ответе, но не влияют на статус; read-only, без записи в БД
+- `app/api/settings/webhook-urls/route.ts` (новый) — `GET`, `requireCompanyUser({ minRole: 'ADMIN' })` (жёсткий deny маркетологу); `{ tildaUrl, wordpressUrl }` с `companyId` из сессии; `APP_URL` с `.replace(/\/$/, '')`; без `APP_URL` → `500` + `console.error`
+- `app/api/admin/integrations/health/route.ts` (новый) — `GET`, `requireCompanyAccess({ minRole: 'ADMIN', method, pathname })` (форвард-совместимо с allow-list маркетолога в Таске 4); возвращает `getSourceHealth(actor.companyId)`
+
+**Out of scope (не делалось):** UI `/admin/integrations`, `SourceHealthIndicator` — Таск 3; `yandexMode`, allow-list маркетолога — Таск 4; изменения `checkSourceHealth.ts`/крон-алертинга — Phase 17; создание/обновление `IntegrationSource` — `touchIntegrationSource` при приёме лида; миграции БД
+
+**Проверено:** `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`; оба роута присутствуют в выводе сборки; эндпоинты read-only (только `findMany`/`getSettings`, без мутаций)
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-12 — Phase 18, Таск 1: API-ключи — backend (CRUD + криптогенерация + show-once)
 
 **Статус:** ✅ Завершён
