@@ -1,3 +1,4 @@
+import { OTHER_BYSOURCE_KEY, OTHER_SOURCE_TYPES } from '@/constants/leadSources';
 import type { ReactionNorms, RiskInput } from '@/lib/risk/computeRisk';
 
 export function resolveApplicableNorm(
@@ -9,10 +10,14 @@ export function resolveApplicableNorm(
   escalateAfterPercent: number;
   workHoursOnly: boolean;
 } {
+  const sourceKey = (OTHER_SOURCE_TYPES as readonly string[]).includes(lead.source)
+    ? OTHER_BYSOURCE_KEY
+    : lead.source;
+
   const minutes =
     (lead.assignedToId != null ? norms.byUser?.[lead.assignedToId] : undefined) ??
     norms.byStage?.[lead.stageId] ??
-    norms.bySource?.[lead.source] ??
+    norms.bySource?.[sourceKey] ??
     norms.defaultMinutes;
 
   return {

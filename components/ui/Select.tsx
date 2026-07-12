@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 
 interface SelectOption {
@@ -26,19 +27,47 @@ export default function Select({
   className = '',
 }: SelectProps) {
   const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const selectedLabel = options.find((o) => o.value === value)?.label;
 
   useEffect(() => {
     function handleMouseDown(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target) || listRef.current?.contains(target)) {
+        return;
       }
+      setOpen(false);
     }
     document.addEventListener('mousedown', handleMouseDown);
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, []);
+
+  // Список рендерится в портал (document.body) с position: fixed, чтобы не
+  // обрезаться overflow-hidden предков (например, SettingsCard) — координаты
+  // считаются от кнопки-триггера и пересчитываются при скролле/ресайзе, пока открыт.
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) {
+      setPosition(null);
+      return;
+    }
+
+    function updatePosition(): void {
+      const rect = buttonRef.current!.getBoundingClientRect();
+      setPosition({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open]);
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
@@ -61,6 +90,7 @@ export default function Select({
 
       {/* Визуальный триггер */}
       <button
+        ref={buttonRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
@@ -83,36 +113,44 @@ export default function Select({
         />
       </button>
 
-      {/* Список опций */}
-      {open && (
-        <ul
-          role="listbox"
-          style={{
-            background: 'var(--color-bg-surface)',
-            border: '0.5px solid var(--color-border)',
-            borderRadius: 'var(--radius-sm)',
-          }}
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto shadow-lg"
-        >
-          {options.map((o) => (
-            <li
-              key={o.value}
-              role="option"
-              aria-selected={o.value === value}
-              onClick={() => {
-                onChange(o.value);
-                setOpen(false);
-              }}
-              style={{
-                color: o.value === value ? 'var(--color-primary)' : 'var(--color-text-primary)',
-              }}
-              className="cursor-pointer px-3 py-2 text-[13px] transition-colors duration-100 hover:bg-[var(--color-bg-surface-2)]"
-            >
-              {o.label}
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* Список опций — портал, чтобы не обрезаться overflow-hidden предков */}
+      {open &&
+        position &&
+        createPortal(
+          <ul
+            ref={listRef}
+            role="listbox"
+            style={{
+              position: 'fixed',
+              top: position.top,
+              left: position.left,
+              width: position.width,
+              background: 'var(--color-bg-surface)',
+              border: '0.5px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)',
+            }}
+            className="z-50 max-h-48 overflow-y-auto shadow-lg"
+          >
+            {options.map((o) => (
+              <li
+                key={o.value}
+                role="option"
+                aria-selected={o.value === value}
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                style={{
+                  color: o.value === value ? 'var(--color-primary)' : 'var(--color-text-primary)',
+                }}
+                className="cursor-pointer px-3 py-2 text-[13px] transition-colors duration-100 hover:bg-[var(--color-bg-surface-2)]"
+              >
+                {o.label}
+              </li>
+            ))}
+          </ul>,
+          document.body,
+        )}
     </div>
   );
 }
