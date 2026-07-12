@@ -1,8 +1,4 @@
 import type { CloseType, LeadQualification, Prisma } from '@prisma/client';
-import {
-  DEFAULT_COMPANY_SETTINGS,
-  type CompanySettings,
-} from '@/constants/defaultCompanyData';
 import { UNASSIGNED_MANAGER_ID } from '@/constants/leads';
 import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { computeRiskBatch } from '@/lib/risk/computeRiskBatch';
@@ -51,19 +47,6 @@ export type GetLeadsWithRiskResult = {
   page: number;
   pageSize: number;
 };
-
-function getLeadVisibility(settings: unknown): CompanySettings['leadVisibility'] {
-  if (
-    settings &&
-    typeof settings === 'object' &&
-    'leadVisibility' in settings &&
-    (settings.leadVisibility === 'ALL' || settings.leadVisibility === 'OWN')
-  ) {
-    return settings.leadVisibility;
-  }
-
-  return DEFAULT_COMPANY_SETTINGS.leadVisibility;
-}
 
 function getPeriodStart(period: LeadsQueryInput['period']): Date | null {
   if (!period) {
@@ -129,11 +112,9 @@ function buildWhere(
   companyId: string,
   params: LeadsQueryInput,
   actor: CompanyActor,
-  leadVisibility: CompanySettings['leadVisibility'],
 ): Prisma.LeadWhereInput {
-  // Маркетолог видит все лиды компании (как HEAD) — visibilityWhere/leadVisibility к нему не применяются.
-  const visibility =
-    actor.actor === 'user' ? visibilityWhere(actor.role, actor.userId, leadVisibility) : {};
+  // Маркетолог видит все лиды компании (как HEAD) — visibilityWhere к нему не применяется.
+  const visibility = actor.actor === 'user' ? visibilityWhere(actor.role, actor.userId) : {};
 
   const andConditions: Prisma.LeadWhereInput[] = [{ companyId }];
 
@@ -179,8 +160,7 @@ export async function getLeads(
     select: { settings: true },
   });
 
-  const leadVisibility = getLeadVisibility(company.settings);
-  const where = buildWhere(companyId, params, actor, leadVisibility);
+  const where = buildWhere(companyId, params, actor);
   const skip = (params.page - 1) * params.pageSize;
 
   const [leads, total] = await Promise.all([

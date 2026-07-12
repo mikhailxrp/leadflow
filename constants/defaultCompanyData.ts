@@ -2,7 +2,6 @@ import type { Prisma } from '@prisma/client';
 
 export type CompanySettings = {
   assignMode: 'MANUAL' | 'ROUND_ROBIN';
-  leadVisibility: 'ALL' | 'OWN';
   roundRobinCursor: string | null;
   telegramEnabled: boolean;
   yandexMode?: 'UTM' | 'FULL';
@@ -24,7 +23,6 @@ export type CompanySettings = {
 
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   assignMode: 'MANUAL',
-  leadVisibility: 'ALL',
   roundRobinCursor: null,
   telegramEnabled: false,
   yandexMode: 'UTM',

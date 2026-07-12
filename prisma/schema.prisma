@@ -28,11 +28,6 @@ enum AssignMode {
   ROUND_ROBIN
 }
 
-enum LeadVisibility {
-  ALL
-  OWN
-}
-
 enum CloseType {
   WON
   LOST

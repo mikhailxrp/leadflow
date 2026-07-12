@@ -1,5 +1,5 @@
 import type { CloseType, EventType, LeadQualification, Prisma } from '@prisma/client';
-import { getLeadVisibility, visibilityWhere } from '@/lib/leads/visibilityFilter';
+import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
 import { computeRiskBatch } from '@/lib/risk/computeRiskBatch';
 import type { RiskResult } from '@/lib/risk/computeRisk';
@@ -77,10 +77,8 @@ export async function getLeadById(
     select: { settings: true },
   });
 
-  const leadVisibility = getLeadVisibility(company.settings);
-  // Маркетолог видит все лиды компании (как HEAD) — visibilityWhere/leadVisibility к нему не применяются.
-  const visibility =
-    actor.actor === 'user' ? visibilityWhere(actor.role, actor.userId, leadVisibility) : {};
+  // Маркетолог видит все лиды компании (как HEAD) — visibilityWhere к нему не применяется.
+  const visibility = actor.actor === 'user' ? visibilityWhere(actor.role, actor.userId) : {};
 
   const andConditions: Prisma.LeadWhereInput[] = [{ id }, { companyId }];
   if (Object.keys(visibility).length > 0) {

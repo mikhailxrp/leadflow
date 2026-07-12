@@ -36,6 +36,29 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-13 — Фикс: видимость лидов MANAGER — жёсткое правило «только свои»
+
+**Статус:** ✅ Завершён
+
+**Контекст:** `Company.settings.leadVisibility` (`ALL`/`OWN`) существовал с Phase 6 как настройка компании, но UI для её переключения в `/admin/settings` так и не был реализован — на практике все компании оставались на дефолте `ALL`, и MANAGER видел все лиды компании. Решено: убрать настройку целиком, видимость MANAGER (только `assignedToId = userId`) — жёсткое правило без исключений, как и описано в верхнеуровневом `CLAUDE.md`.
+
+**Что было сделано:**
+
+- `lib/leads/visibilityFilter.ts` — `visibilityWhere(role, userId)` без параметра `leadVisibility`; `getLeadVisibility()` удалена
+- `constants/defaultCompanyData.ts` — поле `leadVisibility` убрано из `CompanySettings` и `DEFAULT_COMPANY_SETTINGS`
+- Убраны локальные дубли `getLeadVisibility()` и обновлены вызовы `visibilityWhere` во всех местах, где применялась видимость лида: `app/api/leads/[id]/route.ts` (GET/PATCH), `tasks/route.ts`, `reminders/route.ts`, `take/route.ts`, `stage/route.ts`, `comments/route.ts`, `close/route.ts`, `duplicates/route.ts`, `events/route.ts`, `lib/leads/getLeads.ts`, `lib/leads/getLeadById.ts`, `lib/pipeline/boardQuery.ts`, `app/api/pipeline/board/route.ts`
+- `app/(company)/(app)/pipeline/page.tsx` — `showManagerFilter` больше не учитывает `leadVisibility === 'ALL'` (MANAGER больше не может увидеть чужие лиды через фильтр по ответственному)
+- `lib/notifications/recipients.ts` — `resolveNewLeadRecipients` без ветки `ALL`; получатели нового лида всегда HEAD/ADMIN + назначенный менеджер
+- Закрыт попутно найденный пробел: `app/api/leads/[id]/tasks/[taskId]/route.ts` и `.../reminders/[rid]/route.ts` (PATCH/DELETE) проверяли только `createdById`, без видимости лида — теперь `findOwnedTask`/`findOwnedReminder` дополнительно фильтруют по `lead: visibilityWhere(...)`, так что менеджер-автор задачи/напоминания теряет доступ к ним, если лид позже переназначен другому
+- `prisma/schema.prisma` — удалён неиспользуемый enum `LeadVisibility` (не был типом ни одного поля, только для документации); миграция `20260712214243_remove_lead_visibility_enum` (`DROP TYPE`)
+- Документация: `.docs/database.md`, `.docs/modules/leads.md`, `.docs/modules/app-settings.md` — убрано упоминание `leadVisibility` как настройки; видимость лида MANAGER описана как жёсткое правило
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run test` (40/40) — без ошибок; миграция применена к dev-базе, `prisma generate` выполнен без конфликта с запущенным dev-сервером
+
+**Definition of Done:** ✅ Все пункты выполнены
+
+---
+
 ## 2026-07-12 — Phase 19, Таск 1: API `GET /api/today` — агрегатор данных по блокам
 
 **Статус:** ✅ Завершён

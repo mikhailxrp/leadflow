@@ -1,24 +1,8 @@
 import type { Prisma } from '@prisma/client';
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { writeEvent } from '@/lib/events';
-import { prisma } from '@/lib/prisma';
 import { visibilityWhere } from '@/lib/leads/visibilityFilter';
-import {
-  DEFAULT_COMPANY_SETTINGS,
-  type CompanySettings,
-} from '@/constants/defaultCompanyData';
-
-function getLeadVisibility(settings: unknown): CompanySettings['leadVisibility'] {
-  if (
-    settings &&
-    typeof settings === 'object' &&
-    'leadVisibility' in settings &&
-    (settings.leadVisibility === 'ALL' || settings.leadVisibility === 'OWN')
-  ) {
-    return settings.leadVisibility;
-  }
-  return DEFAULT_COMPANY_SETTINGS.leadVisibility;
-}
+import { prisma } from '@/lib/prisma';
 
 export async function POST(
   _request: Request,
@@ -36,13 +20,7 @@ export async function POST(
   const { companyId, userId, role } = user;
 
   try {
-    const company = await prisma.company.findUniqueOrThrow({
-      where: { id: companyId },
-      select: { settings: true },
-    });
-
-    const leadVisibility = getLeadVisibility(company.settings);
-    const visibility = visibilityWhere(role, userId, leadVisibility);
+    const visibility = visibilityWhere(role, userId);
 
     const andConditions: Prisma.LeadWhereInput[] = [{ id }, { companyId }];
     if (Object.keys(visibility).length > 0) {
