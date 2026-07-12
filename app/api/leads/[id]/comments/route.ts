@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { writeEvent } from '@/lib/events';
 import { COMMENT_SELECT, serializeComment } from '@/lib/leads/commentSelect';
-import { getLeadVisibility, visibilityWhere } from '@/lib/leads/visibilityFilter';
+import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
 import { commentSchema } from '@/lib/validations/leads';
 
@@ -14,13 +14,7 @@ async function findAccessibleLead(
   role: UserRole,
   userId: string,
 ): Promise<{ id: string } | null> {
-  const company = await prisma.company.findUniqueOrThrow({
-    where: { id: companyId },
-    select: { settings: true },
-  });
-
-  const leadVisibility = getLeadVisibility(company.settings);
-  const visibility = visibilityWhere(role, userId, leadVisibility);
+  const visibility = visibilityWhere(role, userId);
 
   const andConditions: Prisma.LeadWhereInput[] = [{ id: leadId }, { companyId }];
   if (Object.keys(visibility).length > 0) {
