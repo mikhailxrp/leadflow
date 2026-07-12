@@ -36,6 +36,88 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-12 — Phase 18, Таск 4: Режим Яндекса (UTM/FULL) + доступ маркетолога
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/settings.ts` — `yandexMode: z.enum(['UTM', 'FULL']).optional()` в `updateSettingsSchema` (плоское поле, `updateSettings.ts` без изменений)
+- `components/integrations/YandexDirectCard.tsx` — переписан: убран OAuth-мок (`oauthConnected`/`handleConnect`/`console.log`); тип `'UTM' | 'FULL'` (было `"utm" | "api"`); `PATCH /api/settings { yandexMode }` с оптимистичным обновлением и откатом; пропы `initialMode`/`readOnly`; кнопка «Подключить кабинет» в FULL всегда `disabled` («Полный режим появится в следующей фазе»)
+- `constants/marketerAccess.ts` — `/admin/integrations` в `MARKETER_ALLOWED_PAGES`; в `MARKETER_ALLOWED_API`: `/api/api-keys` (`GET`, `POST`), `/api/api-keys/:id` (`DELETE`), `/api/admin/integrations/health` (`GET`); `PATCH /api/settings` намеренно не добавлен
+- `app/(company)/(admin)/admin/integrations/page.tsx` — гейт через `toCompanyActor(session)`; для `user` — `hasMinRole(ADMIN)` + запрос `dbUser`/аватара; для `marketer` — без `dbUser`, без падения на `session.user`; `getSettings().yandexMode` → `YandexDirectCard`; `readOnly={actor.actor === 'marketer'}`; шапка без `Avatar`/`NotificationBell` для маркетолога; webhook-URL и здоровье по-прежнему серверно через `getWebhookUrls`/`getSourceHealth` (без `/api/settings/webhook-urls` в allow-list)
+
+**Out of scope (не делалось):** реальный OAuth Яндекса, токены, `GET/DELETE /api/integrations/yandex` — Phase 22; экспорт в Метрику — Phase 22.5; правки `ApiKeysTable`/`CreateApiKeyModal`/`SourceHealthIndicator` (уже работают через `requireCompanyAccess`); `/api/settings/webhook-urls` в allow-list маркетолога; миграции БД; изменения `proxy.ts` (достаточно allow-list страницы)
+
+**Проверено:** `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`; сквозной прогон под сессией маркетолога (marketer-access-токен) в браузере — не зафиксирован в `TASK.md` (DoD-чекбоксы не отмечены)
+
+**Definition of Done:** выполнено по коду и статическим проверкам; пункты DoD с ручным browser-прогоном ADMIN/маркетолог — на стороне поставщика
+
+---
+
+## 2026-07-12 — Phase 18, Таск 3: Страница интеграций на реальных данных
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/integrations/getWebhookUrls.ts` (новый, server-only) — единый источник построения `{ tildaUrl, wordpressUrl }`; `null` + `console.error` при отсутствии `APP_URL`; `.replace(/\/$/, '')` на базе URL
+- `app/api/settings/webhook-urls/route.ts` — рефактор на `getWebhookUrls()`; при `null` → `500`
+- `lib/apiKeys/listApiKeys.ts` (новый, server-only) — общий `listApiKeys(companyId)` с `maskApiKey`; `keyHash` не покидает функцию
+- `app/api/api-keys/route.ts` — `GET` через `listApiKeys()`; `POST` дополнительно возвращает `mask` (из `keyHash` до отбрасывания) рядом с `plaintext`
+- `lib/integrations/getSourceHealth.ts` — `thresholdHours` добавлен в `SourceHealthEntry` и в возврат функции
+- `components/integrations/SourceHealthIndicator.tsx` (новый, Server Component) — эмодзи+лейбл из `SOURCE_HEALTH_LABELS` + количественный текст; без фразы про «отправлен алерт»
+- `components/integrations/CreateApiKeyModal.tsx` (новый, Client) — двухшаговая модалка (`form` → `success`); Zod `createApiKeySchema`; `POST /api/api-keys`; read-only plaintext с копированием и предупреждением «ключ больше не будет показан»; `onCreated` + `router.refresh()`
+- `components/integrations/ApiKeysTable.tsx` — переписан с мока: пропсы `initialApiKeys`/`sourceHealth`; убраны кнопка-глаз и `visibleKeys`; колонка «Здоровье» — сопоставление по `sourceLabel` (не по `id`); инлайн-подтверждение удаления → `DELETE` + откат + `Toast`; `colSpan={6}` в пустом состоянии
+- `app/(company)/(admin)/admin/integrations/page.tsx` — Server Component: параллельно `getWebhookUrls`/`listApiKeys`/`getSourceHealth`; бейджи Tilda/WordPress из `status !== 'not_configured'`; `SourceHealthIndicator` под карточками; при `getWebhookUrls() === null` — инлайн-сообщение вместо падения страницы; guard без изменений (`session.user` + `hasMinRole(ADMIN)`); `YandexDirectCard` не тронут
+
+**Out of scope (не делалось):** `YandexDirectCard`, `yandexMode`, OAuth Яндекса — Таск 4 / Phase 22; доступ маркетолога (`marketerAccess`, `requireCompanyAccess` на странице) — Таск 4; алгоритм/алертинг `checkSourceHealth` — Phase 17 (здесь только отображение); общий `error.tsx` для `(company)`
+
+**Проверено:** `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`; ручной прогон в браузере (1024×700+) по DoD — не зафиксирован в `TASK.md` отдельным прогоном в этой сессии
+
+**Definition of Done:** выполнено по коду и статическим проверкам; пункт DoD с ручным browser-прогоном адаптивности — на стороне поставщика
+
+---
+
+## 2026-07-12 — Phase 18, Таск 2: Webhook-URL + API здоровья источников
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `constants/integrations.ts` (новый) — `SOURCE_HEALTH_WARNING_RATIO = 0.66`, тип `SourceHealthStatus`, `SOURCE_HEALTH_LABELS` (эмодзи/подписи) — единый источник для API и будущего UI (Таск 3)
+- `lib/integrations/getSourceHealth.ts` (новый, server-only) — `getSourceHealth(companyId)`: кандидаты = 2 фиксированных (`tilda`/`wordpress`) + по одному на каждый `ApiKey.sourceLabel` (дедуп по `sourceLabel`); порог из `getSettings().sourceHealthThresholdHours`; статус только по `lastUsedAt` vs threshold и `SOURCE_HEALTH_WARNING_RATIO` (`active`/`silent`/`down`/`not_configured`); `lastErrorAt`/`errorCount` в ответе, но не влияют на статус; read-only, без записи в БД
+- `app/api/settings/webhook-urls/route.ts` (новый) — `GET`, `requireCompanyUser({ minRole: 'ADMIN' })` (жёсткий deny маркетологу); `{ tildaUrl, wordpressUrl }` с `companyId` из сессии; `APP_URL` с `.replace(/\/$/, '')`; без `APP_URL` → `500` + `console.error`
+- `app/api/admin/integrations/health/route.ts` (новый) — `GET`, `requireCompanyAccess({ minRole: 'ADMIN', method, pathname })` (форвард-совместимо с allow-list маркетолога в Таске 4); возвращает `getSourceHealth(actor.companyId)`
+
+**Out of scope (не делалось):** UI `/admin/integrations`, `SourceHealthIndicator` — Таск 3; `yandexMode`, allow-list маркетолога — Таск 4; изменения `checkSourceHealth.ts`/крон-алертинга — Phase 17; создание/обновление `IntegrationSource` — `touchIntegrationSource` при приёме лида; миграции БД
+
+**Проверено:** `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`; оба роута присутствуют в выводе сборки; эндпоинты read-only (только `findMany`/`getSettings`, без мутаций)
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
+## 2026-07-12 — Phase 18, Таск 1: API-ключи — backend (CRUD + криптогенерация + show-once)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/apiKeys/generateApiKey.ts` (новый, server-only) — `generateApiKey()` → `{ plaintext, keyHash }` через `generateToken()`/`hashToken()` из `lib/tokens.ts` (тот же SHA-256, что `lib/intake/verifyApiKey.ts`); `maskApiKey(keyHash)` — фингерпринт из первых 8 hex-символов `keyHash` (не из plaintext)
+- `lib/validations/apiKeys.ts` (новый) — `createApiKeySchema` (`name`, `sourceLabel` — непустые строки после trim), тип через `z.infer`
+- `app/api/api-keys/route.ts` — стаб `// TODO` заменён: `GET` — список `{ id, name, sourceLabel, mask, createdAt }` без `keyHash`/plaintext; `POST` — Zod-валидация, создание `ApiKey`, `plaintext` только в ответе `201` (больше нигде не возвращается)
+- `app/api/api-keys/[id]/route.ts` (новый) — `DELETE` с `where: { id, companyId }`; несуществующий/чужой ключ → `404`; `IntegrationSource` не трогается
+- Guard во всех хендлерах — `requireCompanyAccess({ minRole: 'ADMIN', method, pathname })` (форвард-совместимо с allow-list маркетолога в Таске 4), не прямой `hasMinRole`
+
+**Out of scope (не делалось):** UI (`ApiKeysTable`, `CreateApiKeyModal`, `/admin/integrations`) — Таск 3; webhook-URL, `GET /api/admin/integrations/health` — Таск 2; запись `/api/api-keys` в `constants/marketerAccess.ts` — Таск 4 (до неё маркетолог получает `403`); `yandexMode`, read-only Яндекс для маркетолога — Таск 4; изменения `IntegrationSource` при создании/удалении ключа; миграции БД
+
+**Проверено:** `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`; живая проверка против dev-датасета (временный скрипт, удалён после): `POST` вернул `plaintext` один раз (`plaintextLength: 64`), `GET` — только `mask`, без ключа; `DELETE` чужого id → `404`; без сессии все три метода → `401` (`curl`); plaintext не логируется
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-11 — Phase 17, Таск 5: Страница `/control` — счётчик активности менеджеров
 
 **Статус:** ✅ Завершён
