@@ -68,6 +68,23 @@
 
 Если блок пуст — не показывается совсем (а не «0 элементов»), чтобы экран не выглядел загруженным, когда работы на самом деле нет.
 
+### Персональные счётчики (над блоками)
+
+Над семью блоками — строка из 4 карточек-счётчиков, та же визуальная форма, что была у старого компанийского дашборда (`StatCard`), но со счётом строго по текущему пользователю (`assignedToId = me`), не по всей компании:
+
+| Счётчик | Запрос |
+| --- | --- |
+| Всего лидов | `Lead.count`: `assignedToId = me` (без ограничения по времени и статусу) |
+| Новых сегодня | `Lead.count`: `assignedToId = me`, `createdAt` за текущий календарный день |
+| В работе | `Lead.count`: `assignedToId = me`, `closeType IS NULL` |
+| Сделок | `Lead.count`: `assignedToId = me`, `closeType = WON` |
+
+Считается напрямую в `page.tsx` (4 независимых `count`), не через `GET /api/today` — это не один из 7 блоков, а отдельная лёгкая агрегация без риска/задач.
+
+### Лиды — карточки в сетке, не построчный список
+
+Лид-блоки («Новые», «Необработанные», «Требуют вмешательства», «Скоро станут просроченными», «Без следующего действия») рендерятся как сетка компактных карточек (`grid-cols-1 sm:grid-cols-2 xl:grid-cols-3`), не как построчный список — каждая карточка со своей рамкой/тенью, `RiskBadge` служит цветовой меткой. Блоки задач («Задачи на сегодня», «Просроченные задачи») остаются построчным списком — `TodaySection` принимает `layout: 'list' | 'grid'`.
+
 ---
 
 ## Видимость
@@ -90,17 +107,19 @@ where: { companyId: session.companyId, assignedToId: session.user.id }
 
 ### `GET /api/today`
 
+Каждый блок ограничен 20 записями (сортировка «новее/срочнее — выше») и отдаёт `total` — полный размер до среза, чтобы UI мог предложить переход в `/leads`/`/pipeline` вместо неограниченного списка на одном экране.
+
 **Response 200:**
 
 ```json
 {
-  "newLeads": [ { "id": "...", "name": "...", "risk": { "level": "yellow", "reason": "..." } } ],
-  "unprocessedLeads": [ ... ],
-  "tasksToday": [ ... ],
-  "overdueTasks": [ ... ],
-  "leadsWithoutNextAction": [ ... ],
-  "leadsApproachingDeadline": [ ... ],
-  "leadsAtRisk": [ ... ]
+  "newLeads": { "items": [ { "id": "...", "name": "...", "risk": { "level": "yellow", "reason": "..." } } ], "total": 3 },
+  "unprocessedLeads": { "items": [ ... ], "total": 12 },
+  "tasksToday": { "items": [ ... ], "total": 4 },
+  "overdueTasks": { "items": [ ... ], "total": 1 },
+  "leadsWithoutNextAction": { "items": [ ... ], "total": 2 },
+  "leadsApproachingDeadline": { "items": [ ... ], "total": 5 },
+  "leadsAtRisk": { "items": [ ... ], "total": 1 }
 }
 ```
 
@@ -115,9 +134,11 @@ app/
 
 components/
 └── today/
-    ├── TodayBoard.tsx           # Client: раскладка блоков
-    ├── TodaySection.tsx         # Переиспользуемый блок с заголовком + списком
-    └── TodayLeadRow.tsx         # Компактная строка лида (риск + быстрые действия из leads.md)
+    ├── TodayBoard.tsx           # Server Component: раскладка блоков
+    ├── TodayStatsRow.tsx        # Личные счётчики (Всего/Новых сегодня/В работе/Сделок) поверх components/blocks/StatCard.tsx
+    ├── TodaySection.tsx         # Переиспользуемый блок с заголовком + списком/сеткой (layout: 'list' | 'grid')
+    ├── TodayLeadRow.tsx         # Карточка лида в сетке (риск как цветовая метка + быстрые действия из leads.md)
+    └── TodayTaskRow.tsx         # Компактная строка задачи (название, срок, имя лида)
 
 lib/
 └── today/

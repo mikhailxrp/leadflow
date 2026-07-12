@@ -36,6 +36,25 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-12 — Phase 19, Таск 1: API `GET /api/today` — агрегатор данных по блокам
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `types/today.ts` (новый) — `TodayBlock<T>`, `TodayLeadItem` (`LeadListItem` + `risk` + `nextAction`), `TodayTaskItem`, `TodayData` с 7 полями-блоками
+- `lib/today/getTodayData.ts` (новый, server-only) — `getTodayData(companyId, userId)`; фиксированное число запросов к БД (2 + 5 параллельных раунда, без N+1): `company.settings`, все открытые лиды пользователя (`findMany` без `take`/`skip` — не через `getLeads()`, чтобы не обрезать на `MAX_LEADS_PAGE_SIZE`), `events` типа `LEAD_TAKEN_IN_WORK` → `Set<leadId>` для бакетов «Новые»/«Необработанные» (не парсинг `risk.reason`), `computeRiskBatch` + `getNextActions` без изменений; задачи — два отдельных запроса по `Task.assignedToId` (не `Lead.assignedToId`): «сегодня» (`dueDate` в границах календарного дня) и «просроченные» (`dueDate < now`, статусы `TODO`/`IN_PROGRESS`); бакетирование в 7 непересекающихся по логике списков (лид может попасть в несколько блоков); сортировка лидов — `createdAt desc`, задач — `dueDate asc`; срез `BLOCK_LIMIT = 20` + `total` до среза
+- `app/api/today/route.ts` (новый) — `GET`, guard `requireCompanyUser({ minRole: 'MANAGER' })` (маркетолог → 403 до `getTodayData`), `Response.json(data)`; try/catch по паттерну `/api/leads`
+- `.docs/modules/today.md` — пример ответа `GET /api/today`: каждый блок — `{ items: [...], total: N }`, не голый массив
+
+**Out of scope (не делалось):** UI `/today`, `TodayBoard`/`TodaySection`/`TodayLeadRow`/`TodayTaskRow`, SSE-обновление — Таск 2; удаление заглушки дашборда (`components/dashboard/*`, `StatCard`) — Таск 2; `/today` в `constants/marketerAccess.ts` — маркетолог намеренно без доступа; правки `computeRiskBatch`, `getNextActions`, `getLeads`
+
+**Проверено:** `npm run type-check` — без ошибок; нет `any`; ручная проверка 401/403, `total` при >100 лидах, лог Prisma-запросов на 50+ лидах — не зафиксирована в `TASK.md` (DoD-чекбоксы не отмечены)
+
+**Definition of Done:** выполнено по коду и статическим проверкам; пункты DoD с ручным прогоном API и подсчётом SQL-запросов — на стороне поставщика
+
+---
+
 ## 2026-07-12 — Phase 18, Таск 4: Режим Яндекса (UTM/FULL) + доступ маркетолога
 
 **Статус:** ✅ Завершён
