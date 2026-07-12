@@ -87,4 +87,28 @@ describe('resolveApplicableNorm', () => {
     });
     expect(result.escalateAfterPercent).toBe(150);
   });
+
+  it('source: "manual" берёт bySource.other', () => {
+    const result = resolveApplicableNorm(
+      { ...baseLead, source: 'manual' },
+      { ...baseNorms, bySource: { other: 15 } },
+    );
+    expect(result.defaultMinutes).toBe(15);
+  });
+
+  it('source: "api" берёт bySource.other', () => {
+    const result = resolveApplicableNorm(
+      { ...baseLead, source: 'api' },
+      { ...baseNorms, bySource: { other: 15 } },
+    );
+    expect(result.defaultMinutes).toBe(15);
+  });
+
+  it('bySource.other не применяется к настроенным интеграциям (tilda/wordpress)', () => {
+    const result = resolveApplicableNorm(baseLead, {
+      ...baseNorms,
+      bySource: { other: 15 },
+    });
+    expect(result.defaultMinutes).toBe(baseNorms.defaultMinutes);
+  });
 });

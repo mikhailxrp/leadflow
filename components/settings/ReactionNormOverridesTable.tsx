@@ -7,6 +7,7 @@ import IconButton from '@/components/ui/IconButton';
 import Select from '@/components/ui/Select';
 import Toast from '@/components/ui/Toast';
 import SettingsCard from '@/components/settings/SettingsCard';
+import { OTHER_BYSOURCE_KEY, OTHER_SOURCE_LABEL } from '@/constants/leadSources';
 
 export interface StageOption {
   id: string;
@@ -384,6 +385,7 @@ export default function ReactionNormOverridesTable({
   return (
     <SettingsCard icon="tabler:adjustments" title="Переопределения нормативов">
       <datalist id={KNOWN_SOURCES_LIST_ID}>
+        <option value={OTHER_BYSOURCE_KEY} label={OTHER_SOURCE_LABEL} />
         {knownSources.map((source) => (
           <option key={source} value={source} />
         ))}
@@ -393,7 +395,11 @@ export default function ReactionNormOverridesTable({
         map="bySource"
         title="По источнику"
         initialEntries={initialBySource}
-        resolveLabel={(key) => ({ label: key, isUnknown: false })}
+        resolveLabel={(key) =>
+          key === OTHER_BYSOURCE_KEY
+            ? { label: OTHER_SOURCE_LABEL, isUnknown: false }
+            : { label: key, isUnknown: false }
+        }
         keyPicker={renderSourceKeyPicker}
         hasAvailableKeys={() => true}
       />

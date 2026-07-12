@@ -129,8 +129,12 @@ function computeRisk(input: RiskInput): RiskResult {
 resolveApplicableNorm(lead):
   byUser[lead.assignedToId]      — если задан, выигрывает
   byStage[lead.stageId]          — если задан и нет переопределения по сотруднику
-  bySource[lead.source]          — если задан и нет переопределения выше
+  bySource[sourceKey]            — если задан и нет переопределения выше
   defaultMinutes                  — иначе
+
+sourceKey = lead.source, кроме 'manual'/'api' (ручное добавление и универсальный
+вебхук) — они делят один общий ключ 'other' (constants/leadSources.ts,
+OTHER_SOURCE_TYPES/OTHER_BYSOURCE_KEY), не переопределяются по отдельности.
 ```
 
 `workHoursOnly` — общий флаг компании, применяется **только к нормативу первого ответа** (минутная точность чувствительна к ночным разрывам). Лимит «зависания» на этапе (дни) не корректируется по рабочим часам — разница в часах на горизонте нескольких дней не значима.
