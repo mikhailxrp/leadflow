@@ -36,6 +36,26 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-12 — Phase 18, Таск 1: API-ключи — backend (CRUD + криптогенерация + show-once)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/apiKeys/generateApiKey.ts` (новый, server-only) — `generateApiKey()` → `{ plaintext, keyHash }` через `generateToken()`/`hashToken()` из `lib/tokens.ts` (тот же SHA-256, что `lib/intake/verifyApiKey.ts`); `maskApiKey(keyHash)` — фингерпринт из первых 8 hex-символов `keyHash` (не из plaintext)
+- `lib/validations/apiKeys.ts` (новый) — `createApiKeySchema` (`name`, `sourceLabel` — непустые строки после trim), тип через `z.infer`
+- `app/api/api-keys/route.ts` — стаб `// TODO` заменён: `GET` — список `{ id, name, sourceLabel, mask, createdAt }` без `keyHash`/plaintext; `POST` — Zod-валидация, создание `ApiKey`, `plaintext` только в ответе `201` (больше нигде не возвращается)
+- `app/api/api-keys/[id]/route.ts` (новый) — `DELETE` с `where: { id, companyId }`; несуществующий/чужой ключ → `404`; `IntegrationSource` не трогается
+- Guard во всех хендлерах — `requireCompanyAccess({ minRole: 'ADMIN', method, pathname })` (форвард-совместимо с allow-list маркетолога в Таске 4), не прямой `hasMinRole`
+
+**Out of scope (не делалось):** UI (`ApiKeysTable`, `CreateApiKeyModal`, `/admin/integrations`) — Таск 3; webhook-URL, `GET /api/admin/integrations/health` — Таск 2; запись `/api/api-keys` в `constants/marketerAccess.ts` — Таск 4 (до неё маркетолог получает `403`); `yandexMode`, read-only Яндекс для маркетолога — Таск 4; изменения `IntegrationSource` при создании/удалении ключа; миграции БД
+
+**Проверено:** `npm run type-check`, `npm run build`, `npm run lint` — без ошибок; нет `any`; живая проверка против dev-датасета (временный скрипт, удалён после): `POST` вернул `plaintext` один раз (`plaintextLength: 64`), `GET` — только `mask`, без ключа; `DELETE` чужого id → `404`; без сессии все три метода → `401` (`curl`); plaintext не логируется
+
+**Definition of Done:** выполнено полностью по `TASK.md`
+
+---
+
 ## 2026-07-11 — Phase 17, Таск 5: Страница `/control` — счётчик активности менеджеров
 
 **Статус:** ✅ Завершён
