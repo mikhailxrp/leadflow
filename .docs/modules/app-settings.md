@@ -81,7 +81,6 @@ async function updateSettings(companyId: string, patch: Partial<CompanySettings>
 ```typescript
 type CompanySettings = {
   assignMode: "MANUAL" | "ROUND_ROBIN";
-  leadVisibility: "ALL" | "OWN";
   roundRobinCursor: string | null;
   telegramEnabled: boolean;
   yandexMode?: "UTM" | "FULL";
@@ -105,12 +104,13 @@ type CompanySettings = {
 
 Включение/отключение конкретного источника — это создание/удаление API-ключа в `.docs/modules/integrations.md`, не флаг в настройках компании.
 
+Видимость лидов для `MANAGER` (только свои) — жёсткое правило в коде, не поле в этих настройках; см. `.docs/modules/leads.md`.
+
 ### Дефолты
 
 ```json
 {
   "assignMode": "MANUAL",
-  "leadVisibility": "ALL",
   "roundRobinCursor": null,
   "telegramEnabled": false,
   "yandexMode": "UTM",
@@ -288,7 +288,7 @@ lib/validations/
 
 ## Связи с другими модулями
 
-- **`.docs/modules/assignment.md`**, **`.docs/modules/leads.md`** — без изменений (читают `assignMode`/`leadVisibility`).
+- **`.docs/modules/assignment.md`** — читает `assignMode`. **`.docs/modules/leads.md`** — видимость лидов для `MANAGER` больше не читается из `settings` (жёсткое правило в коде, не настройка).
 - **`.docs/modules/risk.md`**, **`.docs/modules/notifications.md`** — читают `reactionNorms`, `workHours`, `stageStuckDaysDefault` через общий `resolveApplicableNorm()`.
 - **`.docs/modules/pipeline.md`** — `stageStuckDaysDefault` как фоллбэк для этапов без `stageTimeLimitDays`.
 - **`.docs/modules/integrations.md`** — `sourceHealthThresholdHours`; статусы здоровья источников.

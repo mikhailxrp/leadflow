@@ -1,8 +1,4 @@
 import type { Prisma, UserRole } from '@prisma/client';
-import {
-  DEFAULT_COMPANY_SETTINGS,
-  type CompanySettings,
-} from '@/constants/defaultCompanyData';
 import { requireCompanyAccess, requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { writeEvent } from '@/lib/events';
 import type { LeadListItem } from '@/lib/leads/getLeads';
@@ -55,27 +51,13 @@ const LEAD_CARD_SELECT = {
 
 type LeadCardRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_CARD_SELECT }>;
 
-function getLeadVisibility(settings: unknown): CompanySettings['leadVisibility'] {
-  if (
-    settings &&
-    typeof settings === 'object' &&
-    'leadVisibility' in settings &&
-    (settings.leadVisibility === 'ALL' || settings.leadVisibility === 'OWN')
-  ) {
-    return settings.leadVisibility;
-  }
-
-  return DEFAULT_COMPANY_SETTINGS.leadVisibility;
-}
-
 function buildLeadAccessWhere(
   id: string,
   companyId: string,
   role: UserRole,
   userId: string,
-  leadVisibility: CompanySettings['leadVisibility'],
 ): Prisma.LeadWhereInput {
-  const visibility = visibilityWhere(role, userId, leadVisibility);
+  const visibility = visibilityWhere(role, userId);
   const andConditions: Prisma.LeadWhereInput[] = [{ id }, { companyId }];
 
   if (Object.keys(visibility).length > 0) {
@@ -178,19 +160,13 @@ async function recordLeadOpenedOnce(
   await writeEvent(companyId, 'LEAD_OPENED', { leadId, userId });
 }
 
-async function getCompanyLeadContext(companyId: string): Promise<{
-  leadVisibility: CompanySettings['leadVisibility'];
-  companySettings: Prisma.JsonValue;
-}> {
+async function getCompanySettings(companyId: string): Promise<Prisma.JsonValue> {
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
     select: { settings: true },
   });
 
-  return {
-    leadVisibility: getLeadVisibility(company.settings),
-    companySettings: company.settings,
-  };
+  return company.settings;
 }
 
 function notFoundResponse(): Response {
@@ -216,11 +192,11 @@ export async function GET(
   }
 
   try {
-    const { leadVisibility, companySettings } = await getCompanyLeadContext(actor.companyId);
+    const companySettings = await getCompanySettings(actor.companyId);
 
     const where =
       actor.actor === 'user'
-        ? buildLeadAccessWhere(id, actor.companyId, actor.role, actor.userId, leadVisibility)
+        ? buildLeadAccessWhere(id, actor.companyId, actor.role, actor.userId)
         : { AND: [{ id }, { companyId: actor.companyId }] };
 
     const lead = await prisma.lead.findFirst({
@@ -286,9 +262,7 @@ export async function PATCH(
   }
 
   try {
-    const { leadVisibility } = await getCompanyLeadContext(user.companyId);
-
-    const where = buildLeadAccessWhere(id, user.companyId, user.role, user.userId, leadVisibility);
+    const where = buildLeadAccessWhere(id, user.companyId, user.role, user.userId);
 
     const result = await prisma.lead.updateMany({
       where,

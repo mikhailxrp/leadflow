@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
-import { getLeadVisibility, visibilityWhere } from '@/lib/leads/visibilityFilter';
+import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
 import { changeStageSchema } from '@/lib/validations/leads';
 
@@ -35,13 +35,7 @@ export async function PATCH(
   const targetStageId = parsed.data.stageId;
 
   try {
-    const company = await prisma.company.findUniqueOrThrow({
-      where: { id: companyId },
-      select: { settings: true },
-    });
-
-    const leadVisibility = getLeadVisibility(company.settings);
-    const visibility = visibilityWhere(role, userId, leadVisibility);
+    const visibility = visibilityWhere(role, userId);
 
     const andConditions: Prisma.LeadWhereInput[] = [{ id }, { companyId }];
     if (Object.keys(visibility).length > 0) {

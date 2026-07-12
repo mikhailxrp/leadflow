@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { writeEvent } from '@/lib/events';
-import { getLeadVisibility, visibilityWhere } from '@/lib/leads/visibilityFilter';
+import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
 import { createTaskSchema } from '@/lib/validations/tasks';
 
@@ -23,13 +23,7 @@ async function findAccessibleLead(
   companyId: string,
   actor: Awaited<ReturnType<typeof requireCompanyUser>>,
 ): Promise<{ id: string } | null> {
-  const company = await prisma.company.findUniqueOrThrow({
-    where: { id: companyId },
-    select: { settings: true },
-  });
-
-  const leadVisibility = getLeadVisibility(company.settings);
-  const visibility = visibilityWhere(actor.role, actor.userId, leadVisibility);
+  const visibility = visibilityWhere(actor.role, actor.userId);
 
   const andConditions: Prisma.LeadWhereInput[] = [{ id: leadId }, { companyId }];
   if (Object.keys(visibility).length > 0) {

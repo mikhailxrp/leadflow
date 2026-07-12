@@ -1,5 +1,4 @@
 import { requireCompanyAccess } from '@/lib/auth/requireCompanyAccess';
-import { getLeadVisibility } from '@/lib/leads/visibilityFilter';
 import { getBoardData } from '@/lib/pipeline/boardQuery';
 import { prisma } from '@/lib/prisma';
 import { boardQuerySchema } from '@/lib/validations/pipeline';
@@ -35,12 +34,9 @@ export async function GET(request: Request): Promise<Response> {
       select: { settings: true },
     });
 
-    const leadVisibility = getLeadVisibility(company.settings);
-
     const boardData = await getBoardData({
       companyId,
       ...(actor.actor === 'user' ? { userId: actor.userId, role: actor.role } : {}),
-      leadVisibility,
       companySettings: company.settings,
       includeClosed: parsed.data.includeClosed,
       assignedToId: parsed.data.assignedToId,
