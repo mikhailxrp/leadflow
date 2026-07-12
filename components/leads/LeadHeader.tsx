@@ -34,7 +34,7 @@ export default function LeadHeader({ name, stage, closeType }: LeadHeaderProps) 
 
       <div className="flex items-center gap-2">
         <span
-          className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium text-white"
+          className="inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-medium text-white"
           style={{ backgroundColor: stage.color }}
         >
           {stage.name}
@@ -42,7 +42,7 @@ export default function LeadHeader({ name, stage, closeType }: LeadHeaderProps) 
 
         {closeType !== null && (
           <span
-            className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium"
+            className="inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-medium"
             style={{
               backgroundColor: CLOSE_TYPE_COLORS[closeType].bg,
               color: CLOSE_TYPE_COLORS[closeType].text,

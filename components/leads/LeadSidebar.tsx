@@ -69,7 +69,7 @@ export default function LeadSidebar({
               Статус
             </span>
             <span
-              className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium ${CLOSE_TYPE_COLORS[closeType]}`}
+              className={`inline-flex w-fit items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-medium ${CLOSE_TYPE_COLORS[closeType]}`}
             >
               {CLOSE_TYPE_LABELS[closeType]}
             </span>

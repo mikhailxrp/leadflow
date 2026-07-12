@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getUserNotifications } from '@/lib/notifications/getUserNotifications';
 import ThemeProvider from '@/components/providers/ThemeProvider';
+import SidebarCollapseProvider from '@/components/providers/SidebarCollapseProvider';
 import AppLayout from '@/components/layout/AppLayout';
 import Sidebar from '@/components/layout/Sidebar';
 import ImpersonationBanner from '@/components/platform/ImpersonationBanner';
@@ -36,18 +37,20 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
 
     return (
       <ThemeProvider storageKey={`theme_marketer_${session.marketer.platformAdminId}`}>
-        <AppLayout
-          sidebar={
-            <Sidebar
-              items={getMarketerNavItems()}
-              userName="Маркетолог"
-              userInitials="М"
-            />
-          }
-        >
-          <MarketerBanner companyName={company?.name ?? ''} />
-          {children}
-        </AppLayout>
+        <SidebarCollapseProvider storageKey={`sidebar_marketer_${session.marketer.platformAdminId}`}>
+          <AppLayout
+            sidebar={
+              <Sidebar
+                items={getMarketerNavItems()}
+                userName="Маркетолог"
+                userInitials="М"
+              />
+            }
+          >
+            <MarketerBanner companyName={company?.name ?? ''} />
+            {children}
+          </AppLayout>
+        </SidebarCollapseProvider>
       </ThemeProvider>
     );
   }
@@ -74,22 +77,24 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
 
   return (
     <ThemeProvider storageKey={`theme_user_${id}`}>
-      <AppLayout
-        sidebar={
-          <Sidebar
-            items={navItems}
-            userName={userName}
-            userInitials={userInitials}
-            userAvatarUrl={dbUser?.avatarUrl}
-            profileHref="/profile"
-          />
-        }
-      >
-        <SseProvider initialItems={initialItems} initialUnreadCount={initialUnreadCount}>
-          {isImpersonating && <ImpersonationBanner />}
-          {children}
-        </SseProvider>
-      </AppLayout>
+      <SidebarCollapseProvider storageKey={`sidebar_user_${id}`}>
+        <AppLayout
+          sidebar={
+            <Sidebar
+              items={navItems}
+              userName={userName}
+              userInitials={userInitials}
+              userAvatarUrl={dbUser?.avatarUrl}
+              profileHref="/profile"
+            />
+          }
+        >
+          <SseProvider initialItems={initialItems} initialUnreadCount={initialUnreadCount}>
+            {isImpersonating && <ImpersonationBanner />}
+            {children}
+          </SseProvider>
+        </AppLayout>
+      </SidebarCollapseProvider>
     </ThemeProvider>
   );
 }
