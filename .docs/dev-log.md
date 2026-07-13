@@ -36,6 +36,26 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-13 — Phase 21, Таск 4: UI остальных вкладок отчётов + экспорт CSV
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `components/reports/LossReasonsChart.tsx` (новый) — горизонтальный Recharts `BarChart` (`layout="vertical"`, ось Y — `label` причины) по `LossReasonRow[]`; порядок серверный, без пересортировки; пустое состояние «Нет отказов за выбранный период»; подключён через `dynamic()` без SSR (как остальные графики)
+- `components/reports/ByEmployeeTable.tsx` (новый) — таблица в стиле `TeamTable` по `ManagerStat[]` (сотрудник, получено, вовремя, зависло, сделок, отказов, без причины); пустое состояние «Нет данных за выбранный период»
+- `components/reports/BySourceTable.tsx` (новый) — таблица по `BySourceRow[]`; локальная карта код→лейбл (по образцу `LeadsFilters`); конверсия `Math.round(wonRate * 100)%`; пустое состояние «Нет лидов за выбранный период»
+- `components/reports/ExportButton.tsx` (новый, `'use client'`) — `fetch` `/api/reports/export` с `T00:00:00.000Z`/`T23:59:59.999Z`; проверка `response.ok` до скачивания; имя файла из `Content-Disposition`; скачивание через `Blob` + временный `<a download>` + `URL.revokeObjectURL`
+- `components/reports/ReportsPage.tsx` — общий helper `toPeriodSearchParams()` / `fetchReportRows()`; ленивая подгрузка по табам с кэшем `TabCache` + `periodKey(from, to)`; `ensureTabData()` — фетч только если нет кэша под текущий период (инвалидация при смене `from`/`to`); маппинг `overview → summary` для экспорта (`REPORT_NAME_BY_TAB`); `ExportButton` рядом с табами; плейсхолдер «Раздел в разработке» заменён на три новых компонента
+
+**Out of scope (не делалось):** любые изменения `lib/reports/*`, `/api/reports/*`, `constants/marketerAccess.ts`, `types/reports.ts`; `/control`; доступ MANAGER; общий date-range helper вне `components/reports/`
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — чисто. Живая проверка (Playwright, dev-БД): throwaway-компания с 10 лидами — три новые вкладки показывают реальные данные; ленивая подгрузка при первом переключении; смена пресета «30 дней» на вкладке «По сотрудникам» обновляет её данные; экспорт всех 4 вкладок — корректные имена файлов (`overview` → `summary-...`), `Content-Disposition`, CSV с BOM и кириллицей; пустой период — текстовые пустые состояния на всех трёх вкладках; вёрстка 1280×800 не ломается. **Не проверено живым сценарием:** доступ маркетолога (анализ кода — таск не менял allow-list/guards, новые компоненты используют те же эндпоинты)
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены
+
+---
+
 ## 2026-07-13 — Phase 21, Таск 3: UI `/reports` — каркас, период, вкладка «Обзор» (recharts)
 
 **Статус:** ✅ Завершён

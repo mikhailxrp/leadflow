@@ -4,7 +4,12 @@ import { useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import Card from '@/components/ui/Card';
 import ResponseSpeedCard from '@/components/reports/ResponseSpeedCard';
-import type { ReportSummary } from '@/types/reports';
+import ByEmployeeTable from '@/components/reports/ByEmployeeTable';
+import BySourceTable from '@/components/reports/BySourceTable';
+import ExportButton from '@/components/reports/ExportButton';
+import type { ReportExportName } from '@/lib/validations/reports';
+import type { BySourceRow, LossReasonRow, ReportSummary } from '@/types/reports';
+import type { ManagerStat } from '@/types/control';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -28,6 +33,11 @@ const StageConversionChart = dynamic(() => import('@/components/reports/StageCon
   loading: () => <ChartSkeleton />,
 });
 
+const LossReasonsChart = dynamic(() => import('@/components/reports/LossReasonsChart'), {
+  ssr: false,
+  loading: () => <ChartSkeleton />,
+});
+
 type ReportTab = 'overview' | 'loss-reasons' | 'by-employee' | 'by-source';
 
 const TABS: ReadonlyArray<{ value: ReportTab; label: string }> = [
@@ -36,6 +46,13 @@ const TABS: ReadonlyArray<{ value: ReportTab; label: string }> = [
   { value: 'by-employee', label: 'По сотрудникам' },
   { value: 'by-source', label: 'По источникам' },
 ];
+
+const REPORT_NAME_BY_TAB: Record<ReportTab, ReportExportName> = {
+  overview: 'summary',
+  'loss-reasons': 'loss-reasons',
+  'by-employee': 'by-employee',
+  'by-source': 'by-source',
+};
 
 type PeriodPreset = 'this-month' | 'last-30-days' | 'quarter';
 
@@ -106,6 +123,30 @@ interface ReportsPageProps {
   initialTo: string;
 }
 
+interface TabCache<T> {
+  period: string;
+  rows: T;
+}
+
+function periodKey(from: string, to: string): string {
+  return `${from}_${to}`;
+}
+
+function toPeriodSearchParams(from: string, to: string): URLSearchParams {
+  return new URLSearchParams({
+    from: `${from}T00:00:00.000Z`,
+    to: `${to}T23:59:59.999Z`,
+  });
+}
+
+async function fetchReportRows<T>(path: string, from: string, to: string): Promise<T> {
+  const response = await fetch(`${path}?${toPeriodSearchParams(from, to).toString()}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${path}`);
+  }
+  return (await response.json()) as T;
+}
+
 export default function ReportsPage({
   initialSummary,
   initialFrom,
@@ -115,33 +156,60 @@ export default function ReportsPage({
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
   const [summary, setSummary] = useState<ReportSummary>(initialSummary);
+  const [summaryPeriod, setSummaryPeriod] = useState(periodKey(initialFrom, initialTo));
+  const [lossReasons, setLossReasons] = useState<TabCache<LossReasonRow[]> | null>(null);
+  const [byEmployee, setByEmployee] = useState<TabCache<ManagerStat[]> | null>(null);
+  const [bySource, setBySource] = useState<TabCache<BySourceRow[]> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  async function fetchSummary(nextFrom: string, nextTo: string): Promise<void> {
-    if (nextFrom > nextTo) {
-      setFetchError('Дата начала должна быть раньше даты окончания');
-      return;
-    }
+  // Подгружает данные таба, только если для него ещё нет кэша под текущий
+  // period — иначе смена периода на неактивной вкладке молча оставила бы её
+  // со старыми данными до следующего переключения, а переключение без смены
+  // периода лишний раз дёргало бы уже загруженный эндпоинт.
+  async function ensureTabData(tab: ReportTab, nextFrom: string, nextTo: string): Promise<void> {
+    const key = periodKey(nextFrom, nextTo);
+
+    if (tab === 'overview' && summaryPeriod === key) return;
+    if (tab === 'loss-reasons' && lossReasons?.period === key) return;
+    if (tab === 'by-employee' && byEmployee?.period === key) return;
+    if (tab === 'by-source' && bySource?.period === key) return;
 
     setIsLoading(true);
     setFetchError(null);
 
     try {
-      const params = new URLSearchParams({
-        from: `${nextFrom}T00:00:00.000Z`,
-        to: `${nextTo}T23:59:59.999Z`,
-      });
-      const response = await fetch(`/api/reports/summary?${params.toString()}`);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch reports summary');
+      switch (tab) {
+        case 'overview': {
+          const data = await fetchReportRows<ReportSummary>('/api/reports/summary', nextFrom, nextTo);
+          setSummary(data);
+          setSummaryPeriod(key);
+          break;
+        }
+        case 'loss-reasons': {
+          const rows = await fetchReportRows<LossReasonRow[]>(
+            '/api/reports/loss-reasons',
+            nextFrom,
+            nextTo,
+          );
+          setLossReasons({ period: key, rows });
+          break;
+        }
+        case 'by-employee': {
+          const rows = await fetchReportRows<ManagerStat[]>(
+            '/api/reports/by-employee',
+            nextFrom,
+            nextTo,
+          );
+          setByEmployee({ period: key, rows });
+          break;
+        }
+        case 'by-source': {
+          const rows = await fetchReportRows<BySourceRow[]>('/api/reports/by-source', nextFrom, nextTo);
+          setBySource({ period: key, rows });
+          break;
+        }
       }
-
-      const data = (await response.json()) as ReportSummary;
-      setSummary(data);
-      setFrom(nextFrom);
-      setTo(nextTo);
     } catch (error) {
       console.error(error);
       setFetchError('Не удалось загрузить отчёт за выбранный период');
@@ -150,17 +218,33 @@ export default function ReportsPage({
     }
   }
 
+  function handlePeriodChange(nextFrom: string, nextTo: string): void {
+    if (nextFrom > nextTo) {
+      setFetchError('Дата начала должна быть раньше даты окончания');
+      return;
+    }
+
+    setFrom(nextFrom);
+    setTo(nextTo);
+    void ensureTabData(activeTab, nextFrom, nextTo);
+  }
+
+  function handleTabClick(tab: ReportTab): void {
+    setActiveTab(tab);
+    void ensureTabData(tab, from, to);
+  }
+
   function handlePresetClick(preset: PeriodPreset): void {
     const range = presetRange(preset);
-    void fetchSummary(range.from, range.to);
+    handlePeriodChange(range.from, range.to);
   }
 
   function handleFromChange(nextFrom: string): void {
-    void fetchSummary(nextFrom, to);
+    handlePeriodChange(nextFrom, to);
   }
 
   function handleToChange(nextTo: string): void {
-    void fetchSummary(from, nextTo);
+    handlePeriodChange(from, nextTo);
   }
 
   return (
@@ -232,32 +316,36 @@ export default function ReportsPage({
         </p>
       )}
 
-      <div
-        className="
-          inline-flex w-fit rounded-[8px]
-          border border-[0.5px] border-[var(--color-border)]
-          bg-[var(--color-bg-surface)]
-          p-1
-        "
-        role="tablist"
-        aria-label="Раздел отчёта"
-      >
-        {TABS.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            className={toggleButtonClassName(activeTab === tab.value)}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className="
+            inline-flex w-fit rounded-[8px]
+            border border-[0.5px] border-[var(--color-border)]
+            bg-[var(--color-bg-surface)]
+            p-1
+          "
+          role="tablist"
+          aria-label="Раздел отчёта"
+        >
+          {TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.value}
+              onClick={() => handleTabClick(tab.value)}
+              className={toggleButtonClassName(activeTab === tab.value)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <ExportButton report={REPORT_NAME_BY_TAB[activeTab]} from={from} to={to} />
       </div>
 
       <div className={isLoading ? 'opacity-60 transition-opacity duration-150' : ''}>
-        {activeTab === 'overview' ? (
+        {activeTab === 'overview' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="lg:col-span-2">
               <LeadsOverTimeChart buckets={summary.buckets} totalLeads={summary.totalLeads} />
@@ -274,11 +362,16 @@ export default function ReportsPage({
               totalLeads={summary.totalLeads}
             />
           </div>
-        ) : (
-          <Card padding="lg">
-            <p className="text-[14px] text-[var(--color-text-secondary)]">Раздел в разработке</p>
-          </Card>
         )}
+
+        {activeTab === 'loss-reasons' &&
+          (lossReasons ? <LossReasonsChart rows={lossReasons.rows} /> : <ChartSkeleton />)}
+
+        {activeTab === 'by-employee' &&
+          (byEmployee ? <ByEmployeeTable rows={byEmployee.rows} /> : <ChartSkeleton />)}
+
+        {activeTab === 'by-source' &&
+          (bySource ? <BySourceTable rows={bySource.rows} /> : <ChartSkeleton />)}
       </div>
     </div>
   );
