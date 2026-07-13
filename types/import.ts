@@ -55,3 +55,17 @@ export type ImportReport = {
   duplicates: number;
   errors: number;
 };
+
+/** A single row of GET /api/import (import history, Task 2). */
+export type ImportHistoryItem = {
+  id: string;
+  fileName: string;
+  status: 'PROCESSING' | 'DONE' | 'ROLLED_BACK';
+  totalRows: number;
+  imported: number;
+  skipped: number;
+  duplicates: number;
+  errors: number;
+  createdAt: string;
+  createdByName: string | null;
+};

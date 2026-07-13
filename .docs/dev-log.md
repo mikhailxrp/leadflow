@@ -36,6 +36,28 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-13 — Phase 20, Таск 2: Батч-создание + отчёт + история + откат
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/import.ts` — добавлен `confirmImportSchema` (`fileName: z.string().min(1).max(255)`, `mapping`, `rows` с `.max(MAX_IMPORT_ROWS)`); `confirmDuplicates` намеренно не включён — чисто клиентский чек-бокс (Таск 3)
+- `types/import.ts` — добавлен `ImportHistoryItem` для `GET /api/import`; `ImportReport` уточнён под ответ `confirm`
+- `lib/import/runImport.ts` (новый) — `ImportBatch(status: PROCESSING)` → последовательный `for...of` по строкам (`mapRow`/`isMappedRowEmpty` из `mapRow.ts`, `findPossibleDuplicates` из intake); пустая строка → `errors++`; per-row `prisma.$transaction`: `lead.create` (`source: 'import'`, `importBatchId`, `assignedToId: null`) + `LEAD_CREATED` + `DuplicateFlag`/`DUPLICATE_FLAGGED` по совпадениям; необработанное исключение → `skipped++` (батч не падает); финал — `status: DONE` + `writeEvent(IMPORT_COMPLETED)`; **не вызывает** `createLead`, `normalizeLead`, `assignLead`, `notifyNewLead`
+- `app/api/import/confirm/route.ts` (новый) — `POST`, `requireCompanyUser({ minRole: 'ADMIN' })`, `confirmImportSchema` → `runImport` → `ImportReport`
+- `app/api/import/route.ts` (новый) — `GET` история импортов компании (`where: { companyId }`, `orderBy: createdAt desc`, `createdBy.name` → `createdByName`), без пагинации
+- `app/api/import/[batchId]/rollback/route.ts` (новый) — `POST`; раздельные проверки: нет батча → `404`, `status !== DONE` → `400 IMPORT_NOT_ROLLBACKABLE`; транзакция: `lead.deleteMany({ importBatchId })` → `status: ROLLED_BACK` → `IMPORT_ROLLED_BACK`
+- `.docs/modules/import.md` — уточнены контракты `confirm`/`rollback`, `fileName` в теле запроса, структура API-файлов
+
+**Out of scope (не делалось):** UI визарда, история и кнопка отката в интерфейсе (Таск 3); назначение из колонки файла, автоназначение, SSE/Telegram при импорте; докат «зависшего» батча (`PROCESSING`); пагинация истории; rate limiting
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — чисто, нет `any`; все три новых роута в выводе билда. Функциональный смок-тест (`tsx`, временный скрипт, реальная dev-БД): изолированная тестовая компания + существующий лид для дедупа; `runImport` на 5 строках — агрегаты `totalRows: 5, imported: 4, errors: 1, duplicates: 2, skipped: 0` сошлись; `importBatchId` на всех 4 лидах; `customFields`-маппинг сохранён; `DuplicateFlag` с правильными `matchedLeadId` (в т.ч. внутрифайловый дубль против ранее закоммиченной строки); откат каскадно удалил лиды батча, перевёл в `ROLLED_BACK`, не тронул лид вне батча. **Не проверено:** `writeEvent(IMPORT_COMPLETED)` в standalone-скрипте (нет Next.js request-контекста для `auth()`); HTTP-гейты `401`/`403` и JSON-парсинг — только чтением кода и переиспользованием `requireCompanyUser`
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены; полная проверка через UI — Таск 3
+
+---
+
 ## 2026-07-13 — Phase 20, Таск 1: Парсинг файла + авто-маппинг + превью с дублями
 
 **Статус:** ✅ Завершён

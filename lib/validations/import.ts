@@ -26,3 +26,21 @@ export const previewRemapSchema = z.object({
 });
 
 export type PreviewRemapInput = z.infer<typeof previewRemapSchema>;
+
+/**
+ * POST /api/import/confirm.
+ *
+ * `fileName` is not part of the example request in import.md, but
+ * ImportBatch.fileName is a required non-null column — the client carries the
+ * original File.name forward from the upload step (Task 1) into this call.
+ * `confirmDuplicates` from the module's example is intentionally omitted: the
+ * server never branches on it (duplicates never block creation anywhere in
+ * the product) — it is a client-only confirmation checkbox (Task 3).
+ */
+export const confirmImportSchema = z.object({
+  fileName: z.string().min(1).max(255),
+  mapping: z.record(mappingTargetSchema),
+  rows: z.array(z.record(z.unknown())).max(MAX_IMPORT_ROWS),
+});
+
+export type ConfirmImportInput = z.infer<typeof confirmImportSchema>;
