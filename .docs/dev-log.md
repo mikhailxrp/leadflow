@@ -36,6 +36,27 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-13 — Фикс: квалификация лида доступна MANAGER
+
+**Статус:** ✅ Завершён
+
+**Контекст:** Квалификация лида (`Целевой`/`Нецелевой`) была доступна только `HEAD+` и маркетологу — MANAGER, который работает с лидами больше всех остальных ролей, не мог её проставить. Правка вне плана фазы, по прямому запросу.
+
+**Что было сделано:**
+
+- `app/api/leads/[id]/qualification/route.ts` — `requireCompanyAccess({ minRole: 'HEAD', ... })` → `minRole: 'MANAGER'`
+- `app/(company)/(app)/leads/[id]/page.tsx` — `canQualify` упрощён до `actor.actor === 'marketer' || actor.actor === 'user'` (любая роль компании)
+- Документация: `.docs/modules/platform-marketer.md` (правило доступа + таблица эндпоинтов + связи с `leads.md`), `.docs/prd.md` (QUAL-03, таблица эндпоинтов, описание Фазы 11.6) — убрано упоминание `HEAD+`, заменено на «любая роль компании (MANAGER+)»
+- `components/leads/LeadsTable.tsx`/`QualificationBadge.tsx` не менялись — колонка уже была видна всем ролям, только бейджем без действия
+
+**Out of scope:** allow-list маркетолога (`constants/marketerAccess.ts`) — маркетолог уже был в списке, не трогался; сама модель `LeadQualification` и события `LEAD_QUALIFIED`/`LEAD_DISQUALIFIED` — без изменений.
+
+**Проверено:** `npm run type-check`, `npm run lint` — без ошибок.
+
+**Definition of Done:** выполнено по коду и статическим проверкам; живой прогон под сессией MANAGER не выполнялся в рамках этой правки.
+
+---
+
 ## 2026-07-13 — Phase 20, Таск 3: UI визарда `/admin/import` + история с откатом
 
 **Статус:** ✅ Завершён — Phase 20 полностью закрыта
