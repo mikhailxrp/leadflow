@@ -16,6 +16,7 @@ const STATS_EVENT_TYPES = ['LEAD_TAKEN_IN_WORK', 'LEAD_STAGE_STUCK'] as const;
 export async function getManagerStats(
   companyId: string,
   periodStart: Date,
+  periodEnd?: Date,
 ): Promise<ManagerStat[]> {
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
@@ -30,7 +31,7 @@ export async function getManagerStats(
     where: {
       companyId,
       assignedToId: { not: null },
-      createdAt: { gte: periodStart },
+      createdAt: { gte: periodStart, ...(periodEnd ? { lte: periodEnd } : {}) },
     },
     select: {
       assignedToId: true,

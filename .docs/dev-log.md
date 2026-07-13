@@ -36,6 +36,97 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-13 — Phase 21, Таск 4: UI остальных вкладок отчётов + экспорт CSV
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `components/reports/LossReasonsChart.tsx` (новый) — горизонтальный Recharts `BarChart` (`layout="vertical"`, ось Y — `label` причины) по `LossReasonRow[]`; порядок серверный, без пересортировки; пустое состояние «Нет отказов за выбранный период»; подключён через `dynamic()` без SSR (как остальные графики)
+- `components/reports/ByEmployeeTable.tsx` (новый) — таблица в стиле `TeamTable` по `ManagerStat[]` (сотрудник, получено, вовремя, зависло, сделок, отказов, без причины); пустое состояние «Нет данных за выбранный период»
+- `components/reports/BySourceTable.tsx` (новый) — таблица по `BySourceRow[]`; локальная карта код→лейбл (по образцу `LeadsFilters`); конверсия `Math.round(wonRate * 100)%`; пустое состояние «Нет лидов за выбранный период»
+- `components/reports/ExportButton.tsx` (новый, `'use client'`) — `fetch` `/api/reports/export` с `T00:00:00.000Z`/`T23:59:59.999Z`; проверка `response.ok` до скачивания; имя файла из `Content-Disposition`; скачивание через `Blob` + временный `<a download>` + `URL.revokeObjectURL`
+- `components/reports/ReportsPage.tsx` — общий helper `toPeriodSearchParams()` / `fetchReportRows()`; ленивая подгрузка по табам с кэшем `TabCache` + `periodKey(from, to)`; `ensureTabData()` — фетч только если нет кэша под текущий период (инвалидация при смене `from`/`to`); маппинг `overview → summary` для экспорта (`REPORT_NAME_BY_TAB`); `ExportButton` рядом с табами; плейсхолдер «Раздел в разработке» заменён на три новых компонента
+
+**Out of scope (не делалось):** любые изменения `lib/reports/*`, `/api/reports/*`, `constants/marketerAccess.ts`, `types/reports.ts`; `/control`; доступ MANAGER; общий date-range helper вне `components/reports/`
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — чисто. Живая проверка (Playwright, dev-БД): throwaway-компания с 10 лидами — три новые вкладки показывают реальные данные; ленивая подгрузка при первом переключении; смена пресета «30 дней» на вкладке «По сотрудникам» обновляет её данные; экспорт всех 4 вкладок — корректные имена файлов (`overview` → `summary-...`), `Content-Disposition`, CSV с BOM и кириллицей; пустой период — текстовые пустые состояния на всех трёх вкладках; вёрстка 1280×800 не ломается. **Не проверено живым сценарием:** доступ маркетолога (анализ кода — таск не менял allow-list/guards, новые компоненты используют те же эндпоинты)
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены
+
+---
+
+## 2026-07-13 — Phase 21, Таск 3: UI `/reports` — каркас, период, вкладка «Обзор» (recharts)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `app/(company)/(management)/reports/page.tsx` — заменена заглушка «Раздел в разработке»: `toCompanyActor(session)` (пускает `user` HEAD+ и `marketer`), дефолтный период через `resolveReportPeriod({})`, серверный вызов `getSummary()` напрямую (без HTTP) для начальных данных, `PageHeader` + `NotificationBell` только для `actor.actor === 'user'`
+- `components/reports/ReportsPage.tsx` (новый, Client) — канонический state периода `{from, to}`, общий и для пресетов («Этот месяц»/«30 дней»/«Квартал»), и для ручных `<input type="date">`; активный пресет подсвечивается сравнением вычисленного диапазона с текущим state; 4 таба (`role="tablist"`), содержимым наполнен только «Обзор»
+- `components/reports/LeadsOverTimeChart.tsx`, `StageConversionChart.tsx` (новые, Client) — recharts (Area/Bar); пустое состояние по `totalLeads === 0` (не по `buckets.length`, т.к. бакеты всегда zero-filled); подключены в `ReportsPage` через `dynamic(() => import(...), { ssr: false })` вместо ручного `mounted`-стейта (тот паттерн из старого `LeadsChart.tsx` ловит lint-правило `react-hooks/set-state-in-effect`, появившееся позже)
+- `components/reports/ResponseSpeedCard.tsx` (новый) — `avgFirstResponseMinutes` + три цветные плашки `unprocessed`/`stuck`/`withoutNextAction` (`--color-danger`/`--color-warning`/`--color-info`) с явной подписью «срез на сейчас — не за период»
+- `constants/navItems.ts` — «Отчёты» добавлено в `MARKETER_NAV_ITEMS`
+
+**Out of scope (не делалось):** вкладки «Причины отказа»/«По сотрудникам»/«По источникам» с реальными данными и `ExportButton` — Таск 4; изменения `lib/reports/*`, `/api/reports/*`, `constants/marketerAccess.ts` — уже сделаны в Тасках 1–2
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — чисто (`/reports` в билде). Живая проверка на dev-сервере: throwaway HEAD-компания (3 этапа, 8 лидов на 8 последовательных дней) через прямые Prisma-вставки, вход через реальную форму `/login` в headless-браузере (Playwright, не мок сессии) — сырой `fetch('/api/reports/summary')` до рендера подтвердил агрегаты (`totalLeads=8`, по 1 в бакете на день, `wonRate=0.25`, `unprocessed/stuck/withoutNextAction=2/1/2`); скриншоты подтвердили корректный график/карточку риска/конверсию, переключение пресета (пересчёт `from` + подсветка) и вкладок (плейсхолдер без сетевого запроса), устойчивость к экстремальному диапазону (~2400 дней, `interval="preserveStartEnd"` проредил подписи оси). Единственная консольная ошибка — закрытие SSE-соединения `NotificationBell` при `browser.close()`, не связано с фичей. Throwaway-компания удалена, dev-сервер остановлен
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены
+
+---
+
+## 2026-07-13 — Phase 21, Таск 2: Отчёты по источникам/сотрудникам/причинам + CSV-экспорт + allow-list маркетолога
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `types/reports.ts` — добавлены `BySourceRow` (`source`/`count`/`wonRate`), `LossReasonRow` (`lossReasonId`/`label`/`count`)
+- `lib/reports/getBySource.ts` (новый) — `groupBy('source')` за `from…to` + `wonRate`; период по `Lead.createdAt`, как в `getSummary`
+- `lib/reports/getLossReasonsBreakdown.ts` (новый) — `groupBy('lossReasonId')` при `closeType=LOST` за период; `lossReasonId=null` — явная строка «Без причины», не отбрасывается
+- `lib/reports/exportToCsv.ts` (новый) — BOM + экранирование запятой/кавычки/перевода строки; 4 именованные функции (`summaryToCsv`/`lossReasonsToCsv`/`byEmployeeToCsv`/`bySourceToCsv`), без диспетчера с приведением типов
+- `app/api/reports/by-source/route.ts`, `by-employee/route.ts`, `loss-reasons/route.ts` (новые) — `GET`, `requireCompanyAccess({ minRole: 'HEAD', ... })` → соответствующий `get*`
+- `app/api/reports/export/route.ts` (новый) — `?report=summary|loss-reasons|by-employee|by-source&from&to` → `text/csv` с `Content-Disposition: attachment`; неизвестный/отсутствующий `report` → `400`
+- `lib/validations/reports.ts` — добавлена `reportExportNameSchema` (Zod enum 4 значений)
+- `constants/marketerAccess.ts` — `/reports` в `MARKETER_ALLOWED_PAGES`; все 5 GET-путей отчётов (включая `summary`, не добавленный в Таске 1) в `MARKETER_ALLOWED_API`
+- `.docs/modules/reports.md` — фиксы №1 (`lib/control/getManagerStats`) и №3 (`requireCompanyAccess` + allow-list вместо прямой проверки `session.user.role`) внесены везде по файлу, включая таблицу сравнения с `/control` и раздел «Связи с другими модулями»
+
+**Решение по неоднозначности (риск, зафиксированный в `TASK.md` до реализации):** экспорт `summary` — это `buckets` (дата/количество), не дамп всего объекта; скалярные агрегаты и `conversionByStage` в CSV не идут.
+
+**Out of scope (не делалось):** весь UI `/reports` (Таски 3–4)
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — чисто (4 новых роута в билде); `npx vitest run` — 40/40 (не затронуты). Живая проверка на dev-сервере: throwaway ADMIN/MANAGER-компания (10 лидов, 8 в периоде + 2 намеренно вне) — `by-source`/`loss-reasons`/`by-employee` совпали с ручным расчётом (включая исключение неназначенного лида из `by-employee`, но не из `by-source`, и явную строку «Без причины»); все 4 CSV-экспорта — BOM подтверждён hex-дампом, кириллица не искажена, `Content-Disposition` с именем файла; права — ADMIN `200`, MANAGER `403`, без сессии `401`, невалидный `report`/период — `400`; allow-list маркетолога проверен прямым вызовом `isMarketerAllowedPage`/`isMarketerAllowedApi` на всех 5 путей (полная сессия маркетолога не поднималась — код-путь `requireCompanyAccess` для `marketer` не менялся с Таска 1). Throwaway-компания и временные скрипты удалены, dev-сервер остановлен
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены
+
+---
+
+## 2026-07-13 — Phase 21, Таск 1: Ядро отчётов — период, доступ, `summary` (API)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `types/reports.ts` (новый) — `ReportPeriod`, `LeadsBucket`, `StageConversionRow`, `ReportSummary`; комментарий: `unprocessed`/`stuck`/`withoutNextAction` — текущий срез открытых лидов, не за период; `conversionByStage[].count` — cumulative
+- `lib/validations/reports.ts` (новый) — `reportPeriodSchema` (`from`/`to` как `z.string().datetime()`, инвариант `from ≤ to`); `resolveReportPeriod()` — дефолт: 1-е число текущего месяца 00:00 UTC … сейчас; `to` сервером до конца дня не досчитывается
+- `lib/risk/computeRisk.ts` — добавлены `RiskReasonCode` и `reasonCode` во всех ветках (включая `green` → `'NONE'`); `level`/`reason` не изменены
+- `lib/risk/computeRiskBatch.ts` — тип параметра сужен до `RiskBatchLeadInput = Pick<LeadListItem, 'id' | 'closeType' | 'assignedTo' | 'createdAt' | 'source' | 'stage'>[]`; существующие вызовы без правок
+- `lib/control/getManagerStats.ts` — опциональный `periodEnd?: Date` (`createdAt: { gte, lte }` при наличии); 2 существующих вызова `/control` не тронуты
+- `lib/reports/getSummary.ts` (новый) — за `from…to`: `totalLeads`, `buckets` (по календарным дням), `avgFirstResponseMinutes` (от `lead.createdAt` до первого `LEAD_TAKEN_IN_WORK`), `wonRate`, `conversionByStage` (текущий `stageId` + `STAGE_CHANGED` с разбором `fromStageId`/`toStageId` без `any`); отдельно без фильтра периода — все открытые лиды → `computeRiskBatch` → подсчёт по `reasonCode` (`NO_ASSIGNEE`+`NO_FIRST_RESPONSE` → `unprocessed`, `STAGE_STUCK` → `stuck`, `NO_NEXT_ACTION` → `withoutNextAction`)
+- `app/api/reports/summary/route.ts` (новый) — `GET`, `requireCompanyAccess({ minRole: 'HEAD', method: 'GET', pathname })` → `reportPeriodSchema` → `getSummary`
+- `lib/risk/computeRisk.test.ts`, `lib/risk/computeRiskBatch.test.ts` — обновлены под `reasonCode`
+
+**Баг, найденный и исправленный:** `conversionByStage` учитывал только `payload.toStageId` из `STAGE_CHANGED` — стартовый этап лида (неявный при создании) терялся для лидов, ушедших с первого этапа. Исправлено: в «достигнутые» добавляются оба конца перехода (`fromStageId` и `toStageId`)
+
+**Out of scope (не делалось):** остальные 3 отчёта и CSV-экспорт (Таск 2); allow-list маркетолога на `/api/reports/summary` (Таск 2); правки `.docs/modules/reports.md` (Таск 2); UI `/reports` (Таски 3–4); изменения `/control` и `api/control/stats`
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — чисто (`/api/reports/summary` в билде); `npx vitest run` — 40/40. Живая проверка на dev-сервере: throwaway ADMIN/MANAGER-компания (8 лидов, 3 открытых вне периода) — `summary` за 10 дней: `totalLeads=5`, `avgFirstResponseMinutes=15`, `wonRate=0.2`, `conversionByStage` cumulative; снимок `unprocessed=2/stuck=3/withoutNextAction=1` не меняется при сужении периода; `from > to`/битая ISO → `400`, без сессии → `401`, MANAGER → `403`; `/api/control/stats` не сломан. **Не проверено:** allow-list маркетолога — до Таска 2 маркетолог получит `403` (ожидаемо)
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены
+
+---
+
 ## 2026-07-13 — Фича (вне плана, v4.2): тумблер включения источника на `/admin/integrations`
 
 **Статус:** ✅ Завершён
