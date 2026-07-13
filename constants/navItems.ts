@@ -19,6 +19,7 @@ export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
   { label: 'Интеграции', icon: 'lucide:plug', href: '/admin/integrations', minRole: 'ADMIN' },
   { label: 'Пользователи', icon: 'lucide:user-cog', href: '/admin/users', minRole: 'ADMIN' },
   { label: 'Настройки', icon: 'lucide:settings', href: '/admin/settings', minRole: 'ADMIN' },
+  { label: 'Импорт', icon: 'lucide:upload', href: '/admin/import', minRole: 'ADMIN' },
 ];
 
 export function getNavItemsForRole(role: UserRole): SidebarNavItem[] {

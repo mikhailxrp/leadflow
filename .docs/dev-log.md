@@ -36,6 +36,32 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-13 — Phase 20, Таск 3: UI визарда `/admin/import` + история с откатом
+
+**Статус:** ✅ Завершён — Phase 20 полностью закрыта
+
+**Что было сделано:**
+
+- `app/(company)/(admin)/admin/import/page.tsx` (новый) — Server Component, `auth()` + `hasMinRole(ADMIN)`, начальная история импортов через `prisma.importBatch.findMany` (тот же select, что `GET /api/import`) → `ImportWizard`
+- `components/import/ImportWizard.tsx` (новый) — клиентская стейт-машина 4 шагов (`upload` → `mapping` → `preview` → `report`), держит `fileName`/полный `columns`/`rows`/`mapping` между шагами, инкрементный `historyRefreshSignal` для истории после `confirm`
+- `components/import/FileUploadStep.tsx` (новый) — drag/click-загрузка, клиентская проверка размера/расширения до отправки, `POST multipart /api/import/preview`; маппинг всех 4 кодов ошибок парсинга (`FILE_TOO_LARGE`/`TOO_MANY_ROWS`/`UNSUPPORTED_FORMAT`/`EMPTY_FILE`) на читаемый текст
+- `components/import/ColumnMappingStep.tsx` (новый) — таблица «колонка + пример → `Select` цели» на базе `suggestedMapping`; второй (JSON) вызов `/api/import/preview` с **полным** `rows`, не срезом
+- `components/import/ImportPreviewTable.tsx` (новый) — агрегаты + срез первых 50 строк с бейджем (`isError` проверяется первым — коды взаимоисключающие); переиспользует `mapRow()` из `lib/import/mapRow.ts` для отображения (чистая функция, безопасна в клиентском бандле)
+- `components/import/ImportReport.tsx` (новый) — встроенный блок отчёта на странице (не Toast — отчёт с числами должен остаться видимым, не исчезать через 5 сек)
+- `components/import/ImportHistoryTable.tsx` (новый) — таблица истории, кнопка «Откатить» строго при `status === 'DONE'`; при `historyRefreshSignal` — рефетч `GET /api/import`
+- `components/import/RollbackConfirmModal.tsx` (новый) — по паттерну `DeleteUserModal.tsx`, предупреждение с числом лидов к удалению, локально помечает батч `ROLLED_BACK` в истории после успеха без перезагрузки
+- `constants/navItems.ts` — пункт «Импорт» (`/admin/import`, `minRole: 'ADMIN'`)
+
+**Найдено и исправлено в процессе живой проверки:** Chromium добавляет клиентский `caret-color` style на `<input type="file">`, расположенный рядом с drag-and-drop обработчиками (`onDragOver`/`onDrop`) — вызывало hydration-mismatch warning в React. Подтверждено сравнением с уже существующим файловым инпутом на `/company` (`CompanyLogoUploader`, без drag-and-drop) — там предупреждения нет. Это браузерный артефакт, не логическая ошибка рендера; исправлено точечным `suppressHydrationWarning` на конкретном `<input>` в `FileUploadStep.tsx`.
+
+**Out of scope (не делалось):** любые изменения `lib/import/*`/`app/api/import/*`/`lib/validations/import.ts` (API готово в тасках 1–2); `constants/marketerAccess.ts` (не трогается — `/admin/import` маркетологу и так недоступен структурно); ручной ввод имени custom-поля; прогресс-бар/стриминг статуса батча; виртуализация/пагинация таблицы превью.
+
+**Проверено:** `npm run type-check`/`lint`/`build` — чисто, нет `any`, `/admin/import` в выводе билда. Живой прогон в headless Chromium (Playwright) на реальном dev-сервере и dev-БД: throwaway ADMIN-компания (1 этап воронки + 1 существующий лид) → полный визард на тестовом CSV (обычная строка, дубль по телефону, пустая после маппинга строка) — превью `willCreate=2/possibleDuplicates=1/errors=1`, отчёт `imported=2/skipped=0/duplicates=1/errors=1` сошлись; история обновилась без перезагрузки; откат выполнен через UI и подтверждён напрямую в БД (`importBatchId`-лиды удалены, `ImportBatch.status = ROLLED_BACK`, событие `IMPORT_ROLLED_BACK` с `deleted: 2`, лид вне батча не тронут); кнопка «Откатить» пропала после отката. Повторный прогон на viewport 1024×700 через весь визард — `document.scrollWidth === 1024`, без горизонтального переполнения. Тестовые компании удалены после проверки (`scripts/deleteCompany.ts`), временные скрипты не закоммичены, dev-серверы остановлены. **Не проверено:** доступ `MANAGER`/`HEAD`/маркетолога к `/admin/import` живой сессией другой роли — только чтением кода (общий `proxy.ts`-гейт `/admin/*`, идентичный уже подтверждённым ADMIN-страницам других фаз).
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены. **Phase 20 (Импорт CSV/Excel) полностью завершена** (все 3 таска).
+
+---
+
 ## 2026-07-13 — Phase 20, Таск 2: Батч-создание + отчёт + история + откат
 
 **Статус:** ✅ Завершён
