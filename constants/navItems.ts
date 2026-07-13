@@ -35,6 +35,7 @@ export interface MarketerNavItem {
 const MARKETER_NAV_ITEMS: MarketerNavItem[] = [
   { label: 'Лиды', icon: 'lucide:users', href: '/leads' },
   { label: 'Воронка', icon: 'lucide:kanban', href: '/pipeline' },
+  { label: 'Отчёты', icon: 'lucide:bar-chart-2', href: '/reports' },
 ];
 
 export function getMarketerNavItems(): MarketerNavItem[] {

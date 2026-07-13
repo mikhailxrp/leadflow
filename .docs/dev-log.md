@@ -36,6 +36,26 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-13 — Phase 21, Таск 3: UI `/reports` — каркас, период, вкладка «Обзор» (recharts)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `app/(company)/(management)/reports/page.tsx` — заменена заглушка «Раздел в разработке»: `toCompanyActor(session)` (пускает `user` HEAD+ и `marketer`), дефолтный период через `resolveReportPeriod({})`, серверный вызов `getSummary()` напрямую (без HTTP) для начальных данных, `PageHeader` + `NotificationBell` только для `actor.actor === 'user'`
+- `components/reports/ReportsPage.tsx` (новый, Client) — канонический state периода `{from, to}`, общий и для пресетов («Этот месяц»/«30 дней»/«Квартал»), и для ручных `<input type="date">`; активный пресет подсвечивается сравнением вычисленного диапазона с текущим state; 4 таба (`role="tablist"`), содержимым наполнен только «Обзор»
+- `components/reports/LeadsOverTimeChart.tsx`, `StageConversionChart.tsx` (новые, Client) — recharts (Area/Bar); пустое состояние по `totalLeads === 0` (не по `buckets.length`, т.к. бакеты всегда zero-filled); подключены в `ReportsPage` через `dynamic(() => import(...), { ssr: false })` вместо ручного `mounted`-стейта (тот паттерн из старого `LeadsChart.tsx` ловит lint-правило `react-hooks/set-state-in-effect`, появившееся позже)
+- `components/reports/ResponseSpeedCard.tsx` (новый) — `avgFirstResponseMinutes` + три цветные плашки `unprocessed`/`stuck`/`withoutNextAction` (`--color-danger`/`--color-warning`/`--color-info`) с явной подписью «срез на сейчас — не за период»
+- `constants/navItems.ts` — «Отчёты» добавлено в `MARKETER_NAV_ITEMS`
+
+**Out of scope (не делалось):** вкладки «Причины отказа»/«По сотрудникам»/«По источникам» с реальными данными и `ExportButton` — Таск 4; изменения `lib/reports/*`, `/api/reports/*`, `constants/marketerAccess.ts` — уже сделаны в Тасках 1–2
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — чисто (`/reports` в билде). Живая проверка на dev-сервере: throwaway HEAD-компания (3 этапа, 8 лидов на 8 последовательных дней) через прямые Prisma-вставки, вход через реальную форму `/login` в headless-браузере (Playwright, не мок сессии) — сырой `fetch('/api/reports/summary')` до рендера подтвердил агрегаты (`totalLeads=8`, по 1 в бакете на день, `wonRate=0.25`, `unprocessed/stuck/withoutNextAction=2/1/2`); скриншоты подтвердили корректный график/карточку риска/конверсию, переключение пресета (пересчёт `from` + подсветка) и вкладок (плейсхолдер без сетевого запроса), устойчивость к экстремальному диапазону (~2400 дней, `interval="preserveStartEnd"` проредил подписи оси). Единственная консольная ошибка — закрытие SSE-соединения `NotificationBell` при `browser.close()`, не связано с фичей. Throwaway-компания удалена, dev-сервер остановлен
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены
+
+---
+
 ## 2026-07-13 — Phase 21, Таск 2: Отчёты по источникам/сотрудникам/причинам + CSV-экспорт + allow-list маркетолога
 
 **Статус:** ✅ Завершён
