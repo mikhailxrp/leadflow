@@ -90,12 +90,17 @@ function buildTaskMaps(
   return { hasOpenTaskByLeadId, overdueOpenTaskByLeadId };
 }
 
-export async function computeRiskBatch(
-  leads: LeadListItem[],
+export type RiskBatchLeadInput = Pick<
+  LeadListItem,
+  'id' | 'closeType' | 'assignedTo' | 'createdAt' | 'source' | 'stage'
+>;
+
+export async function computeRiskBatch<T extends RiskBatchLeadInput>(
+  leads: T[],
   companyId: string,
   companySettings: Prisma.JsonValue,
   prisma: PrismaLike,
-): Promise<Array<LeadListItem & { risk: RiskResult }>> {
+): Promise<Array<T & { risk: RiskResult }>> {
   if (leads.length === 0) {
     return [];
   }

@@ -3,7 +3,12 @@
  * Deny-by-default: страница/эндпоинт, не перечисленные здесь, запрещены.
  */
 
-export const MARKETER_ALLOWED_PAGES: string[] = ['/leads', '/pipeline', '/admin/integrations'];
+export const MARKETER_ALLOWED_PAGES: string[] = [
+  '/leads',
+  '/pipeline',
+  '/admin/integrations',
+  '/reports',
+];
 
 type MarketerAllowedApiRule = {
   pattern: RegExp;
@@ -22,6 +27,11 @@ const MARKETER_ALLOWED_API: MarketerAllowedApiRule[] = [
   { pattern: /^\/api\/api-keys$/, methods: ['GET', 'POST'] },
   { pattern: /^\/api\/api-keys\/[^/]+$/, methods: ['PATCH', 'DELETE'] },
   { pattern: /^\/api\/admin\/integrations\/health$/, methods: ['GET'] },
+  { pattern: /^\/api\/reports\/summary$/, methods: ['GET'] },
+  { pattern: /^\/api\/reports\/by-source$/, methods: ['GET'] },
+  { pattern: /^\/api\/reports\/by-employee$/, methods: ['GET'] },
+  { pattern: /^\/api\/reports\/loss-reasons$/, methods: ['GET'] },
+  { pattern: /^\/api\/reports\/export$/, methods: ['GET'] },
 ];
 
 export function isMarketerAllowedPage(pathname: string): boolean {

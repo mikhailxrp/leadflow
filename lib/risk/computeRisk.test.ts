@@ -63,36 +63,48 @@ function buildInput(overrides: InputOverrides = {}): RiskInput {
 describe('computeRisk', () => {
   it('green: лид в норме — нет причины риска', () => {
     const result = computeRisk(buildInput());
-    expect(result).toEqual({ level: 'green', reason: null });
+    expect(result).toEqual({ level: 'green', reason: null, reasonCode: 'NONE' });
   });
 
   it('grey: закрыт сделкой (WON) — высший приоритет, выигрывает у "нет ответственного"', () => {
     const result = computeRisk(
       buildInput({ closeType: 'WON', assignedToId: null, hasOpenTask: false }),
     );
-    expect(result).toEqual({ level: 'grey', reason: 'Закрыт: сделка' });
+    expect(result).toEqual({ level: 'grey', reason: 'Закрыт: сделка', reasonCode: 'CLOSED' });
   });
 
   it('grey: закрыт отказом (LOST)', () => {
     const result = computeRisk(buildInput({ closeType: 'LOST' }));
-    expect(result).toEqual({ level: 'grey', reason: 'Закрыт: отказ' });
+    expect(result).toEqual({ level: 'grey', reason: 'Закрыт: отказ', reasonCode: 'CLOSED' });
   });
 
   it('red: нет ответственного', () => {
     const result = computeRisk(buildInput({ assignedToId: null }));
-    expect(result).toEqual({ level: 'red', reason: 'Нет ответственного' });
+    expect(result).toEqual({
+      level: 'red',
+      reason: 'Нет ответственного',
+      reasonCode: 'NO_ASSIGNEE',
+    });
   });
 
   it('red: "нет ответственного" выигрывает у "нет следующего шага" при совпадении', () => {
     const result = computeRisk(buildInput({ assignedToId: null, hasOpenTask: false }));
-    expect(result).toEqual({ level: 'red', reason: 'Нет ответственного' });
+    expect(result).toEqual({
+      level: 'red',
+      reason: 'Нет ответственного',
+      reasonCode: 'NO_ASSIGNEE',
+    });
   });
 
   it('red: нет первого ответа дольше норматива', () => {
     const result = computeRisk(
       buildInput({ hasTakenInWork: false, defaultMinutes: 30, createdAt: minutesAgo(31) }),
     );
-    expect(result).toEqual({ level: 'red', reason: 'Нет первого ответа 31 минут' });
+    expect(result).toEqual({
+      level: 'red',
+      reason: 'Нет первого ответа 31 минут',
+      reasonCode: 'NO_FIRST_RESPONSE',
+    });
   });
 
   it('граница: ровно на нормативе первого ответа — ещё не red (строгое >)', () => {
@@ -116,7 +128,11 @@ describe('computeRisk', () => {
         createdAt: minutesAgo(60),
       }),
     );
-    expect(result).toEqual({ level: 'yellow', reason: 'Приближается срок первого ответа' });
+    expect(result).toEqual({
+      level: 'yellow',
+      reason: 'Приближается срок первого ответа',
+      reasonCode: 'APPROACHING_DEADLINE',
+    });
   });
 
   it('red: лид завис на этапе дольше дефолта компании (лимит этапа не задан)', () => {
@@ -127,7 +143,7 @@ describe('computeRisk', () => {
         lastStageChangedAt: daysAgo(6),
       }),
     );
-    expect(result).toEqual({ level: 'red', reason: '6 дней на этапе' });
+    expect(result).toEqual({ level: 'red', reason: '6 дней на этапе', reasonCode: 'STAGE_STUCK' });
   });
 
   it('red: лид завис на этапе дольше собственного лимита этапа (переопределяет дефолт компании)', () => {
@@ -138,14 +154,14 @@ describe('computeRisk', () => {
         lastStageChangedAt: daysAgo(4),
       }),
     );
-    expect(result).toEqual({ level: 'red', reason: '4 дней на этапе' });
+    expect(result).toEqual({ level: 'red', reason: '4 дней на этапе', reasonCode: 'STAGE_STUCK' });
   });
 
   it('граница: ровно на лимите этапа — ещё не red (строгое >)', () => {
     const result = computeRisk(
       buildInput({ stageTimeLimitDays: 5, lastStageChangedAt: daysAgo(5) }),
     );
-    expect(result).toEqual({ level: 'green', reason: null });
+    expect(result).toEqual({ level: 'green', reason: null, reasonCode: 'NONE' });
   });
 
   it('yellow: просрочена открытая задача', () => {
@@ -153,6 +169,7 @@ describe('computeRisk', () => {
     expect(result).toEqual({
       level: 'yellow',
       reason: 'Просрочена задача: Позвонить клиенту',
+      reasonCode: 'TASK_OVERDUE',
     });
   });
 
@@ -160,11 +177,19 @@ describe('computeRisk', () => {
     const result = computeRisk(
       buildInput({ overdueOpenTask: { title: 'Написать письмо' }, hasOpenTask: false }),
     );
-    expect(result).toEqual({ level: 'yellow', reason: 'Просрочена задача: Написать письмо' });
+    expect(result).toEqual({
+      level: 'yellow',
+      reason: 'Просрочена задача: Написать письмо',
+      reasonCode: 'TASK_OVERDUE',
+    });
   });
 
   it('yellow: нет следующего шага (открытой задачи)', () => {
     const result = computeRisk(buildInput({ hasOpenTask: false }));
-    expect(result).toEqual({ level: 'yellow', reason: 'Нет следующего шага' });
+    expect(result).toEqual({
+      level: 'yellow',
+      reason: 'Нет следующего шага',
+      reasonCode: 'NO_NEXT_ACTION',
+    });
   });
 });
