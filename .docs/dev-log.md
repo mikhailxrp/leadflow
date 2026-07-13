@@ -36,6 +36,101 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-13 — Phase 20, Таск 3: UI визарда `/admin/import` + история с откатом
+
+**Статус:** ✅ Завершён — Phase 20 полностью закрыта
+
+**Что было сделано:**
+
+- `app/(company)/(admin)/admin/import/page.tsx` (новый) — Server Component, `auth()` + `hasMinRole(ADMIN)`, начальная история импортов через `prisma.importBatch.findMany` (тот же select, что `GET /api/import`) → `ImportWizard`
+- `components/import/ImportWizard.tsx` (новый) — клиентская стейт-машина 4 шагов (`upload` → `mapping` → `preview` → `report`), держит `fileName`/полный `columns`/`rows`/`mapping` между шагами, инкрементный `historyRefreshSignal` для истории после `confirm`
+- `components/import/FileUploadStep.tsx` (новый) — drag/click-загрузка, клиентская проверка размера/расширения до отправки, `POST multipart /api/import/preview`; маппинг всех 4 кодов ошибок парсинга (`FILE_TOO_LARGE`/`TOO_MANY_ROWS`/`UNSUPPORTED_FORMAT`/`EMPTY_FILE`) на читаемый текст
+- `components/import/ColumnMappingStep.tsx` (новый) — таблица «колонка + пример → `Select` цели» на базе `suggestedMapping`; второй (JSON) вызов `/api/import/preview` с **полным** `rows`, не срезом
+- `components/import/ImportPreviewTable.tsx` (новый) — агрегаты + срез первых 50 строк с бейджем (`isError` проверяется первым — коды взаимоисключающие); переиспользует `mapRow()` из `lib/import/mapRow.ts` для отображения (чистая функция, безопасна в клиентском бандле)
+- `components/import/ImportReport.tsx` (новый) — встроенный блок отчёта на странице (не Toast — отчёт с числами должен остаться видимым, не исчезать через 5 сек)
+- `components/import/ImportHistoryTable.tsx` (новый) — таблица истории, кнопка «Откатить» строго при `status === 'DONE'`; при `historyRefreshSignal` — рефетч `GET /api/import`
+- `components/import/RollbackConfirmModal.tsx` (новый) — по паттерну `DeleteUserModal.tsx`, предупреждение с числом лидов к удалению, локально помечает батч `ROLLED_BACK` в истории после успеха без перезагрузки
+- `constants/navItems.ts` — пункт «Импорт» (`/admin/import`, `minRole: 'ADMIN'`)
+
+**Найдено и исправлено в процессе живой проверки:** Chromium добавляет клиентский `caret-color` style на `<input type="file">`, расположенный рядом с drag-and-drop обработчиками (`onDragOver`/`onDrop`) — вызывало hydration-mismatch warning в React. Подтверждено сравнением с уже существующим файловым инпутом на `/company` (`CompanyLogoUploader`, без drag-and-drop) — там предупреждения нет. Это браузерный артефакт, не логическая ошибка рендера; исправлено точечным `suppressHydrationWarning` на конкретном `<input>` в `FileUploadStep.tsx`.
+
+**Out of scope (не делалось):** любые изменения `lib/import/*`/`app/api/import/*`/`lib/validations/import.ts` (API готово в тасках 1–2); `constants/marketerAccess.ts` (не трогается — `/admin/import` маркетологу и так недоступен структурно); ручной ввод имени custom-поля; прогресс-бар/стриминг статуса батча; виртуализация/пагинация таблицы превью.
+
+**Проверено:** `npm run type-check`/`lint`/`build` — чисто, нет `any`, `/admin/import` в выводе билда. Живой прогон в headless Chromium (Playwright) на реальном dev-сервере и dev-БД: throwaway ADMIN-компания (1 этап воронки + 1 существующий лид) → полный визард на тестовом CSV (обычная строка, дубль по телефону, пустая после маппинга строка) — превью `willCreate=2/possibleDuplicates=1/errors=1`, отчёт `imported=2/skipped=0/duplicates=1/errors=1` сошлись; история обновилась без перезагрузки; откат выполнен через UI и подтверждён напрямую в БД (`importBatchId`-лиды удалены, `ImportBatch.status = ROLLED_BACK`, событие `IMPORT_ROLLED_BACK` с `deleted: 2`, лид вне батча не тронут); кнопка «Откатить» пропала после отката. Повторный прогон на viewport 1024×700 через весь визард — `document.scrollWidth === 1024`, без горизонтального переполнения. Тестовые компании удалены после проверки (`scripts/deleteCompany.ts`), временные скрипты не закоммичены, dev-серверы остановлены. **Не проверено:** доступ `MANAGER`/`HEAD`/маркетолога к `/admin/import` живой сессией другой роли — только чтением кода (общий `proxy.ts`-гейт `/admin/*`, идентичный уже подтверждённым ADMIN-страницам других фаз).
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены. **Phase 20 (Импорт CSV/Excel) полностью завершена** (все 3 таска).
+
+---
+
+## 2026-07-13 — Phase 20, Таск 2: Батч-создание + отчёт + история + откат
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/import.ts` — добавлен `confirmImportSchema` (`fileName: z.string().min(1).max(255)`, `mapping`, `rows` с `.max(MAX_IMPORT_ROWS)`); `confirmDuplicates` намеренно не включён — чисто клиентский чек-бокс (Таск 3)
+- `types/import.ts` — добавлен `ImportHistoryItem` для `GET /api/import`; `ImportReport` уточнён под ответ `confirm`
+- `lib/import/runImport.ts` (новый) — `ImportBatch(status: PROCESSING)` → последовательный `for...of` по строкам (`mapRow`/`isMappedRowEmpty` из `mapRow.ts`, `findPossibleDuplicates` из intake); пустая строка → `errors++`; per-row `prisma.$transaction`: `lead.create` (`source: 'import'`, `importBatchId`, `assignedToId: null`) + `LEAD_CREATED` + `DuplicateFlag`/`DUPLICATE_FLAGGED` по совпадениям; необработанное исключение → `skipped++` (батч не падает); финал — `status: DONE` + `writeEvent(IMPORT_COMPLETED)`; **не вызывает** `createLead`, `normalizeLead`, `assignLead`, `notifyNewLead`
+- `app/api/import/confirm/route.ts` (новый) — `POST`, `requireCompanyUser({ minRole: 'ADMIN' })`, `confirmImportSchema` → `runImport` → `ImportReport`
+- `app/api/import/route.ts` (новый) — `GET` история импортов компании (`where: { companyId }`, `orderBy: createdAt desc`, `createdBy.name` → `createdByName`), без пагинации
+- `app/api/import/[batchId]/rollback/route.ts` (новый) — `POST`; раздельные проверки: нет батча → `404`, `status !== DONE` → `400 IMPORT_NOT_ROLLBACKABLE`; транзакция: `lead.deleteMany({ importBatchId })` → `status: ROLLED_BACK` → `IMPORT_ROLLED_BACK`
+- `.docs/modules/import.md` — уточнены контракты `confirm`/`rollback`, `fileName` в теле запроса, структура API-файлов
+
+**Out of scope (не делалось):** UI визарда, история и кнопка отката в интерфейсе (Таск 3); назначение из колонки файла, автоназначение, SSE/Telegram при импорте; докат «зависшего» батча (`PROCESSING`); пагинация истории; rate limiting
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — чисто, нет `any`; все три новых роута в выводе билда. Функциональный смок-тест (`tsx`, временный скрипт, реальная dev-БД): изолированная тестовая компания + существующий лид для дедупа; `runImport` на 5 строках — агрегаты `totalRows: 5, imported: 4, errors: 1, duplicates: 2, skipped: 0` сошлись; `importBatchId` на всех 4 лидах; `customFields`-маппинг сохранён; `DuplicateFlag` с правильными `matchedLeadId` (в т.ч. внутрифайловый дубль против ранее закоммиченной строки); откат каскадно удалил лиды батча, перевёл в `ROLLED_BACK`, не тронул лид вне батча. **Не проверено:** `writeEvent(IMPORT_COMPLETED)` в standalone-скрипте (нет Next.js request-контекста для `auth()`); HTTP-гейты `401`/`403` и JSON-парсинг — только чтением кода и переиспользованием `requireCompanyUser`
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены; полная проверка через UI — Таск 3
+
+---
+
+## 2026-07-13 — Phase 20, Таск 1: Парсинг файла + авто-маппинг + превью с дублями
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- Зависимости: `papaparse` + `@types/papaparse`, `xlsx` (SheetJS с официального CDN — `npm i https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz`, версия 0.20.3; пакет на npmjs устарел, см. `phase-20.md`)
+- `types/import.ts` (новый) — `MappingTarget`, `ParsedRow`, `ImportPreviewParseResult`, `MappedRowFields`, `ImportPreviewDedupResult`, `ImportReport` (последний — задел под Таск 2)
+- `lib/import/parseFile.ts` (новый) — `parseImportFile()`: формат по расширению имени файла (не по MIME — ненадёжен для CSV/Excel в браузере), CSV через `papaparse` (`header: true`), Excel через `xlsx` (`XLSX.read` + `sheet_to_json`); лимиты `MAX_IMPORT_FILE_SIZE_BYTES` (10 МБ, до чтения содержимого) и `MAX_IMPORT_ROWS` (5000, после парсинга) — `ImportParseError` с кодами `FILE_TOO_LARGE`/`TOO_MANY_ROWS`/`UNSUPPORTED_FORMAT`/`EMPTY_FILE`
+- `lib/import/suggestMapping.ts` (новый) — авто-маппинг колонок по `constants/fieldAliases.ts` (точное совпадение, как в `normalizeLead`, без фаззи-подбора); нераспознанное → `'skip'`
+- `lib/import/mapRow.ts` (новый) — `mapRow(row, mapping)`: строит `{ name, phone, email, comment, customFields }` из размеченной строки; не вызывает `normalizeLead()`; немаппленная колонка не теряется — уходит в `customFields` под своим именем («сеть безопасности», не только явный `customField:<name>`); общая для этого таска (дедуп-превью) и будущего `runImport.ts` (Таск 2)
+- `lib/validations/import.ts` (новый) — `previewRemapSchema` с собственным `.max(MAX_IMPORT_ROWS)` на JSON-вызове (независимая проверка лимита — второй вызов не разделяет состояние с первым)
+- `app/api/import/preview/route.ts` (новый) — `POST`, `requireCompanyUser({ minRole: 'ADMIN' })`; ветвление по `Content-Type`: multipart → парсинг + авто-маппинг (весь массив строк, не срез — контракт зафиксирован явно при планировании); JSON → батч-дедуп одним `prisma.lead.findMany` по всем `phone`/`email` файла (не N запросов на 5000 строк) + агрегаты `willCreate`/`possibleDuplicates`/`errors`
+
+**Баг, найденный и исправленный в процессе смок-теста:** пустая ячейка в немаппленной колонке (значение `""`) через «сеть безопасности» писала `customFields: { колонка: "" }` — непустой объект, из-за чего `isMappedRowEmpty()` не распознавал полностью пустую строку как ошибочную. Добавлен `hasValue()` в `mapRow.ts`: пустые строки/`null`/`undefined` больше не попадают в `customFields` (числа вроде `0` и `false` по-прежнему считаются значением).
+
+**Out of scope (не делалось):** батч-создание/`confirm`/история/откат (Таск 2), UI визарда и пункт навигации (Таск 3), назначение ответственного из колонки файла (отложено на уровне фазы), rate limiting на `/api/import/preview` (не требуется модулем — ADMIN-only эндпоинт).
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — чисто, нет `any`. Функциональный смок-тест через `tsx` (временный скрипт, удалён после проверки): реальные CSV/XLSX-байты через `parseImportFile`/`suggestMapping`/`mapRow` — кириллица не ломается, формат по расширению определяется верно, `FILE_TOO_LARGE`/`TOO_MANY_ROWS`/`UNSUPPORTED_FORMAT` срабатывают на граничных значениях, явный маппинг и «сеть безопасности» для немаппленных колонок работают корректно. **Не проверено:** сам HTTP-роут под живой ADMIN-сессией в браузере и батч-дедуп на реальных данных БД — нет браузера/тестовой сессии в этой среде; будет пройдено по факту при сборке UI в Таске 3.
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены, `.docs/dod-global.md` применим частично (задача без UI/форм — соответствующие пункты переносятся на Таск 3).
+
+---
+
+## 2026-07-12 — Phase 19, Таск 2: UI `/today` + переиспользование риска/задач + чистка старой заглушки
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `app/(company)/(app)/today/page.tsx` — переписан: Server Component; `auth()` → редирект на `/login` при `!session || session.kind !== 'company' || !session.user`; прямой вызов `getTodayData(companyId, currentUserId)` (без self-fetch к `/api/today`); параллельно — 4 личных счётчика по `assignedToId` (всего / новых сегодня / в работе / сделок); `PageHeader title="Сегодня"` + `NotificationBell`; `TodayStatsRow` + `TodayBoard` с `currentUserId` и `isAdmin={hasMinRole(role, 'ADMIN')}`
+- `components/today/TodayBoard.tsx` (новый) — Server Component; 7 секций в порядке из `today.md`; при сумме `total` по всем блокам = 0 — стейт «На сегодня всё сделано»; лид-блоки — `layout="grid"`, задачные — построчный список
+- `components/today/TodaySection.tsx` (новый) — Server Component; `items.length === 0` → `null`; футер «Показать все N» только при `moreHref` (лид-блоки → `/leads`, задачные без ссылки)
+- `components/today/TodayLeadRow.tsx` (новый) — Server Component; имя/телефон → `/leads/:id`, `RiskBadge`, `LeadRowQuickActions` (`canEditNextAction = isAdmin || nextAction.createdById === currentUserId`)
+- `components/today/TodayTaskRow.tsx` (новый) — Server Component; название, `formatDueDateLabel`, имя лида, ссылка `/leads/:leadId`
+- `components/today/TodayStatsRow.tsx` — перенесён из `components/dashboard/StatsRow.tsx`; счётчики строго по текущему пользователю; переиспользует `components/blocks/StatCard.tsx`
+- Удалены: `components/dashboard/LeadsChart.tsx`, `components/dashboard/RecentLeads.tsx`, `components/dashboard/StatsRow.tsx`; папка `components/dashboard/` пуста и убрана
+- `.docs/modules/today.md` — описание UI: личные счётчики, структура компонентов, порядок блоков
+
+**Отклонения от TASK.md:** `StatCard.tsx` не удалён — оставлен как общий UI-блок для `TodayStatsRow` (в TASK — «удалить» вместе с заглушкой); в `PageHeader` сохранены дата/аватар/`LogoutButton` из прежней страницы дашборда (в TASK — только `NotificationBell`, т.к. остальное в `AppShell`)
+
+**Out of scope (не делалось):** правки `getTodayData` / `GET /api/today` / `types/today.ts`; новая SSE-логика (переиспользуется `SseProvider` → `router.refresh()`); доступ маркетолога к `/today`; `/control`; отдельный список задач; query-фильтры на `/leads`
+
+**Проверено:** `npm run type-check`, `npm run lint` — без ошибок; нет `any`; ручной прогон `/today` (MANAGER/HEAD/ADMIN, пустой стейт, SSE-обновление, 1024×700) — не зафиксирован в `TASK.md` (DoD-чекбоксы не отмечены)
+
+**Definition of Done:** выполнено по коду и статическим проверкам; пункты DoD с browser-прогоном и `npm run build` — на стороне поставщика
+
 ## 2026-07-13 — Фикс: видимость лидов MANAGER — жёсткое правило «только свои»
 
 **Статус:** ✅ Завершён
