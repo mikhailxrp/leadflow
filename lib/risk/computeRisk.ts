@@ -5,9 +5,20 @@ const MS_PER_DAY = 86_400_000;
 
 export type RiskLevel = 'green' | 'yellow' | 'red' | 'grey';
 
+export type RiskReasonCode =
+  | 'CLOSED'
+  | 'NO_ASSIGNEE'
+  | 'NO_FIRST_RESPONSE'
+  | 'STAGE_STUCK'
+  | 'NO_NEXT_ACTION'
+  | 'TASK_OVERDUE'
+  | 'APPROACHING_DEADLINE'
+  | 'NONE';
+
 export interface RiskResult {
   level: RiskLevel;
   reason: string | null;
+  reasonCode: RiskReasonCode;
 }
 
 export interface ReactionNorms {
@@ -46,15 +57,15 @@ export function computeRisk(input: RiskInput): RiskResult {
   const now = input.now ?? new Date();
 
   if (input.lead.closeType === 'WON') {
-    return { level: 'grey', reason: 'Закрыт: сделка' };
+    return { level: 'grey', reason: 'Закрыт: сделка', reasonCode: 'CLOSED' };
   }
 
   if (input.lead.closeType === 'LOST') {
-    return { level: 'grey', reason: 'Закрыт: отказ' };
+    return { level: 'grey', reason: 'Закрыт: отказ', reasonCode: 'CLOSED' };
   }
 
   if (!input.lead.assignedToId) {
-    return { level: 'red', reason: 'Нет ответственного' };
+    return { level: 'red', reason: 'Нет ответственного', reasonCode: 'NO_ASSIGNEE' };
   }
 
   const norm = resolveApplicableNorm(input.lead, input.companySettings.reactionNorms);
@@ -68,6 +79,7 @@ export function computeRisk(input: RiskInput): RiskResult {
     return {
       level: 'red',
       reason: `Нет первого ответа ${Math.floor(elapsedMinutes)} минут`,
+      reasonCode: 'NO_FIRST_RESPONSE',
     };
   }
 
@@ -78,26 +90,31 @@ export function computeRisk(input: RiskInput): RiskResult {
   );
 
   if (daysOnStage > stageLimit) {
-    return { level: 'red', reason: `${daysOnStage} дней на этапе` };
+    return { level: 'red', reason: `${daysOnStage} дней на этапе`, reasonCode: 'STAGE_STUCK' };
   }
 
   if (input.overdueOpenTask != null) {
     return {
       level: 'yellow',
       reason: `Просрочена задача: ${input.overdueOpenTask.title}`,
+      reasonCode: 'TASK_OVERDUE',
     };
   }
 
   if (!input.hasOpenTask) {
-    return { level: 'yellow', reason: 'Нет следующего шага' };
+    return { level: 'yellow', reason: 'Нет следующего шага', reasonCode: 'NO_NEXT_ACTION' };
   }
 
   const warningThreshold =
     norm.defaultMinutes * (norm.reminderBeforePercent / 100);
 
   if (!input.hasTakenInWork && elapsedMinutes > warningThreshold) {
-    return { level: 'yellow', reason: 'Приближается срок первого ответа' };
+    return {
+      level: 'yellow',
+      reason: 'Приближается срок первого ответа',
+      reasonCode: 'APPROACHING_DEADLINE',
+    };
   }
 
-  return { level: 'green', reason: null };
+  return { level: 'green', reason: null, reasonCode: 'NONE' };
 }

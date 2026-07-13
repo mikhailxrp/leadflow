@@ -102,7 +102,7 @@ describe('computeRiskBatch', () => {
     const [result] = await computeRiskBatch([lead], COMPANY_ID, baseSettings, prisma);
 
     // Если бы был ошибочно выбран STAGE_CHANGED месячной давности, лид считался бы зависшим (red).
-    expect(result.risk).toEqual({ level: 'green', reason: null });
+    expect(result.risk).toEqual({ level: 'green', reason: null, reasonCode: 'NONE' });
   });
 
   it('детектирует hasTakenInWork по LEAD_TAKEN_IN_WORK независимо для каждого лида в батче', async () => {
@@ -136,8 +136,9 @@ describe('computeRiskBatch', () => {
     expect(byId.get('lead-2')?.risk).toEqual({
       level: 'red',
       reason: 'Нет первого ответа 60 минут',
+      reasonCode: 'NO_FIRST_RESPONSE',
     });
-    expect(byId.get('lead-3')?.risk).toEqual({ level: 'green', reason: null });
+    expect(byId.get('lead-3')?.risk).toEqual({ level: 'green', reason: null, reasonCode: 'NONE' });
   });
 
   it('собирает overdueOpenTask из просроченной задачи — yellow с её названием', async () => {
@@ -152,7 +153,11 @@ describe('computeRiskBatch', () => {
     );
 
     const [result] = await computeRiskBatch([lead], COMPANY_ID, baseSettings, prisma);
-    expect(result.risk).toEqual({ level: 'yellow', reason: 'Просрочена задача: Отправить КП' });
+    expect(result.risk).toEqual({
+      level: 'yellow',
+      reason: 'Просрочена задача: Отправить КП',
+      reasonCode: 'TASK_OVERDUE',
+    });
   });
 
   it('лид без открытых задач — hasOpenTask=false → yellow "Нет следующего шага"', async () => {
@@ -167,7 +172,11 @@ describe('computeRiskBatch', () => {
     );
 
     const [result] = await computeRiskBatch([lead], COMPANY_ID, baseSettings, prisma);
-    expect(result.risk).toEqual({ level: 'yellow', reason: 'Нет следующего шага' });
+    expect(result.risk).toEqual({
+      level: 'yellow',
+      reason: 'Нет следующего шага',
+      reasonCode: 'NO_NEXT_ACTION',
+    });
   });
 
   it('фолбэк: при отсутствии STAGE_CHANGED использует Lead.createdAt как дату начала этапа', async () => {
@@ -182,7 +191,11 @@ describe('computeRiskBatch', () => {
     );
 
     const [result] = await computeRiskBatch([lead], COMPANY_ID, baseSettings, prisma);
-    expect(result.risk).toEqual({ level: 'red', reason: '10 дней на этапе' });
+    expect(result.risk).toEqual({
+      level: 'red',
+      reason: '10 дней на этапе',
+      reasonCode: 'STAGE_STUCK',
+    });
   });
 
   it('делает ровно один запрос событий и один запрос задач независимо от числа лидов (без N+1)', async () => {
