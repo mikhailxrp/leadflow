@@ -153,6 +153,8 @@ export default function ReportsPage({
   initialTo,
 }: ReportsPageProps): ReactNode {
   const [activeTab, setActiveTab] = useState<ReportTab>('overview');
+  // Совпадает с дефолтом resolveReportPeriod() на сервере (initialFrom/initialTo).
+  const [activePreset, setActivePreset] = useState<PeriodPreset | null>('this-month');
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
   const [summary, setSummary] = useState<ReportSummary>(initialSummary);
@@ -236,14 +238,17 @@ export default function ReportsPage({
 
   function handlePresetClick(preset: PeriodPreset): void {
     const range = presetRange(preset);
+    setActivePreset(preset);
     handlePeriodChange(range.from, range.to);
   }
 
   function handleFromChange(nextFrom: string): void {
+    setActivePreset(null);
     handlePeriodChange(nextFrom, to);
   }
 
   function handleToChange(nextTo: string): void {
+    setActivePreset(null);
     handlePeriodChange(from, nextTo);
   }
 
@@ -260,22 +265,17 @@ export default function ReportsPage({
           role="group"
           aria-label="Период"
         >
-          {PRESETS.map((preset) => {
-            const range = presetRange(preset.value);
-            const isActive = range.from === from && range.to === to;
-
-            return (
-              <button
-                key={preset.value}
-                type="button"
-                disabled={isLoading}
-                onClick={() => handlePresetClick(preset.value)}
-                className={toggleButtonClassName(isActive)}
-              >
-                {preset.label}
-              </button>
-            );
-          })}
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.value}
+              type="button"
+              disabled={isLoading}
+              onClick={() => handlePresetClick(preset.value)}
+              className={toggleButtonClassName(activePreset === preset.value)}
+            >
+              {preset.label}
+            </button>
+          ))}
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:w-auto">
