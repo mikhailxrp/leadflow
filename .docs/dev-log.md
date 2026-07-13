@@ -36,6 +36,30 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-13 — Phase 20, Таск 1: Парсинг файла + авто-маппинг + превью с дублями
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- Зависимости: `papaparse` + `@types/papaparse`, `xlsx` (SheetJS с официального CDN — `npm i https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz`, версия 0.20.3; пакет на npmjs устарел, см. `phase-20.md`)
+- `types/import.ts` (новый) — `MappingTarget`, `ParsedRow`, `ImportPreviewParseResult`, `MappedRowFields`, `ImportPreviewDedupResult`, `ImportReport` (последний — задел под Таск 2)
+- `lib/import/parseFile.ts` (новый) — `parseImportFile()`: формат по расширению имени файла (не по MIME — ненадёжен для CSV/Excel в браузере), CSV через `papaparse` (`header: true`), Excel через `xlsx` (`XLSX.read` + `sheet_to_json`); лимиты `MAX_IMPORT_FILE_SIZE_BYTES` (10 МБ, до чтения содержимого) и `MAX_IMPORT_ROWS` (5000, после парсинга) — `ImportParseError` с кодами `FILE_TOO_LARGE`/`TOO_MANY_ROWS`/`UNSUPPORTED_FORMAT`/`EMPTY_FILE`
+- `lib/import/suggestMapping.ts` (новый) — авто-маппинг колонок по `constants/fieldAliases.ts` (точное совпадение, как в `normalizeLead`, без фаззи-подбора); нераспознанное → `'skip'`
+- `lib/import/mapRow.ts` (новый) — `mapRow(row, mapping)`: строит `{ name, phone, email, comment, customFields }` из размеченной строки; не вызывает `normalizeLead()`; немаппленная колонка не теряется — уходит в `customFields` под своим именем («сеть безопасности», не только явный `customField:<name>`); общая для этого таска (дедуп-превью) и будущего `runImport.ts` (Таск 2)
+- `lib/validations/import.ts` (новый) — `previewRemapSchema` с собственным `.max(MAX_IMPORT_ROWS)` на JSON-вызове (независимая проверка лимита — второй вызов не разделяет состояние с первым)
+- `app/api/import/preview/route.ts` (новый) — `POST`, `requireCompanyUser({ minRole: 'ADMIN' })`; ветвление по `Content-Type`: multipart → парсинг + авто-маппинг (весь массив строк, не срез — контракт зафиксирован явно при планировании); JSON → батч-дедуп одним `prisma.lead.findMany` по всем `phone`/`email` файла (не N запросов на 5000 строк) + агрегаты `willCreate`/`possibleDuplicates`/`errors`
+
+**Баг, найденный и исправленный в процессе смок-теста:** пустая ячейка в немаппленной колонке (значение `""`) через «сеть безопасности» писала `customFields: { колонка: "" }` — непустой объект, из-за чего `isMappedRowEmpty()` не распознавал полностью пустую строку как ошибочную. Добавлен `hasValue()` в `mapRow.ts`: пустые строки/`null`/`undefined` больше не попадают в `customFields` (числа вроде `0` и `false` по-прежнему считаются значением).
+
+**Out of scope (не делалось):** батч-создание/`confirm`/история/откат (Таск 2), UI визарда и пункт навигации (Таск 3), назначение ответственного из колонки файла (отложено на уровне фазы), rate limiting на `/api/import/preview` (не требуется модулем — ADMIN-only эндпоинт).
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build` — чисто, нет `any`. Функциональный смок-тест через `tsx` (временный скрипт, удалён после проверки): реальные CSV/XLSX-байты через `parseImportFile`/`suggestMapping`/`mapRow` — кириллица не ломается, формат по расширению определяется верно, `FILE_TOO_LARGE`/`TOO_MANY_ROWS`/`UNSUPPORTED_FORMAT` срабатывают на граничных значениях, явный маппинг и «сеть безопасности» для немаппленных колонок работают корректно. **Не проверено:** сам HTTP-роут под живой ADMIN-сессией в браузере и батч-дедуп на реальных данных БД — нет браузера/тестовой сессии в этой среде; будет пройдено по факту при сборке UI в Таске 3.
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены, `.docs/dod-global.md` применим частично (задача без UI/форм — соответствующие пункты переносятся на Таск 3).
+
+---
+
 ## 2026-07-12 — Phase 19, Таск 2: UI `/today` + переиспользование риска/задач + чистка старой заглушки
 
 **Статус:** ✅ Завершён
