@@ -387,6 +387,7 @@ model ApiKey {
   name        String
   keyHash     String
   sourceLabel String
+  isEnabled   Boolean  @default(true)
   createdAt   DateTime @default(now())
 
   company Company @relation(fields: [companyId], references: [id])

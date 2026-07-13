@@ -60,6 +60,23 @@ export async function checkSourceHealth(
 
     if (sources.length === 0) continue;
 
+    // Ключ считается «включённым» для label, если хотя бы один ApiKey с этим sourceLabel
+    // активен — sourceLabel не уникален, лиды могли продолжать идти через другой ключ.
+    const apiKeys = await prisma.apiKey.findMany({
+      where: { companyId: company.id },
+      select: { sourceLabel: true, isEnabled: true },
+    });
+    const enabledApiLabels = new Set(
+      apiKeys.filter((key) => key.isEnabled).map((key) => key.sourceLabel),
+    );
+
+    function isSourceEnabled(type: string, label: string): boolean {
+      if (type === 'tilda') return settings.sourceEnabled.tilda;
+      if (type === 'wordpress') return settings.sourceEnabled.wordpress;
+      if (type === 'api') return enabledApiLabels.has(label);
+      return true;
+    }
+
     const statusEvents = await prisma.event.findMany({
       where: {
         companyId: company.id,
@@ -87,6 +104,8 @@ export async function checkSourceHealth(
     }
 
     for (const source of sources) {
+      if (!isSourceEnabled(source.type, source.label)) continue; // выключен намеренно — не алертить
+
       const key = sourceKey(source.type, source.label);
       const hoursSinceLastUse = (now.getTime() - source.lastUsedAt!.getTime()) / MS_PER_HOUR;
 

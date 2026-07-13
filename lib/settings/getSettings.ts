@@ -22,6 +22,10 @@ export function parseCompanySettings(settings: Prisma.JsonValue): CompanySetting
       byStage: raw.reactionNorms?.byStage ?? DEFAULT_COMPANY_SETTINGS.reactionNorms.byStage,
       byUser: raw.reactionNorms?.byUser ?? DEFAULT_COMPANY_SETTINGS.reactionNorms.byUser,
     },
+    sourceEnabled: {
+      ...DEFAULT_COMPANY_SETTINGS.sourceEnabled,
+      ...raw.sourceEnabled,
+    },
   };
 }
 

@@ -13,6 +13,7 @@ export interface CreatedApiKey {
   name: string;
   sourceLabel: string;
   mask: string;
+  isEnabled: boolean;
   createdAt: string;
 }
 
@@ -94,6 +95,7 @@ export default function CreateApiKeyModal({
         name?: string;
         sourceLabel?: string;
         mask?: string;
+        isEnabled?: boolean;
         createdAt?: string;
         plaintext?: string;
         error?: string;
@@ -111,6 +113,7 @@ export default function CreateApiKeyModal({
         name: parsed.data.name,
         sourceLabel: parsed.data.sourceLabel,
         mask: data.mask,
+        isEnabled: data.isEnabled ?? true,
         createdAt: data.createdAt,
       });
       router.refresh();
