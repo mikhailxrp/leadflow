@@ -54,17 +54,16 @@
 
 ## Видимость лидов
 
-`Company.settings.leadVisibility` (`ALL`/`OWN`) применяется **только к роли `MANAGER`** — `HEAD` и `ADMIN` видят все лиды компании всегда, независимо от этой настройки (см. `.docs/database.md`, enum `LeadVisibility`). `visibilityWhere(session)`:
+**Жёсткое правило без исключений и без настройки:** `MANAGER` видит и работает только со своими лидами (`assignedToId = session.user.id`) — список, карточка, воронка, задачи, напоминания, комментарии, смена этапа, взятие в работу, закрытие. `HEAD` и `ADMIN` видят все лиды компании всегда. Не настраивается администратором — никакого поля в `Company.settings` для этого нет (см. `lib/leads/visibilityFilter.ts`):
 
 ```typescript
-function visibilityWhere(session: CompanySession) {
-  if (hasMinRole(session.user.role, "HEAD")) return {}; // без ограничения
-  if (session.companySettings.leadVisibility === "OWN") return { assignedToId: session.user.id };
-  return {};
+function visibilityWhere(role: UserRole, userId: string) {
+  if (hasMinRole(role, "HEAD")) return {}; // без ограничения
+  return { assignedToId: userId };
 }
 ```
 
-Применяется в каждом запросе списка/карточки.
+Применяется в каждом запросе списка/карточки/подресурсов лида (задачи, напоминания, комментарии).
 
 ---
 

@@ -1,5 +1,4 @@
 import type { CloseType, Prisma, UserRole } from '@prisma/client';
-import type { CompanySettings } from '@/constants/defaultCompanyData';
 import type { LeadListItem } from '@/lib/leads/getLeads';
 import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
@@ -39,23 +38,15 @@ export type BoardQueryOptions = {
   /** Не заданы для actor'а marketer — видимость тогда не ограничивается (как HEAD). */
   userId?: string;
   role?: UserRole;
-  leadVisibility: CompanySettings['leadVisibility'];
   companySettings: Prisma.JsonValue;
   includeClosed?: boolean;
   assignedToId?: string;
 };
 
 function buildLeadWhere(options: BoardQueryOptions): Prisma.LeadWhereInput {
-  const {
-    companyId,
-    userId,
-    role,
-    leadVisibility,
-    includeClosed = false,
-    assignedToId,
-  } = options;
+  const { companyId, userId, role, includeClosed = false, assignedToId } = options;
 
-  const visibility = role && userId ? visibilityWhere(role, userId, leadVisibility) : {};
+  const visibility = role && userId ? visibilityWhere(role, userId) : {};
 
   const andConditions: Prisma.LeadWhereInput[] = [{ companyId }];
 

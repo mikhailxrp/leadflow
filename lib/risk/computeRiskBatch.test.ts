@@ -50,7 +50,6 @@ function isoDaysAgo(days: number): string {
 
 const baseSettings = {
   assignMode: 'MANUAL',
-  leadVisibility: 'ALL',
   roundRobinCursor: null,
   telegramEnabled: false,
   controlEnabled: false,

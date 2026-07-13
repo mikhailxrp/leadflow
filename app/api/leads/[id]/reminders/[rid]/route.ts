@@ -1,7 +1,8 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma, UserRole } from '@prisma/client';
 import { hasMinRole } from '@/constants/roles';
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { writeEvent } from '@/lib/events';
+import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
 import { updateReminderSchema } from '@/lib/validations/reminders';
 
@@ -16,9 +17,21 @@ const REMINDER_SELECT = {
   createdBy: { select: { id: true, name: true } },
 } satisfies Prisma.ReminderSelect;
 
-async function findOwnedReminder(rid: string, leadId: string, companyId: string) {
+async function findOwnedReminder(
+  rid: string,
+  leadId: string,
+  companyId: string,
+  role: UserRole,
+  userId: string,
+) {
+  const visibility = visibilityWhere(role, userId);
   return prisma.reminder.findFirst({
-    where: { id: rid, leadId, companyId },
+    where: {
+      id: rid,
+      leadId,
+      companyId,
+      lead: Object.keys(visibility).length > 0 ? visibility : undefined,
+    },
     select: { id: true, leadId: true, status: true, createdById: true },
   });
 }
@@ -51,7 +64,7 @@ export async function PATCH(
   }
 
   try {
-    const reminder = await findOwnedReminder(rid, id, companyId);
+    const reminder = await findOwnedReminder(rid, id, companyId, role, userId);
     if (!reminder) {
       return Response.json({ error: 'Not found' }, { status: 404 });
     }
@@ -93,7 +106,7 @@ export async function DELETE(
   const { companyId, userId, role } = actor;
 
   try {
-    const reminder = await findOwnedReminder(rid, id, companyId);
+    const reminder = await findOwnedReminder(rid, id, companyId, role, userId);
     if (!reminder) {
       return Response.json({ error: 'Not found' }, { status: 404 });
     }

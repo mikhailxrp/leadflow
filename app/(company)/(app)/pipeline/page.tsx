@@ -10,7 +10,6 @@ import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
 import { toCompanyActor } from '@/lib/auth/requireCompanyAccess';
 import { getManagers } from '@/lib/leads/getManagers';
-import { getLeadVisibility } from '@/lib/leads/visibilityFilter';
 import { getBoardData } from '@/lib/pipeline/boardQuery';
 import { prisma } from '@/lib/prisma';
 import type { CompanySession } from '@/types/session';
@@ -84,16 +83,15 @@ export default async function PipelinePage() {
     redirect('/login');
   }
 
-  const leadVisibility = getLeadVisibility(company.settings);
   // Маркетолог видит все лиды компании (как HEAD) — фильтр по ответственному тоже доступен.
-  const showManagerFilter =
-    actor.actor === 'marketer' || hasMinRole(actor.role, 'HEAD') || leadVisibility === 'ALL';
+  const showManagerFilter = actor.actor === 'marketer' || hasMinRole(actor.role, 'HEAD');
+  // /admin/pipeline-settings — только ADMIN (proxy.ts); остальным кнопка не нужна.
+  const showPipelineSettingsLink = actor.actor === 'user' && hasMinRole(actor.role, 'ADMIN');
 
   const [{ columns }, managers] = await Promise.all([
     getBoardData({
       companyId,
       ...(actor.actor === 'user' ? { userId: actor.userId, role: actor.role } : {}),
-      leadVisibility,
       companySettings: company.settings,
       includeClosed: false,
     }),
@@ -108,26 +106,30 @@ export default async function PipelinePage() {
           <>
             <IconButton aria-label="Поиск" icon={<SearchIcon />} />
             {actor.actor === 'user' && <NotificationBell />}
-            <span
-              className="mx-1 h-5 w-px bg-[var(--color-border)]"
-              aria-hidden="true"
-            />
-            <Link
-              href={PIPELINE_SETTINGS_PATH}
-              className="
-                inline-flex h-[36px] items-center justify-center gap-2
-                rounded-[6px] border border-[var(--color-border)] border-[0.5px]
-                bg-[var(--color-bg-surface-2)] px-[14px]
-                text-[13px] font-medium text-[var(--color-text-primary)]
-                transition-all duration-150
-                hover:bg-[var(--color-bg-surface)]
-              "
-            >
-              <span className="h-4 w-4 flex-shrink-0">
-                <SettingsIcon />
-              </span>
-              Настроить этапы
-            </Link>
+            {showPipelineSettingsLink && (
+              <>
+                <span
+                  className="mx-1 h-5 w-px bg-[var(--color-border)]"
+                  aria-hidden="true"
+                />
+                <Link
+                  href={PIPELINE_SETTINGS_PATH}
+                  className="
+                    inline-flex h-[36px] items-center justify-center gap-2
+                    rounded-[6px] border border-[var(--color-border)] border-[0.5px]
+                    bg-[var(--color-bg-surface-2)] px-[14px]
+                    text-[13px] font-medium text-[var(--color-text-primary)]
+                    transition-all duration-150
+                    hover:bg-[var(--color-bg-surface)]
+                  "
+                >
+                  <span className="h-4 w-4 flex-shrink-0">
+                    <SettingsIcon />
+                  </span>
+                  Настроить этапы
+                </Link>
+              </>
+            )}
           </>
         }
       />
