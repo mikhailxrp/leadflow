@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import type { PrismaTransactionClient } from '@/lib/prisma';
 
 function readRoundRobinCursor(settings: Prisma.JsonValue): string | null {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
@@ -21,7 +22,7 @@ function readRoundRobinCursor(settings: Prisma.JsonValue): string | null {
  * prevents two concurrent intakes from picking the same manager.
  */
 export async function pickNextManager(
-  tx: Prisma.TransactionClient,
+  tx: PrismaTransactionClient,
   companyId: string,
 ): Promise<string | null> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}))`;
