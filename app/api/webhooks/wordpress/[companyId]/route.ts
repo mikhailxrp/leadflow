@@ -7,6 +7,7 @@ import { assignLead } from '@/lib/assignLead';
 import { notifyNewLead } from '@/lib/notifications/notifyNewLead';
 import { webhookBodySchema } from '@/lib/validations/webhooks';
 import { prisma } from '@/lib/prisma';
+import { parseCompanySettings } from '@/lib/settings/getSettings';
 
 function getIp(request: Request): string | undefined {
   return (
@@ -30,7 +31,7 @@ export async function POST(
 
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { id: true },
+    select: { id: true, settings: true },
   });
 
   if (!company) {
@@ -39,6 +40,12 @@ export async function POST(
 
   // parseBody handles JSON and form-urlencoded automatically — no extra logic needed
   const body = webhookBodySchema.parse(await parseBody(request));
+
+  // Источник выключен администратором — намеренное исключение из «лид нельзя потерять»
+  // (см. CLAUDE.md): выключенного источника у компании как будто не существует.
+  if (!parseCompanySettings(company.settings).sourceEnabled.wordpress) {
+    return Response.json({ error: 'SOURCE_DISABLED' }, { status: 403 });
+  }
 
   try {
     const lead = await createLead(body, 'wordpress', companyId);

@@ -58,7 +58,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const created = await prisma.apiKey.create({
       data: { companyId: actor.companyId, name, sourceLabel, keyHash },
-      select: { id: true, name: true, sourceLabel: true, createdAt: true },
+      select: { id: true, name: true, sourceLabel: true, isEnabled: true, createdAt: true },
     });
 
     return Response.json({ ...created, mask: maskApiKey(keyHash), plaintext }, { status: 201 });

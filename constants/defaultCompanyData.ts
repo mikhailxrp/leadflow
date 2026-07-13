@@ -19,6 +19,7 @@ export type CompanySettings = {
   stageStuckDaysDefault: number;
   stuckCheckTime: string;
   sourceHealthThresholdHours: number;
+  sourceEnabled: { tilda: boolean; wordpress: boolean };
 };
 
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
@@ -36,6 +37,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   stageStuckDaysDefault: 5,
   stuckCheckTime: '09:00',
   sourceHealthThresholdHours: 3,
+  sourceEnabled: { tilda: true, wordpress: true },
 };
 
 export function DEFAULT_STAGES(

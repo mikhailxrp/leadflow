@@ -20,7 +20,7 @@ const MARKETER_ALLOWED_API: MarketerAllowedApiRule[] = [
   { pattern: /^\/api\/stages$/, methods: ['GET'] },
   { pattern: /^\/api\/loss-reasons$/, methods: ['GET'] },
   { pattern: /^\/api\/api-keys$/, methods: ['GET', 'POST'] },
-  { pattern: /^\/api\/api-keys\/[^/]+$/, methods: ['DELETE'] },
+  { pattern: /^\/api\/api-keys\/[^/]+$/, methods: ['PATCH', 'DELETE'] },
   { pattern: /^\/api\/admin\/integrations\/health$/, methods: ['GET'] },
 ];
 

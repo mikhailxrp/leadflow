@@ -36,6 +36,12 @@ export const updateSettingsSchema = z
     stuckCheckTime: z.string().regex(TIME_REGEX, 'Ожидается формат HH:MM').optional(),
     sourceHealthThresholdHours: z.number().int().positive().optional(),
     yandexMode: z.enum(['UTM', 'FULL']).optional(),
+    sourceEnabled: z
+      .object({
+        tilda: z.boolean().optional(),
+        wordpress: z.boolean().optional(),
+      })
+      .optional(),
   })
   .refine(
     (data) => Object.values(data).some((value) => value !== undefined),

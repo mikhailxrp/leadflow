@@ -8,6 +8,7 @@ export type ApiKeyListItem = {
   name: string;
   sourceLabel: string;
   mask: string;
+  isEnabled: boolean;
   createdAt: Date;
 };
 
@@ -16,7 +17,14 @@ export async function listApiKeys(companyId: string): Promise<ApiKeyListItem[]> 
   const keys = await prisma.apiKey.findMany({
     where: { companyId },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, name: true, sourceLabel: true, keyHash: true, createdAt: true },
+    select: {
+      id: true,
+      name: true,
+      sourceLabel: true,
+      keyHash: true,
+      isEnabled: true,
+      createdAt: true,
+    },
   });
 
   return keys.map(({ keyHash, ...key }) => ({ ...key, mask: maskApiKey(keyHash) }));

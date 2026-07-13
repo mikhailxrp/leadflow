@@ -99,10 +99,11 @@ type CompanySettings = {
   stageStuckDaysDefault: number;
   stuckCheckTime: string;
   sourceHealthThresholdHours: number;
+  sourceEnabled: { tilda: boolean; wordpress: boolean }; // v4.2
 };
 ```
 
-Включение/отключение конкретного источника — это создание/удаление API-ключа в `.docs/modules/integrations.md`, не флаг в настройках компании.
+**(v4.2)** Включение/отключение Tilda/WordPress — флаг `sourceEnabled` в этих же настройках компании (`PATCH /api/settings`, ADMIN only). Для API-ключей универсального webhook тумблер — не здесь, а `ApiKey.isEnabled` на конкретном ключе (`PATCH /api/api-keys/:id`), потому что ключей может быть несколько и включаются они по отдельности. См. `.docs/modules/integrations.md` → «Тумблер включения источника».
 
 Видимость лидов для `MANAGER` (только свои) — жёсткое правило в коде, не поле в этих настройках; см. `.docs/modules/leads.md`.
 
@@ -118,7 +119,8 @@ type CompanySettings = {
   "reactionNorms": { "defaultMinutes": 30, "reminderBeforePercent": 66, "escalateAfterPercent": 133, "workHoursOnly": false },
   "stageStuckDaysDefault": 5,
   "stuckCheckTime": "09:00",
-  "sourceHealthThresholdHours": 3
+  "sourceHealthThresholdHours": 3,
+  "sourceEnabled": { "tilda": true, "wordpress": true }
 }
 ```
 
@@ -271,7 +273,7 @@ components/admin/settings/
 └── SourceHealthThresholdField.tsx       # НОВОЕ
 
 lib/validations/
-└── settings.ts                          # + reactionNorms, workHours, sourceHealthThresholdHours
+└── settings.ts                          # + reactionNorms, workHours, sourceHealthThresholdHours, sourceEnabled (v4.2)
 ```
 
 ---

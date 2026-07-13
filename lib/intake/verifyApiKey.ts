@@ -5,6 +5,7 @@ export type VerifiedApiKey = {
   companyId: string;
   sourceLabel: string;
   apiKeyId: string;
+  isEnabled: boolean;
 };
 
 /**
@@ -17,7 +18,7 @@ export async function verifyApiKey(key: string): Promise<VerifiedApiKey | null> 
 
   const record = await prisma.apiKey.findFirst({
     where: { keyHash },
-    select: { id: true, companyId: true, sourceLabel: true },
+    select: { id: true, companyId: true, sourceLabel: true, isEnabled: true },
   });
 
   if (!record) return null;
@@ -26,5 +27,6 @@ export async function verifyApiKey(key: string): Promise<VerifiedApiKey | null> 
     companyId: record.companyId,
     sourceLabel: record.sourceLabel,
     apiKeyId: record.id,
+    isEnabled: record.isEnabled,
   };
 }

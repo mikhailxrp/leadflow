@@ -42,7 +42,13 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: 'UNAUTHORIZED' }, { status: 401 });
   }
 
-  const { companyId, sourceLabel, apiKeyId } = verified;
+  const { companyId, sourceLabel, apiKeyId, isEnabled } = verified;
+
+  // Ключ выключен администратором — намеренное исключение из «лид нельзя потерять»
+  // (см. CLAUDE.md): выключенного источника у компании как будто не существует.
+  if (!isEnabled) {
+    return Response.json({ error: 'SOURCE_DISABLED' }, { status: 403 });
+  }
 
   // Rate limit by ApiKey.id after verification
   if (!checkRateLimit(apiKeyId, 60, 60_000)) {

@@ -36,6 +36,35 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-13 — Фича (вне плана, v4.2): тумблер включения источника на `/admin/integrations`
+
+**Статус:** ✅ Завершён
+
+**Контекст:** По запросу пользователя — для каждого источника на странице интеграций нужен тумблер включения. Выключенный источник должен вести себя так, будто его у компании не существует: не показывать health/ссылку подключения/ключ, не принимать заявки, не слать уведомлений. Решено вместе с пользователем (см. диалог): выключенный источник **отклоняет вебхук** (а не просто прячет UI) — единственное намеренное исключение из инварианта «лид нельзя потерять» в этом продукте; у API-ключей универсального webhook — свой тумблер на каждый ключ (не один на всю карточку).
+
+**Что было сделано:**
+
+- Миграция `add_api_key_enabled` — `ApiKey.isEnabled Boolean @default(true)`
+- `constants/defaultCompanyData.ts`/`lib/settings/getSettings.ts`/`lib/settings/updateSettings.ts`/`lib/validations/settings.ts` — `Company.settings.sourceEnabled: { tilda, wordpress }` (дефолт `true/true`), с deep-merge как у `reactionNorms` (иначе `PATCH` с одним полем стирал бы второе)
+- `constants/integrations.ts` — новый статус `disabled` (⛔ «Выключен») в `SourceHealthStatus`/`SOURCE_HEALTH_LABELS`; `lib/integrations/getSourceHealth.ts` — Tilda/WordPress с выключенным тумблером возвращают `disabled` в обход обычного расчёта по `lastUsedAt`; `components/integrations/SourceHealthIndicator.tsx` — кейс `disabled` в `describe()`
+- `lib/validations/apiKeys.ts` (`updateApiKeySchema`), `lib/apiKeys/listApiKeys.ts`, `lib/intake/verifyApiKey.ts`, `app/api/api-keys/route.ts` (POST возвращает `isEnabled`), `app/api/api-keys/[id]/route.ts` (новый `PATCH`, ADMIN, ownership-check) — `isEnabled` на каждом API-ключе
+- Вебхуки — hard-reject **до** `createLead`/`touchIntegrationSource` (health не трогается, это не ошибка обработки): `app/api/webhooks/tilda/[companyId]/route.ts` и `.../wordpress/[companyId]/route.ts` читают `settings.sourceEnabled` из уже загруженной `Company` (тестовый пинг Tilda `test=test` — по-прежнему раньше проверки, не лид); `app/api/webhooks/leads/route.ts` читает `isEnabled` из `verifyApiKey()`. Все три — `403 { error: "SOURCE_DISABLED" }`
+- `lib/control/checkSourceHealth.ts` — источник с выключенным тумблером пропускается перед проверкой порога (иначе рано или поздно ложный `SOURCE_DOWN`); для `type: "api"` источник считается включённым, если активен хотя бы один `ApiKey` с этим `sourceLabel` (лейбл не уникален)
+- `components/integrations/IntegrationCard.tsx` — новый слот `toggle` в шапке рядом с `badge`
+- `components/integrations/WebhookSourceCard.tsx` (новый, клиентский) — Tilda/WordPress: тумблер → `PATCH /api/settings { sourceEnabled }`, оптимистичное обновление + rollback + toast (паттерн `YandexDirectCard`); выключен → скрыты URL/health, вместо них — нейтральное сообщение; `readOnly` для маркетолога (структурно — `/api/settings` не принимает сессию маркетолога, как и `yandexMode`)
+- `app/(company)/(admin)/admin/integrations/page.tsx` — Tilda/WordPress переведены на `WebhookSourceCard`, локальные `ConnectedBadge`/`NotConfiguredBadge`/`isConnected` убраны (переехали в компонент)
+- `components/integrations/ApiKeysTable.tsx` — колонка «Включён» с тумблером на каждый ключ (`PATCH /api/api-keys/:id`, оптимистично + rollback); выключенный ключ — маска ключа скрыта (`—`), в колонке «Здоровье» — `⛔ Выключен` вместо реального статуса (health по `sourceLabel` не уникален на ключ, поэтому override только в этой строке, не в `getSourceHealth()`)
+- `constants/marketerAccess.ts` — `PATCH /api/api-keys/:id` добавлен в allow-list маркетолога (тот же actor уже создаёт/удаляет ключи)
+- Документация: `.docs/modules/integrations.md` (новый раздел «Тумблер включения источника»), `.docs/modules/app-settings.md` (исправлена устаревшая строка «включение источника — это не флаг настроек», теперь наоборот), `.docs/modules/notifications.md` (пропуск выключенных источников в мониторинге), `.docs/database.md`, `.docs/prd.md` (FR-164), `CLAUDE.md` (новое явное исключение из «лид нельзя потерять» в разделе «Приём лидов», версия `v4.2`)
+
+**Out of scope:** Яндекс Директ — не тронут (нет вебхука приёма, только UTM-атрибуция); ручное создание лида и импорт CSV — не источники этой страницы, тумблер на них не распространяется.
+
+**Проверено:** `npm run type-check`, `npm run lint`, `npm run build`, `npm run test` (40/40) — без ошибок. Живой прогон в headless Chromium (Playwright) на реальном dev-сервере и dev-БД: throwaway ADMIN-компания — Tilda/WordPress тумблер выключает/включает с ожидаемой сменой badge/тела карточки (скриншоты), API-ключ с общим `sourceLabel` — выключение прячет маску и подменяет здоровье на «⛔ Выключен». Проверено напрямую через `curl` с валидной сессией и без браузера: `POST` на выключенный Tilda-вебхук и на универсальный вебхук с выключенным ключом — `403 SOURCE_DISABLED`, лид не создан (`prisma.lead.count` не изменился); включение ключа обратно пропускает запрос дальше до `createLead` (упал на `500` только из-за отсутствия дефолтных этапов воронки у throwaway-компании — артефакт тестового сетапа в обход `createCompany()`, не баг фичи). Тестовая компания полностью удалена (`scripts/deleteCompany.ts`), временные скрипты не закоммичены, dev-сервер остановлен.
+
+**Definition of Done:** выполнено полностью
+
+---
+
 ## 2026-07-13 — Фикс: квалификация лида доступна MANAGER
 
 **Статус:** ✅ Завершён
