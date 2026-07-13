@@ -14,7 +14,8 @@
     "db:generate": "prisma generate",
     "bootstrap:platform-admin": "npx tsx scripts/bootstrapPlatformAdmin.ts",
     "delete:company": "npx tsx scripts/deleteCompany.ts",
-    "seed:api-key": "npx tsx scripts/seedTestApiKey.ts"
+    "seed:api-key": "npx tsx scripts/seedTestApiKey.ts",
+    "seed:demo": "npx tsx scripts/seedDemoCompany.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1083.0",

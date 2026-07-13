@@ -9,6 +9,7 @@ export type CompanySession =
         companyId: string;
         role: UserRole;
         impersonatedByPlatformAdminId?: string;
+        isDemo?: boolean;
       };
       marketer?: never;
     }
