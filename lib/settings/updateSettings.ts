@@ -47,6 +47,9 @@ export async function updateSettings(
           byUser: mergeOverrideMap(current.reactionNorms.byUser, patch.reactionNorms.byUser),
         }
       : current.reactionNorms,
+    sourceEnabled: patch.sourceEnabled
+      ? { ...current.sourceEnabled, ...patch.sourceEnabled }
+      : current.sourceEnabled,
   };
 
   const updated = await prisma.company.update({

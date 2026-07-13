@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import IntegrationCard from '@/components/integrations/IntegrationCard';
 import ApiKeysTable from '@/components/integrations/ApiKeysTable';
-import SourceHealthIndicator from '@/components/integrations/SourceHealthIndicator';
-import WebhookUrl from '@/components/integrations/WebhookUrl';
+import IntegrationCard from '@/components/integrations/IntegrationCard';
+import WebhookSourceCard from '@/components/integrations/WebhookSourceCard';
 import YandexDirectCard from '@/components/integrations/YandexDirectCard';
 import { PageContent } from '@/components/layout/AppLayout';
 import NotificationBell from '@/components/notifications/NotificationBell';
@@ -13,7 +12,7 @@ import { hasMinRole } from '@/constants/roles';
 import { listApiKeys } from '@/lib/apiKeys/listApiKeys';
 import { auth } from '@/lib/auth';
 import { toCompanyActor } from '@/lib/auth/requireCompanyAccess';
-import { getSourceHealth, type SourceHealthEntry } from '@/lib/integrations/getSourceHealth';
+import { getSourceHealth } from '@/lib/integrations/getSourceHealth';
 import { getWebhookUrls } from '@/lib/integrations/getWebhookUrls';
 import { prisma } from '@/lib/prisma';
 import { getSettings } from '@/lib/settings/getSettings';
@@ -130,37 +129,6 @@ function WebhookIcon() {
   );
 }
 
-function ConnectedBadge() {
-  return (
-    <span
-      className="
-        inline-flex flex-shrink-0 items-center rounded-[20px]
-        bg-[#d1fae5] px-2.5 py-1 text-[12px] font-medium text-[#065f46]
-      "
-    >
-      Подключено
-    </span>
-  );
-}
-
-function NotConfiguredBadge() {
-  return (
-    <span
-      className="
-        inline-flex flex-shrink-0 items-center rounded-[20px]
-        bg-[var(--color-bg-surface-2)] px-2.5 py-1
-        text-[12px] font-medium text-[var(--color-text-secondary)]
-      "
-    >
-      Не настроено
-    </span>
-  );
-}
-
-function isConnected(entry: SourceHealthEntry | undefined): boolean {
-  return entry !== undefined && entry.status !== 'not_configured';
-}
-
 export default async function AdminIntegrationsPage() {
   const session = await auth();
   if (!session || session.kind !== 'company') {
@@ -238,62 +206,32 @@ export default async function AdminIntegrationsPage() {
         </div>
 
         <div className="flex flex-col gap-4">
-          <IntegrationCard
+          <WebhookSourceCard
+            sourceKey="tilda"
             icon={<TildaIcon />}
             title="Tilda"
-            badge={isConnected(tildaHealth) ? <ConnectedBadge /> : <NotConfiguredBadge />}
             description="В настройках формы Tilda укажите адрес вебхука:"
-            footer={
-              tildaHealth && (
-                <div className="mt-3">
-                  <SourceHealthIndicator
-                    status={tildaHealth.status}
-                    hoursSinceLastUse={tildaHealth.hoursSinceLastUse}
-                    thresholdHours={tildaHealth.thresholdHours}
-                  />
-                </div>
-              )
-            }
-          >
-            {webhookUrls ? (
-              <WebhookUrl url={webhookUrls.tildaUrl} />
-            ) : (
-              <p className="text-[13px] text-[#DC2626]">
-                Не удалось получить URL вебхука — обратитесь к администратору сервера.
-              </p>
-            )}
-          </IntegrationCard>
+            webhookUrl={webhookUrls?.tildaUrl ?? null}
+            health={tildaHealth}
+            initialEnabled={settings.sourceEnabled.tilda}
+            readOnly={isMarketer}
+          />
 
-          <IntegrationCard
+          <WebhookSourceCard
+            sourceKey="wordpress"
             icon={<WordPressIcon />}
             title="WordPress"
-            badge={isConnected(wordpressHealth) ? <ConnectedBadge /> : <NotConfiguredBadge />}
             description="Установите плагин Contact Form 7, WPForms или Gravity Forms и укажите вебхук:"
-            footer={
-              <>
-                <p className="mt-3 text-[12px] text-[var(--color-text-tertiary)]">
-                  Поддерживаются: Contact Form 7, WPForms, Gravity Forms
-                </p>
-                {wordpressHealth && (
-                  <div className="mt-2">
-                    <SourceHealthIndicator
-                      status={wordpressHealth.status}
-                      hoursSinceLastUse={wordpressHealth.hoursSinceLastUse}
-                      thresholdHours={wordpressHealth.thresholdHours}
-                    />
-                  </div>
-                )}
-              </>
-            }
-          >
-            {webhookUrls ? (
-              <WebhookUrl url={webhookUrls.wordpressUrl} />
-            ) : (
-              <p className="text-[13px] text-[#DC2626]">
-                Не удалось получить URL вебхука — обратитесь к администратору сервера.
+            extraNote={
+              <p className="mt-3 text-[12px] text-[var(--color-text-tertiary)]">
+                Поддерживаются: Contact Form 7, WPForms, Gravity Forms
               </p>
-            )}
-          </IntegrationCard>
+            }
+            webhookUrl={webhookUrls?.wordpressUrl ?? null}
+            health={wordpressHealth}
+            initialEnabled={settings.sourceEnabled.wordpress}
+            readOnly={isMarketer}
+          />
 
           <YandexDirectCard initialMode={yandexMode} readOnly={isMarketer} />
 

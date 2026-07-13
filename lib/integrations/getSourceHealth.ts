@@ -79,6 +79,29 @@ export async function getSourceHealth(
 
   return candidates.map((candidate) => {
     const source = sourceByKey.get(`${candidate.type}::${candidate.label}`);
+
+    // Tilda/WordPress — единственный экземпляр на компанию, тумблер напрямую решает статус.
+    // API-ключи выключаются по отдельности (свой тумблер у каждого ApiKey, не у sourceLabel
+    // в целом — sourceLabel не уникален) — их «disabled» показывается точечно в ApiKeysTable,
+    // не здесь.
+    const isDisabledSingleton =
+      (candidate.type === 'tilda' && !settings.sourceEnabled.tilda) ||
+      (candidate.type === 'wordpress' && !settings.sourceEnabled.wordpress);
+
+    if (isDisabledSingleton) {
+      return {
+        type: candidate.type,
+        label: candidate.label,
+        apiKeyName: candidate.apiKeyName,
+        status: 'disabled',
+        lastUsedAt: source?.lastUsedAt?.toISOString() ?? null,
+        lastErrorAt: source?.lastErrorAt?.toISOString() ?? null,
+        errorCount: source?.errorCount ?? 0,
+        hoursSinceLastUse: null,
+        thresholdHours: settings.sourceHealthThresholdHours,
+      };
+    }
+
     const { status, hoursSinceLastUse } = computeStatus(
       source?.lastUsedAt ?? null,
       settings.sourceHealthThresholdHours,

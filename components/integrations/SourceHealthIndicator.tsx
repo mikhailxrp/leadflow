@@ -41,6 +41,8 @@ function describe(
       return hoursSinceLastUse === null
         ? label
         : `${label} ${formatDuration(hoursSinceLastUse)}`;
+    case 'disabled':
+      return `${label} — заявки по нему не принимаются`;
   }
 }
 

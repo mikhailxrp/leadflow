@@ -147,10 +147,7 @@ export default async function LeadDetailPage({
             canAssign={actor.actor === 'user' && hasMinRole(actor.role, 'HEAD')}
             canManage={actor.actor === 'user'}
             qualification={lead.qualification}
-            canQualify={
-              actor.actor === 'marketer' ||
-              (actor.actor === 'user' && hasMinRole(actor.role, 'HEAD'))
-            }
+            canQualify={actor.actor === 'marketer' || actor.actor === 'user'}
           />
           <LeadComments
             leadId={lead.id}

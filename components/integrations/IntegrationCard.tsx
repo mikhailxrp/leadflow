@@ -5,6 +5,7 @@ interface IntegrationCardProps {
   icon: ReactNode;
   title: string;
   badge?: ReactNode;
+  toggle?: ReactNode;
   description?: string;
   subtitle?: string;
   children: ReactNode;
@@ -15,6 +16,7 @@ export default function IntegrationCard({
   icon,
   title,
   badge,
+  toggle,
   description,
   subtitle,
   children,
@@ -36,7 +38,10 @@ export default function IntegrationCard({
             )}
           </div>
         </div>
-        {badge}
+        <div className="flex flex-shrink-0 items-center gap-3">
+          {toggle}
+          {badge}
+        </div>
       </div>
 
       {description && (

@@ -4,7 +4,7 @@
  * чтобы порог 🟡/🔴 не расходился между вычислением и отображением.
  */
 
-export type SourceHealthStatus = 'active' | 'silent' | 'down' | 'not_configured';
+export type SourceHealthStatus = 'active' | 'silent' | 'down' | 'not_configured' | 'disabled';
 
 /**
  * Доля от `sourceHealthThresholdHours`, после которой источник считается «молчит» (🟡),
@@ -17,4 +17,5 @@ export const SOURCE_HEALTH_LABELS: Record<SourceHealthStatus, { emoji: string; l
   silent: { emoji: '🟡', label: 'Молчит' },
   down: { emoji: '🔴', label: 'Не передаёт заявки' },
   not_configured: { emoji: '⚪', label: 'Не настроено' },
+  disabled: { emoji: '⛔', label: 'Выключен' },
 };

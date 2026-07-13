@@ -8,6 +8,8 @@ import IconButton from '@/components/ui/IconButton';
 import Toast from '@/components/ui/Toast';
 import CreateApiKeyModal, { type CreatedApiKey } from '@/components/integrations/CreateApiKeyModal';
 import SourceHealthIndicator from '@/components/integrations/SourceHealthIndicator';
+import Toggle from '@/components/settings/Toggle';
+import { SOURCE_HEALTH_LABELS } from '@/constants/integrations';
 import type { SourceHealthEntry } from '@/lib/integrations/getSourceHealth';
 
 export interface ApiKeyRow {
@@ -15,6 +17,7 @@ export interface ApiKeyRow {
   name: string;
   sourceLabel: string;
   mask: string;
+  isEnabled: boolean;
   createdAt: string;
 }
 
@@ -83,13 +86,35 @@ export default function ApiKeysTable({
     return sourceHealth.find((entry) => entry.type === 'api' && entry.label === sourceLabel);
   }
 
+  async function handleToggleEnabled(row: ApiKeyRow, next: boolean): Promise<void> {
+    const snapshot = apiKeys;
+    setApiKeys((prev) => prev.map((key) => (key.id === row.id ? { ...key, isEnabled: next } : key)));
+
+    try {
+      const response = await fetch(`/api/api-keys/${row.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isEnabled: next }),
+      });
+
+      if (!response.ok) {
+        setApiKeys(snapshot);
+        setToast(`Не удалось изменить статус ключа «${row.name}»`);
+      }
+    } catch (error) {
+      console.error('Failed to toggle API key:', error);
+      setApiKeys(snapshot);
+      setToast(`Не удалось изменить статус ключа «${row.name}»`);
+    }
+  }
+
   return (
     <div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-left">
           <thead>
             <tr className="border-b border-[var(--color-border)] border-[0.5px]">
-              {['Название', 'Источник', 'Ключ', 'Здоровье', 'Создан', 'Действия'].map((header) => (
+              {['Название', 'Источник', 'Ключ', 'Здоровье', 'Включён', 'Создан', 'Действия'].map((header) => (
                 <th
                   key={header}
                   className="
@@ -106,7 +131,7 @@ export default function ApiKeysTable({
             {apiKeys.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-3 py-8 text-center text-[14px] text-[var(--color-text-secondary)]"
                 >
                   Нет API-ключей
@@ -129,10 +154,15 @@ export default function ApiKeysTable({
                       {row.sourceLabel}
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 font-mono text-[13px] text-[var(--color-text-secondary)]">
-                      {row.mask}
+                      {row.isEnabled ? row.mask : '—'}
                     </td>
                     <td className="whitespace-nowrap px-3 py-3">
-                      {health ? (
+                      {!row.isEnabled ? (
+                        <p className="flex items-center gap-1.5 text-[12px] text-[var(--color-text-secondary)]">
+                          <span aria-hidden="true">{SOURCE_HEALTH_LABELS.disabled.emoji}</span>
+                          <span>{SOURCE_HEALTH_LABELS.disabled.label}</span>
+                        </p>
+                      ) : health ? (
                         <SourceHealthIndicator
                           status={health.status}
                           hoursSinceLastUse={health.hoursSinceLastUse}
@@ -141,6 +171,13 @@ export default function ApiKeysTable({
                       ) : (
                         <span className="text-[12px] text-[var(--color-text-tertiary)]">—</span>
                       )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <Toggle
+                        checked={row.isEnabled}
+                        onChange={(next) => handleToggleEnabled(row, next)}
+                        aria-label={`Ключ «${row.name}»: ${row.isEnabled ? 'включён' : 'выключен'}`}
+                      />
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
                       {new Date(row.createdAt).toLocaleDateString('ru-RU')}

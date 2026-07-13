@@ -315,7 +315,7 @@ model Lead {
 
 - `null` — лид не оценён (дефолт для всех существующих и новых лидов).
 - **Квалификация независима от воронки и закрытия** — это маркетинговая оценка качества обращения, не статус продажи. Лид может быть `QUALIFIED` и закрыт отказом, и наоборот.
-- Кто может квалифицировать: **маркетолог** (allow-list) и **HEAD+** внутри компании (руководитель видит все лиды и понимает их качество). MANAGER — нет.
+- Кто может квалифицировать: **маркетолог** (allow-list) и **любой пользователь компании** (MANAGER/HEAD/ADMIN) — менеджер работает с лидами больше всех и первым понимает их качество.
 
 ```
 PATCH /api/leads/:id/qualification { qualification: "QUALIFIED" | "DISQUALIFIED" | null }
@@ -376,7 +376,7 @@ GET /api/platform/logs?companyId=...&leadId=...&type=...&from=...&to=...&page=..
 | GET | `/api/platform/marketers/:id` | Детальная карточка маркетолога (профиль + компании + гранты), только просмотр | SUPER_ADMIN |
 | PATCH | `/api/platform/profile` | Редактирование собственного профиля (ФИО/телефон/соцсети) | MARKETER (только `session.admin.id`) |
 | POST/DELETE | `/api/platform/profile/avatar` | Загрузка/удаление собственного аватара (S3) | MARKETER (только `session.admin.id`) |
-| PATCH | `/api/leads/:id/qualification` | Квалификация лида | `kind: "company"`: HEAD+ или actor `marketer` |
+| PATCH | `/api/leads/:id/qualification` | Квалификация лида | `kind: "company"`: любая роль (MANAGER+) или actor `marketer` |
 
 **Изменяемые существующие эндпоинты** (все получают явный список ролей):
 
@@ -466,7 +466,7 @@ prisma/                                 # миграция: PlatformRole, role, 
 
 - **`.docs/modules/platform-admin.md`** — базовый платформенный уровень; этот модуль сужает существующие эндпоинты (`roles`) и добавляет скоупинг видимости. Impersonation, создание компаний, дата платежа, дайджест — механика без изменений, меняется только «кто и на какие компании».
 - **`.docs/database.md`** — `PlatformRole`, `Company.createdByPlatformAdminId`/`blockedByMarketerCascade`, `CompanyAccessGrant`, `Lead.qualification`/`qualifiedAt`, `PlatformAdmin.lastLoginAt`, новые `EventType`.
-- **`.docs/modules/leads.md`** — карточка/список лидов получают бейдж и действие квалификации (HEAD+ и маркетолог).
+- **`.docs/modules/leads.md`** — карточка/список лидов получают бейдж и действие квалификации (любая роль компании и маркетолог).
 - **`.docs/modules/pipeline.md`** — доска в режиме маркетолога read-only.
 - **`.docs/modules/integrations.md`** (Phase 18) и **`.docs/modules/reports.md`** (Phase 21) — при реализации этих страниц маркетолог получает к ним доступ через allow-list (уже заложено в `constants/marketerAccess.ts`).
 - **Phase 22.5** — экспорт квалификаций в Яндекс Метрику (API офлайн-конверсий), research + реализация.

@@ -236,6 +236,8 @@ for (const source of sources) {
 
 «Уже сообщённый» (`isMarkedDown`) — проверяется сравнением таймстампов последних `SOURCE_DOWN`/`SOURCE_RECOVERED` по конкретному `(type, label)`, **без поля `alertedDown`** (в схеме `IntegrationSource` такого поля нет). Важно: `SOURCE_RECOVERED` не пишется на каждый здоровый час — только когда есть незакрытый `SOURCE_DOWN`, иначе журнал событий заполнился бы бессмысленными «восстановлениями» здорового источника. Тот же принцип «once per problem», что и у `LEAD_REACTION_ESCALATED`.
 
+**(v4.2)** Источник, выключенный тумблером (`Company.settings.sourceEnabled` для Tilda/WordPress; хотя бы один активный `ApiKey` с этим `sourceLabel` — для `type: "api"`), пропускается перед проверкой порога — `continue` до расчёта `hoursSinceLastUse`. Без этого выключенный источник рано или поздно превысил бы `sourceHealthThresholdHours` и получил бы ложный `SOURCE_DOWN`, хотя молчание намеренное. См. `.docs/modules/integrations.md` → «Тумблер включения источника».
+
 ### Статус на странице интеграций
 
 `/admin/integrations` показывает для каждого источника: активен / последняя ошибка / когда замолчал — данные те же `IntegrationSource`, см. `.docs/modules/integrations.md`.

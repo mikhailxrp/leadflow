@@ -311,8 +311,11 @@ type CompanySettings = {
   stageStuckDaysDefault: number;
   stuckCheckTime: string;
   sourceHealthThresholdHours: number;
+  sourceEnabled: { tilda: boolean; wordpress: boolean }; // v4.2 — тумблер включения источника
 };
 ```
+
+`sourceEnabled` (v4.2) — по умолчанию `{ tilda: true, wordpress: true }` (существующие подключения не ломаются). `false` — источник отключён: вебхук отклоняет запрос (`403 SOURCE_DISABLED`), лид не создаётся. Для API-ключей универсального webhook аналогичный флаг — не здесь, а `ApiKey.isEnabled` (см. ниже), потому что тумблер там на уровне конкретного ключа, а не компании. См. `.docs/modules/integrations.md` → «Тумблер включения источника».
 
 > Видимость лидов для `MANAGER` (только свои, `assignedToId = userId`) — жёсткое правило в коде (`lib/leads/visibilityFilter.ts`), не настройка компании: поля в `CompanySettings` для этого нет. `HEAD`/`ADMIN` видят все лиды компании всегда. См. `.docs/modules/leads.md`.
 
@@ -523,7 +526,7 @@ model Lead {
 
 **Дедупликация не выполняется автоматически.** Совпадение по телефону/email с другим лидом той же компании создаёт `DuplicateFlag` (пометку), лид всё равно сохраняется — слияние записей не реализуется, один человек может оставлять разные обращения.
 
-**Квалификация (`qualification`/`qualifiedAt`, v4.1)** — маркетинговая оценка качества обращения для обучения рекламных систем (Яндекс Метрика), **независимая от воронки и закрытия**: лид может быть `QUALIFIED` и закрыт отказом, и наоборот. `null` — не оценён. Ставится маркетологом или HEAD+ (`PATCH /api/leads/:id/qualification`), пишет событие `LEAD_QUALIFIED`/`LEAD_DISQUALIFIED`. Не влияет на назначение, эскалацию и риск. Экспорт в Метрику — Phase 22.5. См. `.docs/modules/platform-marketer.md`.
+**Квалификация (`qualification`/`qualifiedAt`, v4.1)** — маркетинговая оценка качества обращения для обучения рекламных систем (Яндекс Метрика), **независимая от воронки и закрытия**: лид может быть `QUALIFIED` и закрыт отказом, и наоборот. `null` — не оценён. Ставится маркетологом или любым пользователем компании (MANAGER+) (`PATCH /api/leads/:id/qualification`), пишет событие `LEAD_QUALIFIED`/`LEAD_DISQUALIFIED`. Не влияет на назначение, эскалацию и риск. Экспорт в Метрику — Phase 22.5. См. `.docs/modules/platform-marketer.md`.
 
 ### `PipelineStage`
 
@@ -684,6 +687,7 @@ model ApiKey {
   name        String
   keyHash     String
   sourceLabel String
+  isEnabled   Boolean  @default(true) // v4.2 — тумблер включения, свой на каждый ключ
   createdAt   DateTime @default(now())
 
   company Company @relation(fields: [companyId], references: [id])
@@ -691,6 +695,8 @@ model ApiKey {
   @@index([companyId])
 }
 ```
+
+`isEnabled = false` — ключ выключен администратором (или маркетологом — тот же actor, что создаёт/удаляет ключи): универсальный вебхук отклоняет запрос по этому ключу (`403 SOURCE_DISABLED`) до `createLead`/`touchIntegrationSource`. По умолчанию `true` — существующие ключи не ломаются миграцией. См. `.docs/modules/integrations.md` → «Тумблер включения источника».
 
 ### `IntegrationSource`
 

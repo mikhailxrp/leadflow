@@ -12,7 +12,7 @@ export async function PATCH(
   let actor;
   try {
     actor = await requireCompanyAccess({
-      minRole: 'HEAD',
+      minRole: 'MANAGER',
       method: 'PATCH',
       pathname: `/api/leads/${id}/qualification`,
     });
