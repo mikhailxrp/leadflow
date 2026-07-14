@@ -1,6 +1,7 @@
 'use client';
 
 import { Icon } from '@iconify/react';
+import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -10,6 +11,8 @@ type YandexMode = 'UTM' | 'FULL';
 
 interface YandexDirectCardProps {
   initialMode: YandexMode;
+  initialConnected: boolean;
+  initialLogin: string | null;
   readOnly: boolean;
 }
 
@@ -24,6 +27,19 @@ function YandexIcon(): ReactNode {
     >
       <span className="text-[18px] font-bold text-[#EF4444]">Я</span>
     </div>
+  );
+}
+
+function ConnectedBadge(): ReactNode {
+  return (
+    <span
+      className="
+        inline-flex flex-shrink-0 items-center rounded-[20px]
+        bg-[#d1fae5] px-2.5 py-1 text-[12px] font-medium text-[#065f46]
+      "
+    >
+      Подключено
+    </span>
   );
 }
 
@@ -119,9 +135,15 @@ function ModeRadio({
 
 export default function YandexDirectCard({
   initialMode,
+  initialConnected,
+  initialLogin,
   readOnly,
 }: YandexDirectCardProps): ReactNode {
+  const router = useRouter();
   const [mode, setMode] = useState<YandexMode>(initialMode);
+  const [connected, setConnected] = useState(initialConnected);
+  const [login, setLogin] = useState(initialLogin);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   async function handleModeChange(nextMode: YandexMode): Promise<void> {
@@ -148,7 +170,37 @@ export default function YandexDirectCard({
     }
   }
 
-  const badge = mode === 'UTM' ? <UtmModeBadge /> : <NotConfiguredBadge />;
+  async function handleDisconnect(): Promise<void> {
+    if (readOnly || disconnecting) return;
+
+    setDisconnecting(true);
+
+    try {
+      const response = await fetch('/api/integrations/yandex', { method: 'DELETE' });
+
+      if (!response.ok) {
+        setToast('Не удалось отключить кабинет Яндекса');
+        return;
+      }
+
+      setConnected(false);
+      setLogin(null);
+      router.refresh();
+    } catch (error) {
+      console.error('Failed to disconnect Yandex:', error);
+      setToast('Не удалось отключить кабинет Яндекса');
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  const badge = connected ? (
+    <ConnectedBadge />
+  ) : mode === 'UTM' ? (
+    <UtmModeBadge />
+  ) : (
+    <NotConfiguredBadge />
+  );
 
   return (
     <Card padding="none" className="p-6">
@@ -195,15 +247,49 @@ export default function YandexDirectCard({
         <div
           className={`
             overflow-hidden transition-all duration-150
-            ${mode === 'FULL' ? 'max-h-[120px] opacity-100' : 'max-h-0 opacity-0'}
+            ${mode === 'FULL' ? 'max-h-[160px] opacity-100' : 'max-h-0 opacity-0'}
           `}
         >
-          <Button type="button" variant="primary" size="md" disabled title="Полный режим появится в следующей фазе">
-            Подключить кабинет Яндекса
-            <Icon icon="tabler:external-link" className="h-4 w-4" />
-          </Button>
+          {connected ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-[13px] text-[var(--color-text-primary)]">
+                Подключено{login ? `: ${login}` : ''}
+              </span>
+              {!readOnly && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={disconnecting}
+                  onClick={handleDisconnect}
+                >
+                  Отключить
+                </Button>
+              )}
+            </div>
+          ) : readOnly ? (
+            <p className="text-[13px] text-[var(--color-text-secondary)]">
+              Кабинет не подключён.
+            </p>
+          ) : (
+            <a
+              href="/api/integrations/yandex/authorize"
+              className="
+                inline-flex h-[36px] items-center justify-center gap-2 rounded-[6px]
+                border border-transparent bg-[#10B981] px-[14px]
+                text-[13px] font-medium text-white
+                transition-all duration-150
+                hover:bg-[#0E9E6E]
+              "
+            >
+              Подключить кабинет Яндекса
+              <Icon icon="tabler:external-link" className="h-4 w-4" />
+            </a>
+          )}
           <p className="mt-2 text-[12px] text-[var(--color-text-tertiary)]">
-            Полный режим появится в следующей фазе.
+            {connected
+              ? 'Кампания, группа объявлений, ключевая фраза, устройство и регион подгружаются для лидов с рекламы.'
+              : 'Подключите рекламный кабинет, чтобы получать кампанию, группу объявлений, ключевую фразу, устройство и регион.'}
           </p>
         </div>
       </div>

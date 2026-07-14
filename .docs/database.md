@@ -151,6 +151,8 @@ enum EventType {
   LEAD_QUALIFIED
   LEAD_DISQUALIFIED
   COMPANY_PROFILE_UPDATED
+  YANDEX_CONNECTED
+  YANDEX_DISCONNECTED
 }
 
 enum ReminderStatus {
@@ -213,6 +215,12 @@ model Company {
   legalForm    CompanyLegalForm?
   directorName String?
 
+  // Яндекс Директ OAuth — server-only, ни один эндпоинт не возвращает клиенту (Phase 22)
+  yandexAccessToken     String?
+  yandexRefreshToken    String?
+  yandexTokenExpiresAt  DateTime?
+  yandexLogin           String?
+
   users               User[]
   leads               Lead[]
   stages              PipelineStage[]
@@ -232,6 +240,14 @@ model Company {
   @@index([createdByPlatformAdminId])
 }
 ```
+
+### Токены Яндекс Директа — server-only (v4.3, Phase 22)
+
+`yandexAccessToken`/`yandexRefreshToken`/`yandexTokenExpiresAt`/`yandexLogin` — **намеренно отдельные колонки `Company`, не поля `Company.settings`**. `settings` — JSONB, и `getSettings()` → `toPublicSettings()` (`lib/settings/getSettings.ts`) отдаёт клиенту (`GET /api/settings`, доступен ADMIN и маркетологу) весь объект `settings` за вычетом одного технического поля `roundRobinCursor` — то есть любое поле, положенное в `settings`, по умолчанию публично внутри компании. Токены Direct API таким требованиям не удовлетворяют — они читаются только сервером (`lib/integrations/yandex/oauth.ts`, Таск 2) и не возвращаются ни одним эндпоинтом, включая `GET /api/integrations/yandex` (тот отдаёт только производный статус `{ connected, login, mode }`).
+
+Миграция — аддитивная (все 4 поля `nullable`, `String?`/`DateTime?`), существующие компании получают `null`, ничего не пересчитывается.
+
+`EventType.YANDEX_CONNECTED`/`YANDEX_DISCONNECTED` — пишутся при подключении/отключении кабинета (`Event.userId` = ADMIN, выполнивший действие).
 
 ### Владение компанией (v4.1)
 
