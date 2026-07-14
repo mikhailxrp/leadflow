@@ -14,6 +14,7 @@ import { auth } from '@/lib/auth';
 import { toCompanyActor } from '@/lib/auth/requireCompanyAccess';
 import { getSourceHealth } from '@/lib/integrations/getSourceHealth';
 import { getWebhookUrls } from '@/lib/integrations/getWebhookUrls';
+import { getYandexConnectionStatus } from '@/lib/integrations/yandex/oauth';
 import { prisma } from '@/lib/prisma';
 import { getSettings } from '@/lib/settings/getSettings';
 import type { CompanySession } from '@/types/session';
@@ -143,7 +144,7 @@ export default async function AdminIntegrationsPage() {
 
   const { companyId } = actor;
 
-  const [dbUser, apiKeys, sourceHealth, settings] = await Promise.all([
+  const [dbUser, apiKeys, sourceHealth, settings, yandexStatus] = await Promise.all([
     actor.actor === 'user'
       ? prisma.user.findUnique({
           where: { id: actor.userId, companyId },
@@ -153,6 +154,7 @@ export default async function AdminIntegrationsPage() {
     listApiKeys(companyId),
     getSourceHealth(companyId),
     getSettings(companyId),
+    getYandexConnectionStatus(companyId),
   ]);
 
   const userName = dbUser?.name ?? '';
@@ -233,7 +235,12 @@ export default async function AdminIntegrationsPage() {
             readOnly={isMarketer}
           />
 
-          <YandexDirectCard initialMode={yandexMode} readOnly={isMarketer} />
+          <YandexDirectCard
+            initialMode={yandexMode}
+            initialConnected={yandexStatus.connected}
+            initialLogin={yandexStatus.login}
+            readOnly={isMarketer}
+          />
 
           <IntegrationCard
             icon={<WebhookIcon />}

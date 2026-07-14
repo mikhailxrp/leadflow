@@ -36,6 +36,33 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-14 — Phase 22, Таск 4: UI — реальный статус кабинета + данные Яндекса в карточке лида
+
+**Статус:** ✅ Завершён (Phase 22 полностью завершена — все 4 таска)
+
+**Что было сделано:**
+
+- `components/integrations/YandexDirectCard.tsx` — новые пропы `initialConnected`/`initialLogin`; disabled-заглушка (Phase 18) заменена реальной логикой: не подключено → `<a href="/api/integrations/yandex/authorize">` (обычная навигация, не `fetch`); подключено → «Подключено: {login}» + кнопка «Отключить» (`DELETE /api/integrations/yandex`, оптимистичный откат + `Toast` при ошибке, `router.refresh()` при успехе, паттерн как у `handleModeChange` в этом же файле). Для маркетолога (`readOnly`) — только текст статуса, ни ссылки, ни кнопки. Добавлен `ConnectedBadge` в шапку карточки (раньше бейдж зависел только от `mode`, не от реального подключения).
+- `app/(company)/(admin)/admin/integrations/page.tsx` — добавлен `getYandexConnectionStatus(companyId)` в существующий `Promise.all`, `connected`/`login` прокинуты в `<YandexDirectCard>`.
+- `components/leads/LeadYandex.tsx` — пропсы `campaign`/`adGroup`/`keyword`/`device`/`region` стали `string | null | undefined`; каждый `DetailRow` рендерится только если поле реально присутствует.
+- `app/(company)/(app)/leads/[id]/page.tsx` — извлечение `marketing.yandex` из уже имевшегося `lead.marketing`, условный рендер `<LeadYandex>` только при наличии хотя бы одного поля.
+- `components/leads/LeadMarketing.tsx` — из общего перечисления `marketing`-полей исключён ключ `yandex` (иначе рядом с новой карточкой дублировался сырой JSON) — этого файла не было в черновом списке `phase-22.md`, найдено на этапе планирования как необходимая доработка.
+
+**Живая проверка (dev-БД, throwaway-компания + throwaway-маркетолог + 3 лида через прямые Prisma-вставки, headless Chromium/Playwright, реальные формы логина ADMIN и MARKETER, реальный флоу `MarketerAccessButton` → `signIn('marketer-access')`):**
+- ADMIN: карточка показывает «Подключено: test-yandex-login» + «Отключить»; клик реально вызывает `DELETE`, UI переключается на ссылку `/api/integrations/yandex/authorize` без `reload`, БД подтверждённо очищается (повторный запрос статуса после клика — `connected: false`)
+- Маркетолог: видит тот же статус read-only, ни ссылки на authorize, ни кнопки «Отключить» в DOM нет
+- Лид с 5 заполненными полями Яндекса — карточка показывает все 5; лид с 2 из 5 — только эти 2 строки, остальные не рендерятся; лид без данных Яндекса — карточка `LeadYandex` отсутствует в DOM вовсе
+- «Маркетинговые данные» на лиде с данными Яндекса не содержат сырого JSON ключа `yandex` (проверено отсутствие подстроки `campaignName` в этой секции), при этом `sourceLabel` по-прежнему отображается
+- `npm run type-check`/`lint`/`build` — чисто, без `any`; throwaway-компания удалена через `npm run delete:company`, throwaway-маркетолог удалён вручную
+
+**Найдено при живой проверке, не относится к диффу:** в headless Chromium при заходе на `/admin/integrations` через маркетологовский флоу `signIn('marketer-access')` → `goto` нестабильно (не в каждом прогоне) всплывает React hydration-warning про `style={{caret-color:"transparent"}}` — одинаково на readonly-инпутах Tilda/WordPress (`WebhookUrl.tsx`, не тронут этим таском) и на радио-кнопках режима Яндекса. Атрибут `caret-color` нигде не задаётся в коде проекта — проверено прямым чтением `Input.tsx`/`WebhookUrl.tsx`/`YandexDirectCard.tsx`. Не воспроизводится при прямом логине ADMIN на ту же страницу (несколько повторов — 0 ошибок), воспроизводится нестабильно только после многошагового редиректа маркетолога. Сырой SSR HTML (получен прямым `fetch` с теми же cookie) в каждом случае содержал корректные данные — расхождение чисто атрибутное и не по существу контента. Похоже на гонку между автозаполнением Chromium и гидратацией React под увеличенным таймингом навигации, не на баг в коде задачи; оставлено как заметка, не как открытый дефект.
+
+**Out of scope (не делалось):** экспорт в Яндекс.Метрику (Phase 22.5); резолв `{ad_id}`/`{banner_id}`/`{phrase_id}`/`{retargeting_id}`/`{region_id}`; изменения `lib/intake/yandex.ts`/`directApi.ts`/`oauth.ts`/миграций (готовы с Тасков 2–3); новый пункт в `constants/marketerAccess.ts` (не понадобился — статус отдаётся серверным пропом уже разрешённой страницы).
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены.
+
+---
+
 ## 2026-07-14 — Phase 22, Таск 3: Обогащение лида данными Яндекс Директа
 
 **Статус:** ✅ Завершён

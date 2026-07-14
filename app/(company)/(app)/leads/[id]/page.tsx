@@ -11,6 +11,7 @@ import LeadHeader from '@/components/leads/LeadHeader';
 import LeadContacts from '@/components/leads/LeadContacts';
 import LeadCustomFields from '@/components/leads/LeadCustomFields';
 import LeadMarketing from '@/components/leads/LeadMarketing';
+import LeadYandex from '@/components/leads/LeadYandex';
 import LeadEditForm from '@/components/leads/LeadEditForm';
 import DeleteLeadModal from '@/components/leads/DeleteLeadModal';
 import DuplicateBlock from '@/components/leads/DuplicateBlock';
@@ -29,6 +30,11 @@ export const metadata: Metadata = {
 interface LeadDetailPageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ taskId?: string }>;
+}
+
+function readYandexField(yandex: Record<string, unknown>, key: string): string | null {
+  const value = yandex[key];
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
 }
 
 export default async function LeadDetailPage({
@@ -69,6 +75,22 @@ export default async function LeadDetailPage({
   }));
 
   const takenAtStr = lead.takenAt ? lead.takenAt.toISOString() : null;
+
+  const yandexRaw = lead.marketing.yandex;
+  const yandex =
+    yandexRaw !== null && typeof yandexRaw === 'object' && !Array.isArray(yandexRaw)
+      ? (yandexRaw as Record<string, unknown>)
+      : null;
+
+  const yandexCampaign = yandex ? readYandexField(yandex, 'campaignName') : null;
+  const yandexAdGroup = yandex ? readYandexField(yandex, 'adGroupName') : null;
+  const yandexKeyword = yandex ? readYandexField(yandex, 'keyword') : null;
+  const yandexDevice = yandex ? readYandexField(yandex, 'deviceType') : null;
+  const yandexRegion = yandex ? readYandexField(yandex, 'regionName') : null;
+
+  const hasYandexData = Boolean(
+    yandexCampaign || yandexAdGroup || yandexKeyword || yandexDevice || yandexRegion,
+  );
 
   const telegramConnected =
     actor.actor === 'user'
@@ -114,6 +136,16 @@ export default async function LeadDetailPage({
             marketing={lead.marketing}
             utm={lead.utm}
           />
+
+          {hasYandexData && (
+            <LeadYandex
+              campaign={yandexCampaign}
+              adGroup={yandexAdGroup}
+              keyword={yandexKeyword}
+              device={yandexDevice}
+              region={yandexRegion}
+            />
+          )}
 
           <LeadCustomFields fields={lead.customFields} />
 
