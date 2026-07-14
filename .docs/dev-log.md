@@ -36,6 +36,45 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-14 — Phase 22, Таск 1: Research — доступ к API Яндекс Директа + фиксация спеки (ГЕЙТ)
+
+**Статус:** ✅ Завершён — **GO**
+
+**Разделение ответственности:** пользователь зарегистрировал OAuth-приложение на oauth.yandex.ru (заявка «Лид-Канал — Яндекс Директ», доступ **Полный** — не Trial/Sandbox-only, одобрена 14.07.2026), добавил `YANDEX_OAUTH_CLIENT_ID`/`YANDEX_OAUTH_CLIENT_SECRET`/`YANDEX_OAUTH_REDIRECT_URI` в `.env`; агент выполнил research актуального Direct API v5 + OAuth Яндекса и переписал документацию.
+
+**Оговорка при GO:** рекламная кампания в кабинете создана, но не запущена и не оплачена. Для Таска 1 (research + спека) это не блокер — резолв ID-макросов (`campaigns.get`/`adgroups.get`) не требует активной/оплаченной кампании, а классификация макросов «название vs ID» подтверждена официальной документацией Яндекса без единого вызова API. Живой `yclid` с реального клика по объявлению понадобится только в Таске 3 (сквозной тест обогащения) — кампанию нужно будет запустить и профинансировать до этого таска, не раньше.
+
+### Итог research
+
+**OAuth-приложение (oauth.yandex.ru):**
+- `client_id`/`client_secret` — выданы при регистрации приложения, лежат в `.env`.
+- `redirect_uri` должен точно совпадать с зарегистрированным для приложения (`APP_URL + /api/integrations/yandex/callback`).
+- `scope` — `direct:api` («Использование API Яндекс Директа»), выбирается явно в разделе «Доступ к данным» при регистрации приложения.
+- Authorize URL: `https://oauth.yandex.ru/authorize?response_type=code&client_id=...&redirect_uri=...&scope=direct:api&state=...`. `state` поддерживается нативно OAuth-эндпоинтом Яндекса, возвращается обратно на `redirect_uri` вместе с `code`; код авторизации живёт **10 минут**. `state` в нашей реализации — подписанный (не голый nonce), содержит `companyId` (CSRF + привязка к компании на callback).
+- Уровень доступа приложения — **Trial** (только Sandbox) vs **Full** (Sandbox + боевые кампании) задаётся при одобрении заявки на стороне Яндекса, не параметром запроса. У нас — **Full**, подтверждено скриншотом личного кабинета (Раздел API → «Мои заявки» → статус «одобрена», доступ «полный»).
+
+**Direct API v5:**
+- Base URL (production): `https://api.direct.yandex.com/json/v5/{service}`.
+- Base URL (sandbox): `https://api-sandbox.direct.yandex.com/json/v5/{service}` — изолированные симулированные данные, безопасно для разработки Таска 3.
+- Авторизация: `Authorization: Bearer <access_token>` всегда; `Client-Login: <логин клиента>` — только при агентском доступе (не наш случай — рекламодатель подключает свой кабинет напрямую).
+- Формат: JSON поверх HTTPS POST (SOAP/XML тоже поддерживается Яндексом, не используем).
+- Обмен кода на токен: `POST https://oauth.yandex.com/token`, `application/x-www-form-urlencoded`, `grant_type=authorization_code` + `code`/`client_id`/`client_secret`.
+- Refresh: тот же эндпоинт, `grant_type=refresh_token` + `refresh_token`; ответ содержит **новый** `access_token` **и новый** `refresh_token` (ротация — обязательно перезаписывать оба поля при каждом refresh).
+- TTL: `expires_in` (секунды) приходит в каждом ответе токен-эндпоинта; официальная документация не публикует его как фиксированную константу — брать из ответа, не хардкодить.
+- Лимиты: заголовок ответа `Units: <потрачено>/<доступно>/<дневной лимит>` в каждом успешном запросе к Direct API (пример из документации: `Units: 10/20828/64000`). Исчерпание — укладывается в общий фолбэк-no-op обогащения, отдельной обработки не требует.
+
+**Макросы Директа — название vs ID (полная таблица — `.docs/modules/leads-intake.md` → «Макросы Директа»):** подтверждено официальной страницей `yandex.ru/support/direct/statistics/url-tags.html`. Текстом (без резолва): `{campaign_name}`/`{campaign_name_lat}`, `{keyword}`/`{matched_keyword}`, `{region_name}`, `{device_type}`, `{source}`/`{source_type}`, `{position_type}`/`{match_type}`. Числовым ID (резолв через API): `{campaign_id}` → `campaigns.get`, `{gbid}` → `adgroups.get`, `{phrase_id}` → `keywords.get`, `{ad_id}`/`{banner_id}` → `ads.get`, `{region_id}` → `dictionaries.get` (GeoRegions, не нужен при наличии `{region_name}`). `{yclid}` — не резолвится вообще, сохраняется как есть (задел под Phase 22.5).
+
+### Правки документации
+
+- `.docs/modules/leads-intake.md` → «Источник: Яндекс Директ» переписан целиком: вход через существующие каналы (без отдельного вебхука Яндекса), точка вызова обогащения (пост-коммит, fire-and-forget, паттерн `assignLead`/`flagPossibleDuplicates`), ключи `marketing.yandex.*`, таблица макросов, фолбэк-no-op (явно не трогает `IntegrationSource`/здоровье источника).
+- `.docs/modules/integrations.md` → «Яндекс Директ» переписана: OAuth-флоу (authorize → `state` → callback → обмен токенов), явное объяснение почему токены не в `Company.settings`, параметры Direct API v5 для реализации, callback — не NextAuth-провайдер и вне `matcher` `proxy.ts`. Таблица API-эндпоинтов дополнена `GET /api/integrations/yandex/callback`; зафиксировано, что маркетолог видит статус серверным пропом, новый пункт в `constants/marketerAccess.ts` не нужен. Добавлены два пункта в «Серверные правила безопасности».
+- `.docs/database.md` → добавлены server-only nullable-поля `Company` (`yandexAccessToken`, `yandexRefreshToken`, `yandexTokenExpiresAt`, `yandexLogin`) с пояснением (v4.3), `EventType.YANDEX_CONNECTED`/`YANDEX_DISCONNECTED`.
+
+**Definition of Done:** ✅ Все пункты TASK.md выполнены (см. выше); ENV-имена (`YANDEX_OAUTH_CLIENT_ID`/`_SECRET`/`_REDIRECT_URI`) и `scope=direct:api` согласованы, уже используются в `.env`; запись в `CLAUDE.md` — Таск 2. `npm run type-check` не затронут (задача документационная, кода не меняли).
+
+---
+
 ## 2026-07-13 — Phase 21, Таск 4: UI остальных вкладок отчётов + экспорт CSV
 
 **Статус:** ✅ Завершён
