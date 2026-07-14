@@ -9,6 +9,7 @@ declare module 'next-auth' {
       companyId: string;
       role: UserRole;
       impersonatedByPlatformAdminId?: string;
+      isDemo?: boolean;
     };
     admin?: {
       id: string;
@@ -28,6 +29,7 @@ declare module 'next-auth' {
     platformRole?: PlatformRole;
     impersonatedByPlatformAdminId?: string;
     marketerPlatformAdminId?: string;
+    isDemo?: boolean;
   }
 }
 
@@ -42,6 +44,7 @@ declare module '@auth/core/jwt' {
     impersonatedByPlatformAdminId?: string;
     marketerPlatformAdminId?: string;
     email?: string;
+    isDemo?: boolean;
   }
 }
 
@@ -56,5 +59,6 @@ declare module 'next-auth/jwt' {
     impersonatedByPlatformAdminId?: string;
     marketerPlatformAdminId?: string;
     email?: string;
+    isDemo?: boolean;
   }
 }

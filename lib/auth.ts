@@ -19,6 +19,7 @@ type CompanyAuthUser = {
   companyId: string;
   role: UserRole;
   impersonatedByPlatformAdminId?: string;
+  isDemo?: boolean;
 };
 
 type PlatformAuthUser = {
@@ -232,6 +233,36 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         };
       },
     }),
+    Credentials({
+      id: 'demo-access',
+      name: 'Demo',
+      credentials: {},
+      authorize: async () => {
+        const demoCompany = await prisma.company.findFirst({
+          where: { isDemo: true },
+          select: { id: true },
+        });
+        if (!demoCompany) {
+          return null;
+        }
+
+        const demoUser = await prisma.user.findFirst({
+          where: { companyId: demoCompany.id, role: 'ADMIN' },
+          select: { id: true, role: true },
+        });
+        if (!demoUser) {
+          return null;
+        }
+
+        return {
+          kind: 'company' as const,
+          id: demoUser.id,
+          companyId: demoCompany.id,
+          role: demoUser.role,
+          isDemo: true,
+        };
+      },
+    }),
   ],
   session: {
     strategy: 'jwt',
@@ -257,6 +288,9 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             token.impersonatedByPlatformAdminId =
               authUser.impersonatedByPlatformAdminId;
           }
+          if (authUser.isDemo) {
+            token.isDemo = true;
+          }
         }
       } else {
         token.adminId = authUser.id;
@@ -277,6 +311,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         email,
         impersonatedByPlatformAdminId,
         marketerPlatformAdminId,
+        isDemo,
       } = token;
 
       if (kind === 'company' && marketerPlatformAdminId && companyId) {
@@ -295,6 +330,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           ...(impersonatedByPlatformAdminId
             ? { impersonatedByPlatformAdminId }
             : {}),
+          ...(isDemo ? { isDemo: true } : {}),
         };
       } else if (kind === 'platform' && adminId && email && platformRole) {
         session.kind = 'platform';
