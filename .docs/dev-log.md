@@ -36,6 +36,41 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-14 — Phase 22, Таск 2: OAuth-подключение Яндекс Директа + server-only токены + миграция
+
+**Статус:** ✅ Завершён
+
+**Дрейф миграций перед стартом:** локальная история миграций `phase-22` не знала о `20260713201007_add_company_is_demo` (смержено в `main` из `demo_branch` уже после форка ветки, общая dev-БД её уже применила). Скопирован ровно этот один файл миграции из `origin/main` + добавлено поле `Company.isDemo` в `schema.prisma` (по согласованию с пользователем) — без затрагивания данных БД, только синхронизация локальной истории с уже применённым состоянием. Дальше миграция Яндекса создана поверх без проблем.
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` — `Company`: 4 server-only nullable-поля (`yandexAccessToken`, `yandexRefreshToken`, `yandexTokenExpiresAt`, `yandexLogin`); `EventType`: `YANDEX_CONNECTED`/`YANDEX_DISCONNECTED`; миграция `20260714170146_add_yandex_oauth_fields` (аддитивная, `ALTER TYPE ... ADD VALUE` + 4 колонки)
+- `lib/integrations/yandex/oauth.ts` (новый) — `buildAuthorizeUrl`/`verifyState` (HMAC-SHA256 на `AUTH_SECRET`, payload `{companyId, ts, nonce}` в base64url + hex-подпись, TTL 10 мин, `timingSafeEqual`), `exchangeCodeForTokens`/`refreshAccessToken` (общий `requestTokens`, ротация — оба токена перезаписываются), `fetchYandexLogin` (best-effort `login.yandex.ru/info`, любая ошибка → `null`), `saveYandexTokens`/`disconnectYandex`/`getYandexConnectionStatus`
+- `lib/validations/yandex.ts` (новый) — `yandexCallbackQuerySchema` (все поля query опциональны, ветвление на `code`/`state`/`error` — в route handler'е)
+- `app/api/integrations/yandex/route.ts` (новый) — `GET` статус (`requireCompanyUser({ minRole: 'ADMIN' })`) / `DELETE` отключение + `YANDEX_DISCONNECTED`
+- `app/api/integrations/yandex/authorize/route.ts` (новый) — `GET`, ADMIN only, минтит `state` за запрос и делает `NextResponse.redirect` на Яндекс — устраняет противоречие, найденное на этапе планирования (в `integrations.md` тот же путь `GET /api/integrations/yandex` был описан и как JSON-статус, и как redirect-инициатор одновременно)
+- `app/api/integrations/yandex/callback/route.ts` (новый) — свой guard (не `requireCompanyUser`, редиректит вместо JSON): проверяет `state`, **сверяет `companyId` из `state` с `companyId` текущей сессии** (закрывает найденный при планировании риск переиспользования чужого `state`, если он утёк), обменивает код, best-effort логин, пишет токены + `YANDEX_CONNECTED`
+- `constants/eventLabels.ts` — `PLATFORM_EVENT_LABELS` дополнен двумя лейблами
+- `CLAUDE.md` — ENV-секция + `v4.3` в шапке; `.docs/modules/integrations.md` — исправлено найденное на планировании противоречие (шаг 1 OAuth-флоу → отдельный `/authorize`), таблица эндпоинтов и файловый список дополнены, зафиксирован best-effort механизм `yandexLogin`
+
+**Баг найден и исправлен при живой проверке:** `writeEvent(companyId, type)` без явного `opts.userId` в этом проекте **не** подставляет `session.user.id` автоматически — пишет `userId: null` (так уже устроены `COMPANY_PROFILE_UPDATED` и подобные события). `database.md` явно требует `Event.userId = ADMIN, выполнивший действие` для `YANDEX_CONNECTED`/`YANDEX_DISCONNECTED` — в первой версии обоих call site `userId` не передавался. Исправлено (`{ userId: actor.userId }` / `{ userId: session.user.id }`), проверено повторным вызовом — `userId` заполняется корректно.
+
+**Проверено (dev-БД, throwaway-компании через прямые Prisma-вставки, вход через реальный NextAuth credentials-флоу curl'ом — csrf → callback → cookie, не мок сессии):**
+- `GET /api/integrations/yandex` без подключения → `{connected:false, login:null, mode:"UTM"}`; после симуляции токенов → `connected:true` + `login`; `GET /api/settings` токены не содержит (только `yandexMode`, `roundRobinCursor` по-прежнему стрипается)
+- `GET /api/integrations/yandex/authorize` → 307 на `oauth.yandex.ru/authorize` с корректными `client_id`/`redirect_uri`/`scope=direct:api`/`state`; `state` декодируется в `{companyId, ts, nonce}`
+- `DELETE` очищает все 4 поля, пишет `YANDEX_DISCONNECTED` с верным `userId`
+- MANAGER — 403 на всех трёх эндпоинтах; без сессии — 401 (`route`/`authorize`), редирект на `/login` (`callback`)
+- `callback`: невалидный `state` → редирект без падения; `error=access_denied` от Яндекса → редирект; валидный `state`, но чужой код → реальный запрос к `oauth.yandex.com/token` (400), поймано, редирект, без 500 и без стека в ответе клиенту
+- **Cross-company hijack:** `state`, выпущенный для компании B, использован в callback-запросе от имени администратора компании A → отклонён до любого сетевого вызова (не найдено токенов у B, не создано событий) — подтверждает работу сверки `state.companyId === session.companyId`
+- `npm run type-check`/`lint`/`build` — чисто, включая после исправления `userId`-бага
+- Throwaway-компании и пользователи удалены (`npm run delete:company`), dev-сервер остановлен
+
+**Out of scope (не делалось):** обогащение лида, `directApi.ts`, `lib/intake/yandex.ts` — Таск 3; реальная кнопка/статус в `YandexDirectCard.tsx`, `admin/integrations/page.tsx`, `LeadYandex.tsx` — Таск 4; `constants/marketerAccess.ts` — не тронут; экспорт в Яндекс.Метрику — Phase 22.5
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены
+
+---
+
 ## 2026-07-14 — Phase 22, Таск 1: Research — доступ к API Яндекс Директа + фиксация спеки (ГЕЙТ)
 
 **Статус:** ✅ Завершён — **GO**

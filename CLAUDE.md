@@ -6,6 +6,7 @@
 
 > **v4.1** — добавлена роль «Маркетолог» на платформенном уровне (см. `.docs/modules/platform-marketer.md`)
 > **v4.2** — тумблер включения источника на `/admin/integrations` (см. `.docs/modules/integrations.md`)
+> **v4.3** — OAuth-подключение Яндекс Директа, server-only токены на `Company` (см. `.docs/modules/integrations.md` → «Яндекс Директ»)
 
 ---
 
@@ -441,6 +442,11 @@ S3_BUCKET=
 S3_ACCESS_KEY_ID=
 S3_SECRET_ACCESS_KEY=
 S3_PUBLIC_URL_BASE=
+
+# Яндекс Директ OAuth (Phase 22 — полный режим интеграции)
+YANDEX_OAUTH_CLIENT_ID=
+YANDEX_OAUTH_CLIENT_SECRET=
+YANDEX_OAUTH_REDIRECT_URI=
 ```
 
 **Убрано относительно v3.0:** `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, `ROBOKASSA_MERCHANT_LOGIN`, `ROBOKASSA_PASSWORD_1/2` — вместе с биллингом.
@@ -448,6 +454,8 @@ S3_PUBLIC_URL_BASE=
 `**PLATFORM_ADMIN_BOOTSTRAP_*`\*\* используется ровно один раз — скриптом `npm run bootstrap:platform-admin`, который создаёт первую запись `PlatformAdmin`, если таблица пуста. Дальше платформенные администраторы создаются друг другом через `/platform/admins`, эти переменные можно убрать из `.env` после первого запуска (скрипт не запускается повторно, если хоть одна запись уже есть).
 
 `TELEGRAM_BOT_USERNAME` — username бота без `@`, используется для сборки deep-link привязки (`https://t.me/<username>?start=<token>`). `TELEGRAM_WEBHOOK_SECRET` — секрет, который Telegram обязан присылать в заголовке `X-Telegram-Bot-Api-Secret-Token` на `/api/telegram/webhook`; несовпадение/отсутствие → `401`. **Регистрация вебхука у Telegram — ручной ops-шаг** (как crontab в Phase 1), выполняется один раз командой вида `curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook?url=$APP_URL/api/telegram/webhook&secret_token=$TELEGRAM_WEBHOOK_SECRET"` — приложение само `setWebhook` не вызывает.
+
+`YANDEX_OAUTH_CLIENT_ID`/`YANDEX_OAUTH_CLIENT_SECRET` — из OAuth-приложения, зарегистрированного вручную на oauth.yandex.ru (одна общая заявка для всех компаний, не per-tenant). `YANDEX_OAUTH_REDIRECT_URI` должен точно совпадать со значением, зарегистрированным для приложения (`APP_URL + /api/integrations/yandex/callback`). Токены хранятся server-only на `Company` (`.docs/database.md`), не в `Company.settings` — см. `.docs/modules/integrations.md` → «Яндекс Директ».
 
 ---
 

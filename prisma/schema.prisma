@@ -91,6 +91,8 @@ enum EventType {
   LEAD_DISQUALIFIED
   COMPANY_PROFILE_UPDATED
   CONTROL_SUMMARY_SENT
+  YANDEX_CONNECTED
+  YANDEX_DISCONNECTED
 }
 
 enum ReminderStatus {
@@ -121,6 +123,7 @@ model Company {
   id                       String            @id @default(cuid())
   name                     String
   isBlocked                Boolean           @default(false)
+  isDemo                   Boolean           @default(false)
   nextPaymentAt            DateTime?
   settings                 Json              @default("{}")
   createdAt                DateTime          @default(now())
@@ -132,6 +135,12 @@ model Company {
   address                  String?
   legalForm                CompanyLegalForm?
   directorName             String?
+
+  // Яндекс Директ OAuth — server-only, ни один эндпоинт не возвращает клиенту (Phase 22)
+  yandexAccessToken    String?
+  yandexRefreshToken   String?
+  yandexTokenExpiresAt DateTime?
+  yandexLogin          String?
 
   users              User[]
   leads              Lead[]
