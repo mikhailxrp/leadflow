@@ -5,6 +5,7 @@ import { flagPossibleDuplicates } from '@/lib/intake/flagPossibleDuplicates';
 import { touchIntegrationSource } from '@/lib/intake/touchIntegrationSource';
 import { assignLead } from '@/lib/assignLead';
 import { notifyNewLead } from '@/lib/notifications/notifyNewLead';
+import { enrichYandexLead } from '@/lib/intake/yandex';
 import { webhookBodySchema } from '@/lib/validations/webhooks';
 import { prisma } from '@/lib/prisma';
 import { parseCompanySettings } from '@/lib/settings/getSettings';
@@ -55,6 +56,7 @@ export async function POST(
     const lead = await createLead(body, 'tilda', companyId);
     await touchIntegrationSource(companyId, 'tilda', '', false);
     void flagPossibleDuplicates(lead.id, companyId).catch(console.error);
+    void enrichYandexLead(lead.id, companyId).catch(console.error);
     void assignLead(lead.id, companyId)
       .then(() => notifyNewLead(lead.id, companyId))
       .catch(console.error);

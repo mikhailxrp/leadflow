@@ -165,7 +165,7 @@ export async function POST(req: Request, { params }: { params: { companyId: stri
 
 ### Ключи хранения результата
 
-Результат обогащения пишется в `Lead.customFields.marketing.yandex.*` (не в `Lead.utm` — это производные, дополняющие исходные данные формы, не заменяющие их):
+`Lead.marketing` — отдельная top-level JSONB-колонка (`.docs/database.md`), не вложенная в `customFields`: `sourceLabel` (универсальный webhook) уже пишется туда же (`lib/intake/createLead.ts`). Результат обогащения мёржится в **существующее** содержимое `Lead.marketing` (не заменяет колонку целиком — иначе `sourceLabel`/UTM-производные потерялись бы) под ключом `yandex`, не в `Lead.utm` — это производные, дополняющие исходные данные формы, не заменяющие их:
 
 ```
 marketing.yandex.campaignName   // резолв {campaign_id} → название кампании
@@ -176,7 +176,11 @@ marketing.yandex.regionName     // {region_name} — уже текст
 marketing.yandex.yclid          // сохраняется как есть, не резолвится (нужен для будущей Phase 22.5 — офлайн-конверсии в Метрику)
 ```
 
-Точный набор полей и их nullable-статус — Таск 3/4 (часть макросов может отсутствовать у конкретного лида в зависимости от того, что реально прислала форма).
+Все поля опциональны — присутствуют только те, что реально нашлись у конкретного лида (Таск 3, `lib/intake/yandex.ts`).
+
+### Конвенция имён скрытых полей формы
+
+Официальная документация Яндекса задаёт только **синтаксис макроса** (`{campaign_id}`, `{gbid}`…), не имя HTML-поля на стороне сайта клиента. Конвенция Лид-Канала (зафиксирована в Таске 3, переиспользуется в инструкции подключения источника Таска 4): **имя скрытого поля формы = имя макроса без фигурных скобок**, регистронезависимо — `campaign_id`, `gbid`, `keyword`, `device_type`, `region_name` (список — `constants/yandexMacros.ts`). `yclid` в этот список не входит: он уже распознаётся `constants/fieldAliases.ts` (`MARKETING_FIELDS`) при приёме и попадает в `Lead.marketing.yclid` до всякого обогащения — `enrichYandexLead` читает его оттуда, а не из `utm`/`customFields`. Остальные пять полей ищутся регистронезависимо в `Lead.utm` и `Lead.customFields` (в зависимости от того, как форма их вообще передала — фиксированного пути для них нет).
 
 ### Макросы Директа — названия vs ID (резолв)
 
@@ -324,17 +328,20 @@ app/
         └── leads/route.ts
 
 lib/
-└── intake/
-    ├── createLead.ts
-    ├── normalizeLead.ts
-    ├── parseBody.ts
-    ├── verifyApiKey.ts
-    ├── flagPossibleDuplicates.ts
-    ├── touchIntegrationSource.ts
-    └── yandex.ts
+├── intake/
+│   ├── createLead.ts
+│   ├── normalizeLead.ts
+│   ├── parseBody.ts
+│   ├── verifyApiKey.ts
+│   ├── flagPossibleDuplicates.ts
+│   ├── touchIntegrationSource.ts
+│   └── yandex.ts             # enrichYandexLead — пост-коммит обогатитель (Таск 3)
+└── integrations/yandex/
+    └── directApi.ts          # тонкий клиент Direct API v5 (Bearer + авто-refresh на 401)
 
 constants/
-└── fieldAliases.ts
+├── fieldAliases.ts
+└── yandexMacros.ts           # конвенция имён скрытых полей формы под ID-макросы Директа
 
 lib/validations/
 └── intake.ts

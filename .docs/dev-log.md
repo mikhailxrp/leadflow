@@ -36,6 +36,38 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-14 — Phase 22, Таск 3: Обогащение лида данными Яндекс Директа
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `constants/yandexMacros.ts` (новый) — конвенция имён скрытых полей формы под ID-макросы Директа: `campaign_id`, `gbid`, `keyword`, `device_type`, `region_name` (имя макроса без фигурных скобок, зафиксирована на этапе планирования как отсутствующая в спеке — Таск 4 переиспользует тот же список для инструкции клиенту). `yclid` в список не входит — уже уходит в `Lead.marketing.yclid` через `MARKETING_FIELDS` (`constants/fieldAliases.ts`) до всякого обогащения.
+- `lib/integrations/yandex/directApi.ts` (новый) — тонкий клиент Direct API v5 (`https://api.direct.yandex.com/json/v5/{service}`, production, без sandbox-переключателя): `resolveCampaignName`/`resolveAdGroupName` (`campaigns.get`/`adgroups.get`), авто-refresh с одним повтором, ошибки логируют статус/тело, не токен.
+- `lib/intake/yandex.ts` (новый) — `enrichYandexLead(leadId, companyId)`: гейт `yandexMode === "FULL"` (проверяется первым, без похода в БД за токенами/лидом) → кабинет подключён → есть идентификатор → резолв `campaign_id`/`gbid`, копирование `keyword`/`device_type`/`region_name`/`yclid` как есть → мёрж в **существующий** `Lead.marketing` под ключом `yandex` (не перезапись колонки) → `LEAD_UPDATED`. Весь код в try/catch, не бросает наружу.
+- Встроено фактическим fire-and-forget (`void enrichYandexLead(...).catch(console.error)`, независимо от цепочки `assignLead().then(...)`) в `tilda/[companyId]`, `wordpress/[companyId]`, `webhooks/leads`, `POST /api/leads`.
+- `.docs/modules/leads-intake.md` — исправлены два противоречия/пробела, найденные на этапе планирования: (1) путь результата был ошибочно указан как `Lead.customFields.marketing.yandex.*` — `marketing` в `database.md` отдельная top-level колонка, не вложена в `customFields` (подтверждено и текущим кодом `createLead.ts`, который уже пишет `sourceLabel` прямо в `Lead.marketing`); исправлено на `Lead.marketing.yandex.*` с явной оговоркой про мёрж. (2) Не было зафиксировано, под какими именами скрытых полей искать ID-макросы в `utm`/`customFields` (таблица макросов документировала только синтаксис самого макроса Яндекса, не имя HTML-поля) — зафиксирована конвенция «имя макроса без скобок», добавлена в модуль.
+
+**Баг найден и исправлен при живой проверке (throwaway-компания, прямые Prisma-вставки, реальные сетевые запросы к `api.direct.yandex.com` и `oauth.yandex.com` с намеренно невалидным токеном — без мока):** первая версия `directApi.ts` триггерила авто-refresh только на HTTP `401`, как было зафиксировано в `phase-22.md` («Bearer + авто-refresh на 401»). Живой запрос с невалидным `accessToken` показал, что Яндекс возвращает авторизационную ошибку как `200 OK` с телом `{"error":{"error_code":53,"error_string":"Authorization error"}}`, не `401` — рефреш при этом никогда бы не срабатывал в реальности. Исправлено: `isAuthError()` триггерит refresh и на `401`, и на `error_code === 53`; повторная живая проверка подтвердила — invalid-токен теперь действительно вызывает `refreshAccessToken()` (реальный запрос к `oauth.yandex.com/token`, ожидаемо отклонён `400` для невалидного refresh-токена), после чего чисто no-op, `Lead.marketing` не тронут, `yandexLogin` не потерян.
+
+**Проверено живыми сценариями (dev-БД, throwaway-компания, `npx tsx`, реальные внешние запросы к Яндексу, без мока сети):**
+- `yandexMode: "UTM"` (дефолт) + `campaign_id` в `utm` → no-op, `Lead.marketing` не тронут (гейт срабатывает до похода в БД за токенами/лидом)
+- `yandexMode: "FULL"`, кабинет не подключён (`yandexAccessToken: null`) → no-op
+- `yandexMode: "FULL"`, подключён с заведомо невалидными токенами → реальный `error_code: 53` от Direct API → реальный неудачный refresh (`400` от `oauth.yandex.com`) → тихий no-op, `Lead.marketing`/`yandexLogin` не тронуты
+- `yandexMode: "FULL"`, подключён, у лида нет ни одного идентификатора Яндекса → no-op (`Lead.marketing` остаётся `{}`)
+- Текстовые макросы (`KEYWORD`/`Device_Type`/`region_name` — смешанный регистр в `utm`) → корректно найдены регистронезависимо, записаны в `marketing.yandex.{keyword,deviceType,regionName}`, существующий `marketing.sourceLabel` не потерян (мёрж подтверждён)
+- `yclid` в `Lead.marketing.yclid` (как его туда кладёт `normalizeLead`/`MARKETING_FIELDS`) → найден, скопирован в `marketing.yandex.yclid`, исходный `marketing.yclid` не тронут
+- `writeEvent(..., 'LEAD_UPDATED', ...)` в тестовом скрипте (запуск вне Next.js request-контекста через `tsx`) закономерно падает на `headers() outside a request scope` внутри `auth()` — тот же паттерн, что у уже работающих `flagPossibleDuplicates`/`assignLead`/`LEAD_QUALIFIED`; `enrichYandexLead` корректно поймал и эту ошибку (no-op, `Lead.marketing` к этому моменту уже обновлён предыдущим шагом) — не тестировалось внутри реального route handler'а в этой сессии, но код идентичен уже проверенному паттерну
+- `npm run type-check`/`lint`/`build` — чисто, без `any`; throwaway-компания и лиды удалены после теста
+
+**Не проверено живьём (осознанное ограничение, зафиксировано ещё в Таске 1):** успешный резолв `campaign_id`/`gbid` через реальный валидный токен — рекламная кампания в кабинете создана, но не запущена/не оплачена, а получение живого `access_token` требует ручного прохождения OAuth-согласия в браузере (вне досягаемости агента в этой сессии). Гейты, фолбэк-no-op и авто-refresh при сбое авторизации проверены полностью живыми запросами к реальным эндпоинтам Яндекса; успешный путь резолва — logically verified via type-check + code review, не end-to-end.
+
+**Out of scope (не делалось):** UI (`YandexDirectCard.tsx`, статус на `/admin/integrations`, `LeadYandex.tsx`, карточка лида) — Таск 4; резолв `{ad_id}`/`{banner_id}`/`{phrase_id}`/`{retargeting_id}`/`{region_id}`; sandbox Base URL; изменения `normalizeLead()`/`MARKETING_FIELDS`; экспорт в Метрику — Phase 22.5.
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены.
+
+---
+
 ## 2026-07-14 — Phase 22, Таск 2: OAuth-подключение Яндекс Директа + server-only токены + миграция
 
 **Статус:** ✅ Завершён
