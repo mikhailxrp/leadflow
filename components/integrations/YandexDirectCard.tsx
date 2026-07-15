@@ -6,6 +6,24 @@ import { useState, type ReactNode } from 'react';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Toast from '@/components/ui/Toast';
+import { YANDEX_MACRO_FIELDS } from '@/constants/yandexMacros';
+
+const COPY_RESET_MS = 2000;
+
+/** Скрытые поля формы, которые клиент добавляет на своём сайте для «Полного» режима. */
+const YANDEX_HIDDEN_FIELDS: Array<{ field: string; label: string }> = [
+  { field: 'yclid', label: 'ID клика' },
+  { field: YANDEX_MACRO_FIELDS.CAMPAIGN_ID, label: 'ID кампании' },
+  { field: YANDEX_MACRO_FIELDS.GBID, label: 'ID группы объявлений' },
+  { field: YANDEX_MACRO_FIELDS.KEYWORD, label: 'ключевая фраза' },
+  { field: YANDEX_MACRO_FIELDS.DEVICE_TYPE, label: 'тип устройства' },
+  { field: YANDEX_MACRO_FIELDS.REGION_NAME, label: 'регион' },
+];
+
+/** Строка для «Дополнительных параметров URL» кампании Директа — поле=макрос через `&`. */
+const YANDEX_TRACKING_TEMPLATE = YANDEX_HIDDEN_FIELDS.map(
+  ({ field }) => `${field}={${field}}`,
+).join('&');
 
 type YandexMode = 'UTM' | 'FULL';
 
@@ -145,6 +163,17 @@ export default function YandexDirectCard({
   const [login, setLogin] = useState(initialLogin);
   const [disconnecting, setDisconnecting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [templateCopied, setTemplateCopied] = useState(false);
+
+  async function handleCopyTemplate(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(YANDEX_TRACKING_TEMPLATE);
+      setTemplateCopied(true);
+      setTimeout(() => setTemplateCopied(false), COPY_RESET_MS);
+    } catch (error) {
+      console.error('Failed to copy Yandex tracking template:', error);
+    }
+  }
 
   async function handleModeChange(nextMode: YandexMode): Promise<void> {
     if (readOnly || nextMode === mode) return;
@@ -247,7 +276,7 @@ export default function YandexDirectCard({
         <div
           className={`
             overflow-hidden transition-all duration-150
-            ${mode === 'FULL' ? 'max-h-[160px] opacity-100' : 'max-h-0 opacity-0'}
+            ${mode === 'FULL' ? 'max-h-[720px] opacity-100' : 'max-h-0 opacity-0'}
           `}
         >
           {connected ? (
@@ -291,6 +320,74 @@ export default function YandexDirectCard({
               ? 'Кампания, группа объявлений, ключевая фраза, устройство и регион подгружаются для лидов с рекламы.'
               : 'Подключите рекламный кабинет, чтобы получать кампанию, группу объявлений, ключевую фразу, устройство и регион.'}
           </p>
+
+          <div
+            className="
+              mt-3 rounded-[6px] border border-[var(--color-border)]
+              border-[0.5px] bg-[var(--color-bg-surface-2)] p-3
+            "
+          >
+            <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
+              Настройка формы на сайте
+            </p>
+            <p className="mt-1 text-[12px] text-[var(--color-text-secondary)]">
+              Без этого лиды с рекламы будут сохраняться как обычные — заявка не
+              теряется, но подтянуть кампанию и группу объявлений будет не из чего.
+              Нужно один раз (передайте разработчику сайта):
+            </p>
+            <ol className="mt-2 list-decimal space-y-1 pl-4 text-[12px] text-[var(--color-text-secondary)]">
+              <li>
+                Добавить параметры ниже в «Дополнительные параметры URL» кампании
+                Яндекс Директа (через <code className="font-mono">&amp;</code>, если
+                там уже есть UTM-метки).
+              </li>
+              <li>
+                На форме сайта добавить скрытые поля с такими же именами — их
+                значения должны браться из одноимённых GET-параметров ссылки. У
+                Tilda и большинства конструкторов форм WordPress это делается без
+                кода, через настройку поля («значение из параметра URL»).
+              </li>
+            </ol>
+
+            <p className="mt-3 text-[12px] font-medium text-[var(--color-text-primary)]">
+              Параметры для трекинг-шаблона
+            </p>
+            <div className="mt-1.5 flex flex-col gap-2 sm:flex-row sm:items-start">
+              <code
+                className="
+                  block flex-1 overflow-x-auto rounded-[6px]
+                  border border-[var(--color-border)] border-[0.5px]
+                  bg-[var(--color-bg-surface)] px-3 py-2
+                  font-mono text-[12px] text-[var(--color-text-primary)]
+                "
+              >
+                {YANDEX_TRACKING_TEMPLATE}
+              </code>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon={templateCopied ? undefined : <Icon icon="lucide:copy" className="h-4 w-4" />}
+                className="flex-shrink-0"
+                onClick={handleCopyTemplate}
+              >
+                {templateCopied ? 'Скопировано ✓' : 'Скопировать'}
+              </Button>
+            </div>
+
+            <p className="mt-3 text-[12px] font-medium text-[var(--color-text-primary)]">
+              Скрытые поля формы
+            </p>
+            <ul className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+              {YANDEX_HIDDEN_FIELDS.map(({ field, label }) => (
+                <li key={field} className="text-[12px] text-[var(--color-text-secondary)]">
+                  <code className="font-mono text-[var(--color-text-primary)]">{field}</code>
+                  {' — '}
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
 
