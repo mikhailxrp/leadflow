@@ -97,6 +97,8 @@ const PLATFORM_EVENT_LABELS = {
   LEAD_DISQUALIFIED: 'Лид помечен нецелевым',
   COMPANY_PROFILE_UPDATED: 'Реквизиты компании обновлены',
   CONTROL_SUMMARY_SENT: 'Дневная сводка контроля отправлена',
+  YANDEX_CONNECTED: 'Кабинет Яндекс Директа подключён',
+  YANDEX_DISCONNECTED: 'Кабинет Яндекс Директа отключён',
 } satisfies Record<EventType, string>;
 
 export function getPlatformEventLabel(type: EventType): string {

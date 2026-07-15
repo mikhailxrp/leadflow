@@ -43,7 +43,8 @@ interface LeadMarketingProps {
 }
 
 export default function LeadMarketing({ source, marketing, utm }: LeadMarketingProps) {
-  const marketingEntries = Object.entries(marketing);
+  // 'yandex' рендерится отдельной карточкой LeadYandex — не дублируем сырым JSON здесь.
+  const marketingEntries = Object.entries(marketing).filter(([key]) => key !== 'yandex');
   const utmEntries = Object.entries(utm);
 
   const hasMarketing = marketingEntries.length > 0;

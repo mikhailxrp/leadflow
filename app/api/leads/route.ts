@@ -3,6 +3,7 @@ import { assignLead } from '@/lib/assignLead';
 import { createLead } from '@/lib/intake/createLead';
 import { findPossibleDuplicates } from '@/lib/intake/findPossibleDuplicates';
 import { flagPossibleDuplicates } from '@/lib/intake/flagPossibleDuplicates';
+import { enrichYandexLead } from '@/lib/intake/yandex';
 import { getLeadsWithRisk } from '@/lib/leads/getLeads';
 import { notifyNewLead } from '@/lib/notifications/notifyNewLead';
 import { createLeadSchema, leadsQuerySchema } from '@/lib/validations/leads';
@@ -98,6 +99,8 @@ export async function POST(request: Request): Promise<Response> {
     if (confirmDuplicate) {
       void flagPossibleDuplicates(lead.id, companyId).catch(console.error);
     }
+
+    void enrichYandexLead(lead.id, companyId).catch(console.error);
 
     await assignLead(lead.id, companyId).catch((error) => {
       console.error('[POST /api/leads] assignLead failed:', error);

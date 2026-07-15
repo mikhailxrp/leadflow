@@ -36,6 +36,139 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-14 — Phase 22, Таск 4: UI — реальный статус кабинета + данные Яндекса в карточке лида
+
+**Статус:** ✅ Завершён (Phase 22 полностью завершена — все 4 таска)
+
+**Что было сделано:**
+
+- `components/integrations/YandexDirectCard.tsx` — новые пропы `initialConnected`/`initialLogin`; disabled-заглушка (Phase 18) заменена реальной логикой: не подключено → `<a href="/api/integrations/yandex/authorize">` (обычная навигация, не `fetch`); подключено → «Подключено: {login}» + кнопка «Отключить» (`DELETE /api/integrations/yandex`, оптимистичный откат + `Toast` при ошибке, `router.refresh()` при успехе, паттерн как у `handleModeChange` в этом же файле). Для маркетолога (`readOnly`) — только текст статуса, ни ссылки, ни кнопки. Добавлен `ConnectedBadge` в шапку карточки (раньше бейдж зависел только от `mode`, не от реального подключения).
+- `app/(company)/(admin)/admin/integrations/page.tsx` — добавлен `getYandexConnectionStatus(companyId)` в существующий `Promise.all`, `connected`/`login` прокинуты в `<YandexDirectCard>`.
+- `components/leads/LeadYandex.tsx` — пропсы `campaign`/`adGroup`/`keyword`/`device`/`region` стали `string | null | undefined`; каждый `DetailRow` рендерится только если поле реально присутствует.
+- `app/(company)/(app)/leads/[id]/page.tsx` — извлечение `marketing.yandex` из уже имевшегося `lead.marketing`, условный рендер `<LeadYandex>` только при наличии хотя бы одного поля.
+- `components/leads/LeadMarketing.tsx` — из общего перечисления `marketing`-полей исключён ключ `yandex` (иначе рядом с новой карточкой дублировался сырой JSON) — этого файла не было в черновом списке `phase-22.md`, найдено на этапе планирования как необходимая доработка.
+
+**Живая проверка (dev-БД, throwaway-компания + throwaway-маркетолог + 3 лида через прямые Prisma-вставки, headless Chromium/Playwright, реальные формы логина ADMIN и MARKETER, реальный флоу `MarketerAccessButton` → `signIn('marketer-access')`):**
+- ADMIN: карточка показывает «Подключено: test-yandex-login» + «Отключить»; клик реально вызывает `DELETE`, UI переключается на ссылку `/api/integrations/yandex/authorize` без `reload`, БД подтверждённо очищается (повторный запрос статуса после клика — `connected: false`)
+- Маркетолог: видит тот же статус read-only, ни ссылки на authorize, ни кнопки «Отключить» в DOM нет
+- Лид с 5 заполненными полями Яндекса — карточка показывает все 5; лид с 2 из 5 — только эти 2 строки, остальные не рендерятся; лид без данных Яндекса — карточка `LeadYandex` отсутствует в DOM вовсе
+- «Маркетинговые данные» на лиде с данными Яндекса не содержат сырого JSON ключа `yandex` (проверено отсутствие подстроки `campaignName` в этой секции), при этом `sourceLabel` по-прежнему отображается
+- `npm run type-check`/`lint`/`build` — чисто, без `any`; throwaway-компания удалена через `npm run delete:company`, throwaway-маркетолог удалён вручную
+
+**Найдено при живой проверке, не относится к диффу:** в headless Chromium при заходе на `/admin/integrations` через маркетологовский флоу `signIn('marketer-access')` → `goto` нестабильно (не в каждом прогоне) всплывает React hydration-warning про `style={{caret-color:"transparent"}}` — одинаково на readonly-инпутах Tilda/WordPress (`WebhookUrl.tsx`, не тронут этим таском) и на радио-кнопках режима Яндекса. Атрибут `caret-color` нигде не задаётся в коде проекта — проверено прямым чтением `Input.tsx`/`WebhookUrl.tsx`/`YandexDirectCard.tsx`. Не воспроизводится при прямом логине ADMIN на ту же страницу (несколько повторов — 0 ошибок), воспроизводится нестабильно только после многошагового редиректа маркетолога. Сырой SSR HTML (получен прямым `fetch` с теми же cookie) в каждом случае содержал корректные данные — расхождение чисто атрибутное и не по существу контента. Похоже на гонку между автозаполнением Chromium и гидратацией React под увеличенным таймингом навигации, не на баг в коде задачи; оставлено как заметка, не как открытый дефект.
+
+**Out of scope (не делалось):** экспорт в Яндекс.Метрику (Phase 22.5); резолв `{ad_id}`/`{banner_id}`/`{phrase_id}`/`{retargeting_id}`/`{region_id}`; изменения `lib/intake/yandex.ts`/`directApi.ts`/`oauth.ts`/миграций (готовы с Тасков 2–3); новый пункт в `constants/marketerAccess.ts` (не понадобился — статус отдаётся серверным пропом уже разрешённой страницы).
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены.
+
+---
+
+## 2026-07-14 — Phase 22, Таск 3: Обогащение лида данными Яндекс Директа
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `constants/yandexMacros.ts` (новый) — конвенция имён скрытых полей формы под ID-макросы Директа: `campaign_id`, `gbid`, `keyword`, `device_type`, `region_name` (имя макроса без фигурных скобок, зафиксирована на этапе планирования как отсутствующая в спеке — Таск 4 переиспользует тот же список для инструкции клиенту). `yclid` в список не входит — уже уходит в `Lead.marketing.yclid` через `MARKETING_FIELDS` (`constants/fieldAliases.ts`) до всякого обогащения.
+- `lib/integrations/yandex/directApi.ts` (новый) — тонкий клиент Direct API v5 (`https://api.direct.yandex.com/json/v5/{service}`, production, без sandbox-переключателя): `resolveCampaignName`/`resolveAdGroupName` (`campaigns.get`/`adgroups.get`), авто-refresh с одним повтором, ошибки логируют статус/тело, не токен.
+- `lib/intake/yandex.ts` (новый) — `enrichYandexLead(leadId, companyId)`: гейт `yandexMode === "FULL"` (проверяется первым, без похода в БД за токенами/лидом) → кабинет подключён → есть идентификатор → резолв `campaign_id`/`gbid`, копирование `keyword`/`device_type`/`region_name`/`yclid` как есть → мёрж в **существующий** `Lead.marketing` под ключом `yandex` (не перезапись колонки) → `LEAD_UPDATED`. Весь код в try/catch, не бросает наружу.
+- Встроено фактическим fire-and-forget (`void enrichYandexLead(...).catch(console.error)`, независимо от цепочки `assignLead().then(...)`) в `tilda/[companyId]`, `wordpress/[companyId]`, `webhooks/leads`, `POST /api/leads`.
+- `.docs/modules/leads-intake.md` — исправлены два противоречия/пробела, найденные на этапе планирования: (1) путь результата был ошибочно указан как `Lead.customFields.marketing.yandex.*` — `marketing` в `database.md` отдельная top-level колонка, не вложена в `customFields` (подтверждено и текущим кодом `createLead.ts`, который уже пишет `sourceLabel` прямо в `Lead.marketing`); исправлено на `Lead.marketing.yandex.*` с явной оговоркой про мёрж. (2) Не было зафиксировано, под какими именами скрытых полей искать ID-макросы в `utm`/`customFields` (таблица макросов документировала только синтаксис самого макроса Яндекса, не имя HTML-поля) — зафиксирована конвенция «имя макроса без скобок», добавлена в модуль.
+
+**Баг найден и исправлен при живой проверке (throwaway-компания, прямые Prisma-вставки, реальные сетевые запросы к `api.direct.yandex.com` и `oauth.yandex.com` с намеренно невалидным токеном — без мока):** первая версия `directApi.ts` триггерила авто-refresh только на HTTP `401`, как было зафиксировано в `phase-22.md` («Bearer + авто-refresh на 401»). Живой запрос с невалидным `accessToken` показал, что Яндекс возвращает авторизационную ошибку как `200 OK` с телом `{"error":{"error_code":53,"error_string":"Authorization error"}}`, не `401` — рефреш при этом никогда бы не срабатывал в реальности. Исправлено: `isAuthError()` триггерит refresh и на `401`, и на `error_code === 53`; повторная живая проверка подтвердила — invalid-токен теперь действительно вызывает `refreshAccessToken()` (реальный запрос к `oauth.yandex.com/token`, ожидаемо отклонён `400` для невалидного refresh-токена), после чего чисто no-op, `Lead.marketing` не тронут, `yandexLogin` не потерян.
+
+**Проверено живыми сценариями (dev-БД, throwaway-компания, `npx tsx`, реальные внешние запросы к Яндексу, без мока сети):**
+- `yandexMode: "UTM"` (дефолт) + `campaign_id` в `utm` → no-op, `Lead.marketing` не тронут (гейт срабатывает до похода в БД за токенами/лидом)
+- `yandexMode: "FULL"`, кабинет не подключён (`yandexAccessToken: null`) → no-op
+- `yandexMode: "FULL"`, подключён с заведомо невалидными токенами → реальный `error_code: 53` от Direct API → реальный неудачный refresh (`400` от `oauth.yandex.com`) → тихий no-op, `Lead.marketing`/`yandexLogin` не тронуты
+- `yandexMode: "FULL"`, подключён, у лида нет ни одного идентификатора Яндекса → no-op (`Lead.marketing` остаётся `{}`)
+- Текстовые макросы (`KEYWORD`/`Device_Type`/`region_name` — смешанный регистр в `utm`) → корректно найдены регистронезависимо, записаны в `marketing.yandex.{keyword,deviceType,regionName}`, существующий `marketing.sourceLabel` не потерян (мёрж подтверждён)
+- `yclid` в `Lead.marketing.yclid` (как его туда кладёт `normalizeLead`/`MARKETING_FIELDS`) → найден, скопирован в `marketing.yandex.yclid`, исходный `marketing.yclid` не тронут
+- `writeEvent(..., 'LEAD_UPDATED', ...)` в тестовом скрипте (запуск вне Next.js request-контекста через `tsx`) закономерно падает на `headers() outside a request scope` внутри `auth()` — тот же паттерн, что у уже работающих `flagPossibleDuplicates`/`assignLead`/`LEAD_QUALIFIED`; `enrichYandexLead` корректно поймал и эту ошибку (no-op, `Lead.marketing` к этому моменту уже обновлён предыдущим шагом) — не тестировалось внутри реального route handler'а в этой сессии, но код идентичен уже проверенному паттерну
+- `npm run type-check`/`lint`/`build` — чисто, без `any`; throwaway-компания и лиды удалены после теста
+
+**Не проверено живьём (осознанное ограничение, зафиксировано ещё в Таске 1):** успешный резолв `campaign_id`/`gbid` через реальный валидный токен — рекламная кампания в кабинете создана, но не запущена/не оплачена, а получение живого `access_token` требует ручного прохождения OAuth-согласия в браузере (вне досягаемости агента в этой сессии). Гейты, фолбэк-no-op и авто-refresh при сбое авторизации проверены полностью живыми запросами к реальным эндпоинтам Яндекса; успешный путь резолва — logically verified via type-check + code review, не end-to-end.
+
+**Out of scope (не делалось):** UI (`YandexDirectCard.tsx`, статус на `/admin/integrations`, `LeadYandex.tsx`, карточка лида) — Таск 4; резолв `{ad_id}`/`{banner_id}`/`{phrase_id}`/`{retargeting_id}`/`{region_id}`; sandbox Base URL; изменения `normalizeLead()`/`MARKETING_FIELDS`; экспорт в Метрику — Phase 22.5.
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены.
+
+---
+
+## 2026-07-14 — Phase 22, Таск 2: OAuth-подключение Яндекс Директа + server-only токены + миграция
+
+**Статус:** ✅ Завершён
+
+**Дрейф миграций перед стартом:** локальная история миграций `phase-22` не знала о `20260713201007_add_company_is_demo` (смержено в `main` из `demo_branch` уже после форка ветки, общая dev-БД её уже применила). Скопирован ровно этот один файл миграции из `origin/main` + добавлено поле `Company.isDemo` в `schema.prisma` (по согласованию с пользователем) — без затрагивания данных БД, только синхронизация локальной истории с уже применённым состоянием. Дальше миграция Яндекса создана поверх без проблем.
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` — `Company`: 4 server-only nullable-поля (`yandexAccessToken`, `yandexRefreshToken`, `yandexTokenExpiresAt`, `yandexLogin`); `EventType`: `YANDEX_CONNECTED`/`YANDEX_DISCONNECTED`; миграция `20260714170146_add_yandex_oauth_fields` (аддитивная, `ALTER TYPE ... ADD VALUE` + 4 колонки)
+- `lib/integrations/yandex/oauth.ts` (новый) — `buildAuthorizeUrl`/`verifyState` (HMAC-SHA256 на `AUTH_SECRET`, payload `{companyId, ts, nonce}` в base64url + hex-подпись, TTL 10 мин, `timingSafeEqual`), `exchangeCodeForTokens`/`refreshAccessToken` (общий `requestTokens`, ротация — оба токена перезаписываются), `fetchYandexLogin` (best-effort `login.yandex.ru/info`, любая ошибка → `null`), `saveYandexTokens`/`disconnectYandex`/`getYandexConnectionStatus`
+- `lib/validations/yandex.ts` (новый) — `yandexCallbackQuerySchema` (все поля query опциональны, ветвление на `code`/`state`/`error` — в route handler'е)
+- `app/api/integrations/yandex/route.ts` (новый) — `GET` статус (`requireCompanyUser({ minRole: 'ADMIN' })`) / `DELETE` отключение + `YANDEX_DISCONNECTED`
+- `app/api/integrations/yandex/authorize/route.ts` (новый) — `GET`, ADMIN only, минтит `state` за запрос и делает `NextResponse.redirect` на Яндекс — устраняет противоречие, найденное на этапе планирования (в `integrations.md` тот же путь `GET /api/integrations/yandex` был описан и как JSON-статус, и как redirect-инициатор одновременно)
+- `app/api/integrations/yandex/callback/route.ts` (новый) — свой guard (не `requireCompanyUser`, редиректит вместо JSON): проверяет `state`, **сверяет `companyId` из `state` с `companyId` текущей сессии** (закрывает найденный при планировании риск переиспользования чужого `state`, если он утёк), обменивает код, best-effort логин, пишет токены + `YANDEX_CONNECTED`
+- `constants/eventLabels.ts` — `PLATFORM_EVENT_LABELS` дополнен двумя лейблами
+- `CLAUDE.md` — ENV-секция + `v4.3` в шапке; `.docs/modules/integrations.md` — исправлено найденное на планировании противоречие (шаг 1 OAuth-флоу → отдельный `/authorize`), таблица эндпоинтов и файловый список дополнены, зафиксирован best-effort механизм `yandexLogin`
+
+**Баг найден и исправлен при живой проверке:** `writeEvent(companyId, type)` без явного `opts.userId` в этом проекте **не** подставляет `session.user.id` автоматически — пишет `userId: null` (так уже устроены `COMPANY_PROFILE_UPDATED` и подобные события). `database.md` явно требует `Event.userId = ADMIN, выполнивший действие` для `YANDEX_CONNECTED`/`YANDEX_DISCONNECTED` — в первой версии обоих call site `userId` не передавался. Исправлено (`{ userId: actor.userId }` / `{ userId: session.user.id }`), проверено повторным вызовом — `userId` заполняется корректно.
+
+**Проверено (dev-БД, throwaway-компании через прямые Prisma-вставки, вход через реальный NextAuth credentials-флоу curl'ом — csrf → callback → cookie, не мок сессии):**
+- `GET /api/integrations/yandex` без подключения → `{connected:false, login:null, mode:"UTM"}`; после симуляции токенов → `connected:true` + `login`; `GET /api/settings` токены не содержит (только `yandexMode`, `roundRobinCursor` по-прежнему стрипается)
+- `GET /api/integrations/yandex/authorize` → 307 на `oauth.yandex.ru/authorize` с корректными `client_id`/`redirect_uri`/`scope=direct:api`/`state`; `state` декодируется в `{companyId, ts, nonce}`
+- `DELETE` очищает все 4 поля, пишет `YANDEX_DISCONNECTED` с верным `userId`
+- MANAGER — 403 на всех трёх эндпоинтах; без сессии — 401 (`route`/`authorize`), редирект на `/login` (`callback`)
+- `callback`: невалидный `state` → редирект без падения; `error=access_denied` от Яндекса → редирект; валидный `state`, но чужой код → реальный запрос к `oauth.yandex.com/token` (400), поймано, редирект, без 500 и без стека в ответе клиенту
+- **Cross-company hijack:** `state`, выпущенный для компании B, использован в callback-запросе от имени администратора компании A → отклонён до любого сетевого вызова (не найдено токенов у B, не создано событий) — подтверждает работу сверки `state.companyId === session.companyId`
+- `npm run type-check`/`lint`/`build` — чисто, включая после исправления `userId`-бага
+- Throwaway-компании и пользователи удалены (`npm run delete:company`), dev-сервер остановлен
+
+**Out of scope (не делалось):** обогащение лида, `directApi.ts`, `lib/intake/yandex.ts` — Таск 3; реальная кнопка/статус в `YandexDirectCard.tsx`, `admin/integrations/page.tsx`, `LeadYandex.tsx` — Таск 4; `constants/marketerAccess.ts` — не тронут; экспорт в Яндекс.Метрику — Phase 22.5
+
+**Definition of Done:** выполнено — все пункты `TASK.md` отмечены
+
+---
+
+## 2026-07-14 — Phase 22, Таск 1: Research — доступ к API Яндекс Директа + фиксация спеки (ГЕЙТ)
+
+**Статус:** ✅ Завершён — **GO**
+
+**Разделение ответственности:** пользователь зарегистрировал OAuth-приложение на oauth.yandex.ru (заявка «Лид-Канал — Яндекс Директ», доступ **Полный** — не Trial/Sandbox-only, одобрена 14.07.2026), добавил `YANDEX_OAUTH_CLIENT_ID`/`YANDEX_OAUTH_CLIENT_SECRET`/`YANDEX_OAUTH_REDIRECT_URI` в `.env`; агент выполнил research актуального Direct API v5 + OAuth Яндекса и переписал документацию.
+
+**Оговорка при GO:** рекламная кампания в кабинете создана, но не запущена и не оплачена. Для Таска 1 (research + спека) это не блокер — резолв ID-макросов (`campaigns.get`/`adgroups.get`) не требует активной/оплаченной кампании, а классификация макросов «название vs ID» подтверждена официальной документацией Яндекса без единого вызова API. Живой `yclid` с реального клика по объявлению понадобится только в Таске 3 (сквозной тест обогащения) — кампанию нужно будет запустить и профинансировать до этого таска, не раньше.
+
+### Итог research
+
+**OAuth-приложение (oauth.yandex.ru):**
+- `client_id`/`client_secret` — выданы при регистрации приложения, лежат в `.env`.
+- `redirect_uri` должен точно совпадать с зарегистрированным для приложения (`APP_URL + /api/integrations/yandex/callback`).
+- `scope` — `direct:api` («Использование API Яндекс Директа»), выбирается явно в разделе «Доступ к данным» при регистрации приложения.
+- Authorize URL: `https://oauth.yandex.ru/authorize?response_type=code&client_id=...&redirect_uri=...&scope=direct:api&state=...`. `state` поддерживается нативно OAuth-эндпоинтом Яндекса, возвращается обратно на `redirect_uri` вместе с `code`; код авторизации живёт **10 минут**. `state` в нашей реализации — подписанный (не голый nonce), содержит `companyId` (CSRF + привязка к компании на callback).
+- Уровень доступа приложения — **Trial** (только Sandbox) vs **Full** (Sandbox + боевые кампании) задаётся при одобрении заявки на стороне Яндекса, не параметром запроса. У нас — **Full**, подтверждено скриншотом личного кабинета (Раздел API → «Мои заявки» → статус «одобрена», доступ «полный»).
+
+**Direct API v5:**
+- Base URL (production): `https://api.direct.yandex.com/json/v5/{service}`.
+- Base URL (sandbox): `https://api-sandbox.direct.yandex.com/json/v5/{service}` — изолированные симулированные данные, безопасно для разработки Таска 3.
+- Авторизация: `Authorization: Bearer <access_token>` всегда; `Client-Login: <логин клиента>` — только при агентском доступе (не наш случай — рекламодатель подключает свой кабинет напрямую).
+- Формат: JSON поверх HTTPS POST (SOAP/XML тоже поддерживается Яндексом, не используем).
+- Обмен кода на токен: `POST https://oauth.yandex.com/token`, `application/x-www-form-urlencoded`, `grant_type=authorization_code` + `code`/`client_id`/`client_secret`.
+- Refresh: тот же эндпоинт, `grant_type=refresh_token` + `refresh_token`; ответ содержит **новый** `access_token` **и новый** `refresh_token` (ротация — обязательно перезаписывать оба поля при каждом refresh).
+- TTL: `expires_in` (секунды) приходит в каждом ответе токен-эндпоинта; официальная документация не публикует его как фиксированную константу — брать из ответа, не хардкодить.
+- Лимиты: заголовок ответа `Units: <потрачено>/<доступно>/<дневной лимит>` в каждом успешном запросе к Direct API (пример из документации: `Units: 10/20828/64000`). Исчерпание — укладывается в общий фолбэк-no-op обогащения, отдельной обработки не требует.
+
+**Макросы Директа — название vs ID (полная таблица — `.docs/modules/leads-intake.md` → «Макросы Директа»):** подтверждено официальной страницей `yandex.ru/support/direct/statistics/url-tags.html`. Текстом (без резолва): `{campaign_name}`/`{campaign_name_lat}`, `{keyword}`/`{matched_keyword}`, `{region_name}`, `{device_type}`, `{source}`/`{source_type}`, `{position_type}`/`{match_type}`. Числовым ID (резолв через API): `{campaign_id}` → `campaigns.get`, `{gbid}` → `adgroups.get`, `{phrase_id}` → `keywords.get`, `{ad_id}`/`{banner_id}` → `ads.get`, `{region_id}` → `dictionaries.get` (GeoRegions, не нужен при наличии `{region_name}`). `{yclid}` — не резолвится вообще, сохраняется как есть (задел под Phase 22.5).
+
+### Правки документации
+
+- `.docs/modules/leads-intake.md` → «Источник: Яндекс Директ» переписан целиком: вход через существующие каналы (без отдельного вебхука Яндекса), точка вызова обогащения (пост-коммит, fire-and-forget, паттерн `assignLead`/`flagPossibleDuplicates`), ключи `marketing.yandex.*`, таблица макросов, фолбэк-no-op (явно не трогает `IntegrationSource`/здоровье источника).
+- `.docs/modules/integrations.md` → «Яндекс Директ» переписана: OAuth-флоу (authorize → `state` → callback → обмен токенов), явное объяснение почему токены не в `Company.settings`, параметры Direct API v5 для реализации, callback — не NextAuth-провайдер и вне `matcher` `proxy.ts`. Таблица API-эндпоинтов дополнена `GET /api/integrations/yandex/callback`; зафиксировано, что маркетолог видит статус серверным пропом, новый пункт в `constants/marketerAccess.ts` не нужен. Добавлены два пункта в «Серверные правила безопасности».
+- `.docs/database.md` → добавлены server-only nullable-поля `Company` (`yandexAccessToken`, `yandexRefreshToken`, `yandexTokenExpiresAt`, `yandexLogin`) с пояснением (v4.3), `EventType.YANDEX_CONNECTED`/`YANDEX_DISCONNECTED`.
+
+**Definition of Done:** ✅ Все пункты TASK.md выполнены (см. выше); ENV-имена (`YANDEX_OAUTH_CLIENT_ID`/`_SECRET`/`_REDIRECT_URI`) и `scope=direct:api` согласованы, уже используются в `.env`; запись в `CLAUDE.md` — Таск 2. `npm run type-check` не затронут (задача документационная, кода не меняли).
+
+---
+
 ## 2026-07-13 — Фича (вне плана): демо-доступ (`/demo`) без документированной фазы
 
 **Статус:** ✅ Завершён (код и живая проверка; PR ещё не смержен, ветка `demo_branch`)

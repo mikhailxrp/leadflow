@@ -2,11 +2,11 @@ import { type ReactNode } from "react";
 import Card from "@/components/ui/Card";
 
 interface LeadYandexProps {
-  campaign: string;
-  adGroup: string;
-  keyword: string;
-  device: string;
-  region: string;
+  campaign?: string | null;
+  adGroup?: string | null;
+  keyword?: string | null;
+  device?: string | null;
+  region?: string | null;
 }
 
 function YandexIcon() {
@@ -105,17 +105,21 @@ export default function LeadYandex({
         Данные Яндекс Директ
       </h2>
 
-      <DetailRow label="Кампания">{campaign}</DetailRow>
-      <DetailRow label="Группа объявлений">{adGroup}</DetailRow>
-      <DetailRow label="Ключевая фраза">{keyword}</DetailRow>
-      <DetailRow label="Устройство">
-        <MonitorIcon />
-        {device}
-      </DetailRow>
-      <DetailRow label="Регион">
-        <MapPinIcon />
-        {region}
-      </DetailRow>
+      {campaign && <DetailRow label="Кампания">{campaign}</DetailRow>}
+      {adGroup && <DetailRow label="Группа объявлений">{adGroup}</DetailRow>}
+      {keyword && <DetailRow label="Ключевая фраза">{keyword}</DetailRow>}
+      {device && (
+        <DetailRow label="Устройство">
+          <MonitorIcon />
+          {device}
+        </DetailRow>
+      )}
+      {region && (
+        <DetailRow label="Регион">
+          <MapPinIcon />
+          {region}
+        </DetailRow>
+      )}
     </Card>
   );
 }
