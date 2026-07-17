@@ -36,6 +36,8 @@ export function getEventLabel(
       return 'Лид помечен целевым';
     case 'LEAD_DISQUALIFIED':
       return 'Лид помечен нецелевым';
+    case 'LEAD_DEAL_VALUE_UPDATED':
+      return 'Сумма сделки обновлена';
     case 'TASK_CREATED':
       return `${event.userName ?? 'Пользователь'} создал задачу`;
     case 'TASK_UPDATED':
@@ -102,6 +104,8 @@ const PLATFORM_EVENT_LABELS = {
   METRIKA_CONNECTED: 'Счётчик Яндекс.Метрики подключён',
   METRIKA_DISCONNECTED: 'Счётчик Яндекс.Метрики отключён',
   LEAD_METRIKA_EXPORTED: 'Лид выгружен в Яндекс.Метрику',
+  LEAD_DEAL_VALUE_UPDATED: 'Сумма сделки обновлена',
+  AD_SPEND_UPDATED: 'Расход на рекламу обновлён',
 } satisfies Record<EventType, string>;
 
 export function getPlatformEventLabel(type: EventType): string {
