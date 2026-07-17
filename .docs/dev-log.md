@@ -36,6 +36,41 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-17 — Phase 22.5, Таск 2: OAuth-подключение Яндекс.Метрики + server-only токены + миграция + настройка
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` — `Company`: 4 server-only nullable-поля (`metrikaAccessToken`, `metrikaRefreshToken`, `metrikaTokenExpiresAt`, `metrikaLogin`); `Lead`: `metrikaExportedAt` + `@@index([companyId, qualification, metrikaExportedAt])`; `EventType`: `METRIKA_CONNECTED`/`METRIKA_DISCONNECTED`/`LEAD_METRIKA_EXPORTED` (последний заведён заранее, использует его только Таск 3); миграция `20260717063923_add_yandex_metrika_fields` (аддитивная)
+- `constants/defaultCompanyData.ts` — `CompanySettings += yandexMetrika?: { counterId: string; qualifiedGoalId: string }`, без дефолтного значения (как `yandexMode`)
+- `lib/integrations/yandex/metrikaOauth.ts` (новый) — зеркалит `oauth.ts` Директа, но со своими ENV/scope (`YANDEX_METRIKA_OAUTH_*`, `scope=metrika:offline_data`): `buildAuthorizeUrl`/`verifyState`/`exchangeCodeForTokens`/`refreshAccessToken`/`fetchMetrikaLogin`/`saveMetrikaTokens`/`disconnectMetrika`/`getMetrikaConnectionStatus` + новая `saveMetrikaSettings` (мёржит `counterId`/`qualifiedGoalId` в `Company.settings.yandexMetrika`, не затирая остальные ключи)
+- `lib/validations/yandex.ts` — `metrikaCallbackQuerySchema` (алиас `yandexCallbackQuerySchema`) + `metrikaSettingsSchema` (непустые строки, без похода в API за проверкой существования цели — Management API этого дёшево не даёт, см. Таск 1)
+- `app/api/integrations/yandex/metrika/route.ts` (новый) — `GET` статус (`requireCompanyUser`, ADMIN only — страница получает статус серверным пропом в Таске 4, а не через этот роут, поэтому гвард держит симметрию с `DELETE`, не с `PATCH`), `PATCH` настройка (`requireCompanyAccess`, ADMIN + маркетолог через allow-list), `DELETE` отключение (ADMIN only, очищает ровно 4 токен-поля + `METRIKA_DISCONNECTED`, `settings.yandexMetrika` не трогает)
+- `app/api/integrations/yandex/metrika/authorize/route.ts` (новый) — `GET`, ADMIN only, минтит `state`, редирект
+- `app/api/integrations/yandex/metrika/callback/route.ts` (новый) — свой guard (не `requireCompanyUser`, редиректит вместо JSON), сверяет `companyId` из `state` с сессией, обмен кода, `METRIKA_CONNECTED`
+- `constants/marketerAccess.ts` — `PATCH /api/integrations/yandex/metrika` в allow-list (`GET`/`DELETE`/`authorize`/`callback` намеренно не добавлены)
+- `constants/eventLabels.ts` — 3 новых лейбла в `PLATFORM_EVENT_LABELS` (компилятор потребовал их через `satisfies Record<EventType, string>`)
+- `CLAUDE.md` (ENV-секция + `v4.4` в шапке), `.docs/database.md` (новые поля/индекс/`EventType`/`CompanySettings.yandexMetrika`), `.docs/modules/integrations.md` (таблица эндпоинтов + статус секции) — обновлены
+
+**Проверено живьём (dev-БД, throwaway-компании через прямые Prisma-вставки, вход через реальный NextAuth credentials-флоу curl'ом):**
+
+- `GET /api/integrations/yandex/metrika` без подключения → `{connected:false, login:null, counterId:null, goalConfigured:false}`; `GET /api/settings` не содержит ни одного токен-поля Метрики
+- `PATCH { counterId, qualifiedGoalId }` → `{success:true}`, повторный `GET` статуса отражает `counterId`/`goalConfigured:true`; `GET /api/settings` после `PATCH` показывает `yandexMetrika` рядом с остальными ключами `settings` без потери ни одного из них (assignMode/controlEnabled/sourceEnabled и т.д. — все на месте)
+- `GET /api/integrations/yandex/metrika/authorize` → 307 на `oauth.yandex.ru/authorize` с `client_id`/`redirect_uri` (`.../metrika/callback`) и `scope=metrika:offline_data` — Metrika-специфичными, не Direct'овскими; `state` декодируется в `{companyId, ts, nonce}`
+- MANAGER — 403 на `GET`/`PATCH`/`DELETE`/`authorize`; без сессии — 401 на `GET`
+- **Cross-company hijack:** `state`, выпущенный для компании A, использован в `callback`-запросе от имени ADMIN компании B → редирект без исключения, без сетевого вызова к Яндексу, без записи токенов/события на компанию B (проверено прямым чтением БД) — сверка `state.companyId === session.companyId` отрабатывает раньше обмена кода
+- Невалидный/мусорный `state`, `error=access_denied`, отсутствующая сессия на `callback` — редирект (`/admin/integrations` или `/login`), без 500
+- **`DELETE` очищает ровно 4 токен-поля, `settings.yandexMetrika` переживает отключение:** засеян `connected:true` через прямую запись фейковых токенов в БД → `DELETE` → повторный `GET` статуса показывает `connected:false, login:null`, но `counterId`/`goalConfigured` не изменились; событие `METRIKA_DISCONNECTED` записано с верным `userId` ADMIN'а
+- `isMarketerAllowedApi()` — точечная проверка новой строки allow-list: `PATCH /api/integrations/yandex/metrika` → `true`; `GET`/`DELETE` того же пути и оба метода `authorize`/`callback` → `false` (полный сессионный проход маркетолога через `signIn('marketer-access')` в этой сессии не выполнялся — сама функция allow-list и её use site в `requireCompanyAccess` уже проверенный, не новый в этом таске код)
+- `npm run type-check`/`lint`/`build` — чисто, без `any`; throwaway-компании удалены (`npm run delete:company`), dev-сервер остановлен
+
+**Out of scope (не делалось):** движок экспорта (`metrikaApi.ts`, `metrikaExport.ts`, cron), UI (`YandexMetrikaCard.tsx`, проброс статуса в `admin/integrations/page.tsx`), бейдж/история `LEAD_METRIKA_EXPORTED` в карточке лида, валидация существования `qualifiedGoalId` через API — всё по плану `TASK.md`, Таски 3–4.
+
+**Definition of Done:** выполнено — все пункты `TASK.md` подтверждены живой проверкой.
+
+---
+
 ## 2026-07-17 — Phase 22.5, Таск 1: Research — доступ к API офлайн-конверсий Яндекс.Метрики (ГЕЙТ)
 
 **Статус:** ✅ Завершён — **GO**

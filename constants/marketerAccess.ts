@@ -27,6 +27,7 @@ const MARKETER_ALLOWED_API: MarketerAllowedApiRule[] = [
   { pattern: /^\/api\/api-keys$/, methods: ['GET', 'POST'] },
   { pattern: /^\/api\/api-keys\/[^/]+$/, methods: ['PATCH', 'DELETE'] },
   { pattern: /^\/api\/admin\/integrations\/health$/, methods: ['GET'] },
+  { pattern: /^\/api\/integrations\/yandex\/metrika$/, methods: ['PATCH'] },
   { pattern: /^\/api\/reports\/summary$/, methods: ['GET'] },
   { pattern: /^\/api\/reports\/by-source$/, methods: ['GET'] },
   { pattern: /^\/api\/reports\/by-employee$/, methods: ['GET'] },

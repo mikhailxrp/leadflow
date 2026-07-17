@@ -127,7 +127,7 @@ OAuth-инфраструктура **паттерна** (authorize/callback/refr
 
 ## Экспорт квалификаций в Яндекс.Метрику (Phase 22.5)
 
-> **Статус:** research завершён (Таск 1, 2026-07-17) — **GO**. Спецификация ниже подтверждена официальной документацией Яндекса **и** живой проверкой authorize-URL с реально зарегистрированным приложением (не предположение). Реализация (миграция, OAuth-роуты, движок экспорта, UI) — Таски 2–4, кода пока нет. Полная бизнес-логика, решения и разбивка по таскам — `.docs/phases/phase-22.5.md`; итог research — `.docs/dev-log.md` → «Phase 22.5, Таск 1».
+> **Статус:** research завершён (Таск 1, 2026-07-17) — **GO**. Таск 2 (миграция + OAuth-флоу подключения счётчика + настройка `counterId`/цели) реализован. Движок экспорта и UI — Таски 3–4, кода пока нет. Полная бизнес-логика, решения и разбивка по таскам — `.docs/phases/phase-22.5.md`; итоги — `.docs/dev-log.md` → «Phase 22.5».
 
 ### Бизнес-цель
 
@@ -247,6 +247,9 @@ app/api/integrations/yandex/metrika/
 | GET/DELETE      | `/api/integrations/yandex`       | Статус подключения (`GET`, JSON) / отключение (`DELETE`) | Session | ADMIN only         |
 | GET             | `/api/integrations/yandex/authorize` | Минтит `state`, 302 на `oauth.yandex.ru/authorize` | Session | ADMIN only         |
 | GET             | `/api/integrations/yandex/callback` | OAuth callback — обмен `code`→токены, редирект | Session (cookie) + `state` | ADMIN only (владелец `companyId` из `state`, сверенный с сессией) |
+| GET/PATCH/DELETE | `/api/integrations/yandex/metrika` | Статус (`GET`) / настройка `counterId`+`qualifiedGoalId` (`PATCH`) / отключение (`DELETE`) | Session | `GET`/`DELETE` — ADMIN only; `PATCH` — ADMIN + маркетолог |
+| GET             | `/api/integrations/yandex/metrika/authorize` | Минтит `state`, 302 на `oauth.yandex.ru/authorize` | Session | ADMIN only |
+| GET             | `/api/integrations/yandex/metrika/callback` | OAuth callback Метрики — обмен `code`→токены, редирект | Session (cookie) + `state` | ADMIN only (владелец `companyId` из `state`, сверенный с сессией) |
 
 **Маркетолог и статус Яндекса:** страница `/admin/integrations` отдаёт `connected`/`login` серверным пропом (тот же паттерн, что webhook-URL, Phase 18) — маркетолог видит статус кабинета в режиме чтения без отдельного API-запроса. Новый пункт в `constants/marketerAccess.ts` под это **не добавляется**: маркетолог не может ни подключить, ни отключить кабинет (как и `yandexMode`), а GET-статус ему не нужен отдельным эндпоинтом.
 
