@@ -50,8 +50,9 @@ export const updateLeadSchema = z.object({
   comment: z.string().optional(),
 });
 
-// Decimal(14, 2) — до 12 знаков в целой части.
-const MAX_DEAL_VALUE = 999_999_999_999.99;
+// Decimal(14, 2) — до 12 знаков в целой части. Экспортируется для переиспользования
+// в других денежных Zod-схемах (lib/validations/adSpend.ts) — та же колонка-точность.
+export const MAX_DEAL_VALUE = 999_999_999_999.99;
 
 export const closeLeadSchema = z.discriminatedUnion('closeType', [
   z.object({

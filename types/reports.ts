@@ -40,6 +40,14 @@ export type LossReasonRow = {
  * лиду); stuck = STAGE_STUCK; withoutNextAction = NO_NEXT_ACTION. Поэтому сумма трёх
  * чисел не равна «все открытые лиды с любой проблемой».
  */
+export type AdSpendRecord = {
+  id: string;
+  year: number;
+  month: number;
+  amountWithVat: number;
+  note: string | null;
+};
+
 export type ReportSummary = {
   totalLeads: number;
   buckets: LeadsBucket[];
