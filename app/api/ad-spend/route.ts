@@ -1,3 +1,4 @@
+import { isWithinRange } from '@/lib/adSpend/monthRange';
 import { requireCompanyAccess } from '@/lib/auth/requireCompanyAccess';
 import { writeEvent } from '@/lib/events';
 import { prisma } from '@/lib/prisma';
@@ -5,30 +6,6 @@ import { adSpendQuerySchema, adSpendSchema } from '@/lib/validations/adSpend';
 import type { AdSpendRecord } from '@/types/reports';
 
 const PATH = '/api/ad-spend';
-
-function yearMonthKey(year: number, month: number): number {
-  return year * 12 + (month - 1);
-}
-
-function isWithinRange(
-  record: { year: number; month: number },
-  from?: string,
-  to?: string,
-): boolean {
-  const key = yearMonthKey(record.year, record.month);
-
-  if (from) {
-    const fromDate = new Date(from);
-    if (key < yearMonthKey(fromDate.getUTCFullYear(), fromDate.getUTCMonth() + 1)) return false;
-  }
-
-  if (to) {
-    const toDate = new Date(to);
-    if (key > yearMonthKey(toDate.getUTCFullYear(), toDate.getUTCMonth() + 1)) return false;
-  }
-
-  return true;
-}
 
 export async function GET(request: Request): Promise<Response> {
   let actor;

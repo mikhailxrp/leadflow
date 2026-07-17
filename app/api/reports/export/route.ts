@@ -1,11 +1,13 @@
 import { requireCompanyAccess } from '@/lib/auth/requireCompanyAccess';
 import { getBySource } from '@/lib/reports/getBySource';
+import { getFinancials } from '@/lib/reports/getFinancials';
 import { getLossReasonsBreakdown } from '@/lib/reports/getLossReasonsBreakdown';
 import { getSummary } from '@/lib/reports/getSummary';
 import { getManagerStats } from '@/lib/control/getManagerStats';
 import {
   byEmployeeToCsv,
   bySourceToCsv,
+  financialToCsv,
   lossReasonsToCsv,
   summaryToCsv,
 } from '@/lib/reports/exportToCsv';
@@ -64,6 +66,9 @@ export async function GET(request: Request): Promise<Response> {
         break;
       case 'by-source':
         csv = bySourceToCsv(await getBySource(actor.companyId, from, to));
+        break;
+      case 'financial':
+        csv = financialToCsv(await getFinancials(actor.companyId, from, to));
         break;
     }
 

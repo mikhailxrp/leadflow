@@ -29,6 +29,12 @@ export function resolveReportPeriod(input: ReportPeriodInput): { from: Date; to:
   };
 }
 
-export const reportExportNameSchema = z.enum(['summary', 'loss-reasons', 'by-employee', 'by-source']);
+export const reportExportNameSchema = z.enum([
+  'summary',
+  'loss-reasons',
+  'by-employee',
+  'by-source',
+  'financial',
+]);
 
 export type ReportExportName = z.infer<typeof reportExportNameSchema>;

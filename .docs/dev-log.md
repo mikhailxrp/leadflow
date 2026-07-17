@@ -36,6 +36,36 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-17 — Phase 22.7, Таск 4: Финансовый отчёт — 10 метрик + ROMI + экспорт CSV
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/adSpend/monthRange.ts` — **НОВОЕ**: `yearMonthKey`/`isWithinRange` вынесены из `app/api/ad-spend/route.ts` (были приватными там) в переиспользуемый модуль — идентичная логика «месяц попадает в `[from,to]`» нужна и в `getFinancials.ts`; `app/api/ad-spend/route.ts` теперь импортирует их оттуда, поведение не изменилось
+- `lib/reports/getFinancials.ts` — **НОВОЕ**: одна когорта лидов по `companyId, createdAt ∈ [from,to]` (не `closedAt` — атрибуция по когорте привлечения, решение №6 фазы) + сумма `AdSpend` за попавшие в диапазон месяцы; «выручка в работе» скопирована строго по `closeType: null` (не по «сумма не null» — у LOST `dealValueEstimated` не зануляется и не должен попасть в отчёт); все денежные суммы складываются в `Prisma.Decimal` до единственной финальной конвертации в `Number`; 4 производные метрики (цена лида, цена квал-лида, доля квал-лидов %, ROMI %) — `null` при нулевом делителе, не `0`/`Infinity`; доля квал-лидов и ROMI — уже в процентной шкале (0..100), в отличие от `wonRate` в этом же модуле (дробь 0..1) — формулы фазы включают `×100`
+- `app/api/reports/financial/route.ts` — **НОВОЕ**: `GET`, `requireCompanyAccess({ minRole: 'HEAD' })`, `reportPeriodSchema`/`resolveReportPeriod` (как у остальных отчётов)
+- `types/reports.ts` — тип `FinancialReport` (10 полей; производные — `number | null`)
+- `lib/validations/reports.ts` — `'financial'` добавлен в `reportExportNameSchema`
+- `constants/marketerAccess.ts` — `{ pattern: /^\/api\/reports\/financial$/, methods: ['GET'] }` в `MARKETER_ALLOWED_API`
+- `lib/reports/exportToCsv.ts` — `financialToCsv()`: 10 строк «Метрика/Значение» (`null` → «—»), в отличие от построчных отчётов (`bySourceToCsv` и т.д.) это агрегат, не список
+- `app/api/reports/export/route.ts` — `case 'financial'`
+- `components/reports/FinancialReportSection.tsx` — **НОВОЕ**: 10 карточек (₽/%, `null` → «—»), подсказка про месячную гранулярность расхода при произвольном периоде
+- `components/reports/ReportsPage.tsx` — вкладка «Финансы» (period-bound, в отличие от «Расходы на рекламу» — `showPeriodSelector` по-прежнему исключает только `'ad-spend'`); `REPORT_NAME_BY_TAB` — `financial: 'financial'`; пресеты периода расширены месяц-выровненными вариантами — «Прошлый месяц» (полный предыдущий календарный месяц через трюк `Date.UTC(y, m, 0)` = последний день предыдущего месяца) и «Год» (с 1 января текущего года) — общие для всех вкладок, не только «Финансы»
+- `.docs/modules/reports.md`, `.docs/phases/phase-22.7.md`, `.docs/phases/_status.md` — раздел «Финансовый блок», статус таска/фазы
+
+**Проверено:**
+
+- `npm run type-check` / `npm run build` / `npm run lint` — чисто (тот же предсуществующий warning в `scripts/seedDemoCompany.ts`, не тронут), маршрут `/api/reports/financial` зарегистрирован
+- Рантайм-проверка через демо-сессию (`signIn('demo-access')` + cookie jar): `GET /api/reports/financial` и `GET /api/reports/export?report=financial` вернули 200 с корректной обработкой нулевого расхода (`romi: null`, `costPerLead: 0` — численно верно, т.к. делитель `totalLeads` не ноль); демо-компания read-only (`DemoReadOnlyError` на `POST /api/ad-spend`) — ожидаемо, не баг
+- Целевая проверка риск-точек через временный скрипт (`getFinancials()` напрямую, временная компания, удалена после теста): WON-лид с `closedAt` вне периода корректно учтён по `createdAt`; LOST-лид со старым `dealValueEstimated = 999` корректно исключён из «выручки в работе»; ROMI/доля квал-лидов посчитаны в процентной шкале; Decimal-сумма расхода и общей выручки — без float-дрейфа. Все 10 проверок прошли (`FINANCIAL REPORT VERIFICATION OK`)
+
+**Out of scope (не делалось):** авто-импорт расхода из Яндекс Директа, разрез по источнику/каналу, мультивалютность, атрибуция по `closedAt`, прогноз/план-факт, изменения `closeLead()`/схемы (Таски 1–2).
+
+**Definition of Done:** выполнено — все пункты `TASK.md` подтверждены.
+
+---
+
 ## 2026-07-17 — Phase 22.7, Таск 3: Расход на рекламу — ручной справочник по месяцам
 
 **Статус:** ✅ Завершён
