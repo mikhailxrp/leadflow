@@ -4,6 +4,7 @@ import ApiKeysTable from '@/components/integrations/ApiKeysTable';
 import IntegrationCard from '@/components/integrations/IntegrationCard';
 import WebhookSourceCard from '@/components/integrations/WebhookSourceCard';
 import YandexDirectCard from '@/components/integrations/YandexDirectCard';
+import YandexMetrikaCard from '@/components/integrations/YandexMetrikaCard';
 import { PageContent } from '@/components/layout/AppLayout';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import IconButton from '@/components/ui/IconButton';
@@ -14,6 +15,7 @@ import { auth } from '@/lib/auth';
 import { toCompanyActor } from '@/lib/auth/requireCompanyAccess';
 import { getSourceHealth } from '@/lib/integrations/getSourceHealth';
 import { getWebhookUrls } from '@/lib/integrations/getWebhookUrls';
+import { getMetrikaConnectionStatus } from '@/lib/integrations/yandex/metrikaOauth';
 import { getYandexConnectionStatus } from '@/lib/integrations/yandex/oauth';
 import { prisma } from '@/lib/prisma';
 import { getSettings } from '@/lib/settings/getSettings';
@@ -144,7 +146,7 @@ export default async function AdminIntegrationsPage() {
 
   const { companyId } = actor;
 
-  const [dbUser, apiKeys, sourceHealth, settings, yandexStatus] = await Promise.all([
+  const [dbUser, apiKeys, sourceHealth, settings, yandexStatus, metrikaStatus] = await Promise.all([
     actor.actor === 'user'
       ? prisma.user.findUnique({
           where: { id: actor.userId, companyId },
@@ -155,6 +157,7 @@ export default async function AdminIntegrationsPage() {
     getSourceHealth(companyId),
     getSettings(companyId),
     getYandexConnectionStatus(companyId),
+    getMetrikaConnectionStatus(companyId),
   ]);
 
   const userName = dbUser?.name ?? '';
@@ -240,6 +243,14 @@ export default async function AdminIntegrationsPage() {
             initialConnected={yandexStatus.connected}
             initialLogin={yandexStatus.login}
             readOnly={isMarketer}
+          />
+
+          <YandexMetrikaCard
+            initialConnected={metrikaStatus.connected}
+            initialLogin={metrikaStatus.login}
+            initialCounterId={settings.yandexMetrika?.counterId ?? ''}
+            initialGoalId={settings.yandexMetrika?.qualifiedGoalId ?? ''}
+            isMarketer={isMarketer}
           />
 
           <IntegrationCard

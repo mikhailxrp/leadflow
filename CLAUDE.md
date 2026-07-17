@@ -7,6 +7,7 @@
 > **v4.1** — добавлена роль «Маркетолог» на платформенном уровне (см. `.docs/modules/platform-marketer.md`)
 > **v4.2** — тумблер включения источника на `/admin/integrations` (см. `.docs/modules/integrations.md`)
 > **v4.3** — OAuth-подключение Яндекс Директа, server-only токены на `Company` (см. `.docs/modules/integrations.md` → «Яндекс Директ»)
+> **v4.4** — OAuth-подключение Яндекс.Метрики (отдельное приложение), server-only токены на `Company` (см. `.docs/modules/integrations.md` → «Экспорт квалификаций в Яндекс.Метрику»)
 
 ---
 
@@ -447,6 +448,12 @@ S3_PUBLIC_URL_BASE=
 YANDEX_OAUTH_CLIENT_ID=
 YANDEX_OAUTH_CLIENT_SECRET=
 YANDEX_OAUTH_REDIRECT_URI=
+
+# Яндекс.Метрика OAuth (Phase 22.5 — экспорт квалификаций офлайн-конверсиями)
+# Отдельное OAuth-приложение от Директа — свой client_id/scope (metrika:offline_data)
+YANDEX_METRIKA_OAUTH_CLIENT_ID=
+YANDEX_METRIKA_OAUTH_CLIENT_SECRET=
+YANDEX_METRIKA_OAUTH_REDIRECT_URI=
 ```
 
 **Убрано относительно v3.0:** `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, `ROBOKASSA_MERCHANT_LOGIN`, `ROBOKASSA_PASSWORD_1/2` — вместе с биллингом.
@@ -456,6 +463,8 @@ YANDEX_OAUTH_REDIRECT_URI=
 `TELEGRAM_BOT_USERNAME` — username бота без `@`, используется для сборки deep-link привязки (`https://t.me/<username>?start=<token>`). `TELEGRAM_WEBHOOK_SECRET` — секрет, который Telegram обязан присылать в заголовке `X-Telegram-Bot-Api-Secret-Token` на `/api/telegram/webhook`; несовпадение/отсутствие → `401`. **Регистрация вебхука у Telegram — ручной ops-шаг** (как crontab в Phase 1), выполняется один раз командой вида `curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook?url=$APP_URL/api/telegram/webhook&secret_token=$TELEGRAM_WEBHOOK_SECRET"` — приложение само `setWebhook` не вызывает.
 
 `YANDEX_OAUTH_CLIENT_ID`/`YANDEX_OAUTH_CLIENT_SECRET` — из OAuth-приложения, зарегистрированного вручную на oauth.yandex.ru (одна общая заявка для всех компаний, не per-tenant). `YANDEX_OAUTH_REDIRECT_URI` должен точно совпадать со значением, зарегистрированным для приложения (`APP_URL + /api/integrations/yandex/callback`). Токены хранятся server-only на `Company` (`.docs/database.md`), не в `Company.settings` — см. `.docs/modules/integrations.md` → «Яндекс Директ».
+
+`YANDEX_METRIKA_OAUTH_CLIENT_ID`/`YANDEX_METRIKA_OAUTH_CLIENT_SECRET` — из **отдельного** OAuth-приложения Метрики (своя заявка на oauth.yandex.ru, не переиспользует приложение Директа — токен Директа со `scope=direct:api` физически не вызывает Management API Метрики). `YANDEX_METRIKA_OAUTH_REDIRECT_URI` = `APP_URL + /api/integrations/yandex/metrika/callback`. Токены — server-only на `Company`, не в `Company.settings` — см. `.docs/modules/integrations.md` → «Экспорт квалификаций в Яндекс.Метрику».
 
 ---
 

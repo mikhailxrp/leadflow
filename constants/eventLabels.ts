@@ -99,6 +99,9 @@ const PLATFORM_EVENT_LABELS = {
   CONTROL_SUMMARY_SENT: 'Дневная сводка контроля отправлена',
   YANDEX_CONNECTED: 'Кабинет Яндекс Директа подключён',
   YANDEX_DISCONNECTED: 'Кабинет Яндекс Директа отключён',
+  METRIKA_CONNECTED: 'Счётчик Яндекс.Метрики подключён',
+  METRIKA_DISCONNECTED: 'Счётчик Яндекс.Метрики отключён',
+  LEAD_METRIKA_EXPORTED: 'Лид выгружен в Яндекс.Метрику',
 } satisfies Record<EventType, string>;
 
 export function getPlatformEventLabel(type: EventType): string {

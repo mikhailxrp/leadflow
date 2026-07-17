@@ -93,6 +93,9 @@ enum EventType {
   CONTROL_SUMMARY_SENT
   YANDEX_CONNECTED
   YANDEX_DISCONNECTED
+  METRIKA_CONNECTED
+  METRIKA_DISCONNECTED
+  LEAD_METRIKA_EXPORTED
 }
 
 enum ReminderStatus {
@@ -141,6 +144,12 @@ model Company {
   yandexRefreshToken   String?
   yandexTokenExpiresAt DateTime?
   yandexLogin          String?
+
+  // Яндекс.Метрика OAuth — server-only, отдельное приложение/токен от Директа (Phase 22.5)
+  metrikaAccessToken    String?
+  metrikaRefreshToken   String?
+  metrikaTokenExpiresAt DateTime?
+  metrikaLogin          String?
 
   users              User[]
   leads              Lead[]
@@ -246,25 +255,26 @@ model PlatformAdminPasswordResetToken {
 }
 
 model Lead {
-  id            String             @id @default(cuid())
-  companyId     String
-  name          String?
-  phone         String?
-  email         String?
-  comment       String?
-  source        String
-  stageId       String
-  assignedToId  String?
-  utm           Json               @default("{}")
-  marketing     Json               @default("{}")
-  customFields  Json               @default("{}")
-  closeType     CloseType?
-  closedAt      DateTime?
-  lossReasonId  String?
-  importBatchId String?
-  qualification LeadQualification?
-  qualifiedAt   DateTime?
-  createdAt     DateTime           @default(now())
+  id                String             @id @default(cuid())
+  companyId         String
+  name              String?
+  phone             String?
+  email             String?
+  comment           String?
+  source            String
+  stageId           String
+  assignedToId      String?
+  utm               Json               @default("{}")
+  marketing         Json               @default("{}")
+  customFields      Json               @default("{}")
+  closeType         CloseType?
+  closedAt          DateTime?
+  lossReasonId      String?
+  importBatchId     String?
+  qualification     LeadQualification?
+  qualifiedAt       DateTime?
+  metrikaExportedAt DateTime?
+  createdAt         DateTime           @default(now())
 
   company                 Company         @relation(fields: [companyId], references: [id])
   stage                   PipelineStage   @relation(fields: [stageId], references: [id])
@@ -287,6 +297,7 @@ model Lead {
   @@index([email])
   @@index([createdAt])
   @@index([closeType])
+  @@index([companyId, qualification, metrikaExportedAt])
 }
 
 model PipelineStage {
