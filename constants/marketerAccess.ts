@@ -33,6 +33,8 @@ const MARKETER_ALLOWED_API: MarketerAllowedApiRule[] = [
   { pattern: /^\/api\/reports\/by-employee$/, methods: ['GET'] },
   { pattern: /^\/api\/reports\/loss-reasons$/, methods: ['GET'] },
   { pattern: /^\/api\/reports\/export$/, methods: ['GET'] },
+  { pattern: /^\/api\/reports\/financial$/, methods: ['GET'] },
+  { pattern: /^\/api\/ad-spend$/, methods: ['GET', 'POST'] },
 ];
 
 export function isMarketerAllowedPage(pathname: string): boolean {

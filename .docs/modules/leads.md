@@ -117,6 +117,8 @@ function visibilityWhere(role: UserRole, userId: string) {
 
 **Быстрые кнопки:** **«Взял в работу»**, добавить комментарий, поставить задачу, назначить следующий шаг, сменить этап, **«Закрыть сделкой»**, **«Закрыть отказом»**.
 
+**Сумма сделки (Phase 22.7):** у открытого лида в карточке (только `canManage`, т.е. пользователь компании, не маркетолог) редактируется потенциальная сумма — «выручка в работе» (`Lead.dealValueEstimated`), `PATCH /api/leads/:id/deal-value`. Фактическая сумма — «выручка в кассе» (`Lead.dealValueFinal`) — вводится обязательно в модалке «Закрыть сделкой», см. ниже.
+
 ### Фиксация открытия — без изменений
 
 `GET /api/leads/:id` пишет `LEAD_OPENED` один раз на пользователя. **Важно: это не считается первым ответом** (см. ниже) — только просмотром.
@@ -170,13 +172,14 @@ POST /api/leads/:id/take
 Кнопки «Закрыть сделкой» / «Закрыть отказом» — действие, не привязанное к конкретному этапу воронки (см. `database.md` → `Lead.closeType`). Закрыть можно с любого этапа.
 
 ```
-POST /api/leads/:id/close { closeType: "WON" }
-  → Lead.closeType = WON, closedAt = now()
-  → событие LEAD_WON
+POST /api/leads/:id/close { closeType: "WON", dealValueFinal: 42000.50 }
+  → dealValueFinal обязателен (Phase 22.7, модалка CloseAsWonModal) → без него 400 DEAL_VALUE_REQUIRED
+  → Lead.closeType = WON, closedAt = now(), dealValueFinal = <введено>, dealValueEstimated = 0
+  → событие LEAD_WON { dealValueFinal, dealValueEstimatedBefore }
 
 POST /api/leads/:id/close { closeType: "LOST", lossReasonId: "..." }
   → lossReasonId обязателен → без него 400 LOSS_REASON_REQUIRED
-  → Lead.closeType = LOST, closedAt = now(), lossReasonId
+  → Lead.closeType = LOST, closedAt = now(), lossReasonId (денежные поля не трогает)
   → событие LEAD_LOST
 ```
 
@@ -252,6 +255,7 @@ POST /api/leads (создание вручную)
 | DELETE | `/api/leads/:id` | Удалить | Session | ADMIN only |
 | POST | `/api/leads/:id/take` | «Взял в работу» | Session | Видимость по роли |
 | POST | `/api/leads/:id/close` | Закрыть сделкой/отказом | Session | Видимость по роли |
+| PATCH | `/api/leads/:id/deal-value` | Сумма сделки «в работе» (только открытый лид) | Session | Видимость по роли, только пользователь компании (не маркетолог) |
 | GET | `/api/leads/:id/duplicates` | Список возможных дублей лида | Session | Видимость по роли |
 | POST | `/api/leads/:id/comments` | Комментарий | Session | Видимость по роли |
 | GET | `/api/leads/:id/events` | История | Session | Видимость по роли |
@@ -267,7 +271,12 @@ POST /api/leads (создание вручную)
 
 ### `POST /api/leads/:id/close`
 
-**Response 400:** `{ "success": false, "error": "LOSS_REASON_REQUIRED" }`
+**Response 400 (отказ без причины):** `{ "error": "LOSS_REASON_REQUIRED" }`
+**Response 400 (сделка без суммы):** `{ "error": "DEAL_VALUE_REQUIRED" }`
+
+### `PATCH /api/leads/:id/deal-value`
+
+**Response 400 (лид уже закрыт):** `{ "error": "LEAD_CLOSED" }`
 
 ---
 
@@ -287,6 +296,7 @@ app/
     │       ├── route.ts
     │       ├── take/route.ts          # НОВОЕ
     │       ├── close/route.ts          # НОВОЕ
+    │       ├── deal-value/route.ts     # НОВОЕ (Phase 22.7)
     │       ├── duplicates/route.ts     # НОВОЕ
     │       ├── comments/route.ts
     │       └── events/route.ts
@@ -301,6 +311,8 @@ components/
 │   ├── TakeInWorkButton.tsx           # НОВОЕ
 │   ├── CloseLeadMenu.tsx              # НОВОЕ: сделка/отказ
 │   ├── CloseAsLostModal.tsx           # НОВОЕ: выбор причины отказа
+│   ├── CloseAsWonModal.tsx            # НОВОЕ (Phase 22.7): обязательная сумма сделки
+│   ├── LeadDealValue.tsx              # НОВОЕ (Phase 22.7): потенциальная сумма в карточке
 │   ├── DuplicateWarningModal.tsx      # НОВОЕ: превью при создании вручную
 │   ├── DuplicateBadge.tsx             # НОВОЕ
 │   ├── NextActionField.tsx            # НОВОЕ: показывает/предлагает следующую задачу
@@ -324,7 +336,7 @@ constants/
 └── eventLabels.ts                      # + новые типы событий
 
 lib/validations/
-└── leads.ts                            # + closeLeadSchema
+└── leads.ts                            # + closeLeadSchema, dealValueSchema (Phase 22.7)
 ```
 
 ---
@@ -340,6 +352,8 @@ lib/validations/
 11. **Мутации (`take`, `close`, `PATCH`, `POST`, `DELETE`) — обычные проверки видимости и роли**, без отдельного guard'а подписки — биллинга в продукте не существует. Единственная проверка доступа на входе — `Company.isBlocked` (см. `.docs/modules/auth.md`), не на уровне отдельных эндпоинтов.
 
 12. **Проверка дублей при создании вручную — до записи в БД**, не после. На вебхуках — наоборот (после, см. `leads-intake.md`). Это единственная сознательная асимметрия в проекте между «есть человек» и «нет человека» в моменте создания.
+
+13. **(Phase 22.7) Суммы сделки — только пользователь компании, не маркетолог.** `deal-value` и WON-ветка `close` используют `requireCompanyUser` (не `requireCompanyAccess` с allow-list): маркетолог получает 403 без записи в `constants/marketerAccess.ts`. Закрытый лид не принимает правку `dealValueEstimated` (`400 LEAD_CLOSED`).
 
 ---
 

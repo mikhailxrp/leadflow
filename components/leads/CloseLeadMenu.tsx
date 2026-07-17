@@ -1,9 +1,9 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import CloseAsLostModal from '@/components/leads/CloseAsLostModal';
+import CloseAsWonModal from '@/components/leads/CloseAsWonModal';
 
 interface CloseLeadMenuProps {
   leadId: string;
@@ -18,37 +18,18 @@ export default function CloseLeadMenu({
   size = 'md',
   fullWidth = true,
 }: CloseLeadMenuProps) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [showLostModal, setShowLostModal] = useState(false);
-  const [closing, setClosing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [showWonModal, setShowWonModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   if (isClosed) {
     return null;
   }
 
-  async function handleWon() {
+  function handleWon() {
     setOpen(false);
-    setClosing(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/leads/${leadId}/close`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ closeType: 'WON' }),
-      });
-      if (!res.ok) {
-        setError('Не удалось закрыть лид');
-        return;
-      }
-      router.refresh();
-    } catch {
-      setError('Ошибка сети');
-    } finally {
-      setClosing(false);
-    }
+    setShowWonModal(true);
   }
 
   function handleLost() {
@@ -62,15 +43,10 @@ export default function CloseLeadMenu({
         variant="secondary"
         size={size}
         className={fullWidth ? 'w-full' : 'whitespace-nowrap'}
-        disabled={closing}
         onClick={() => setOpen((v) => !v)}
       >
-        {closing ? 'Закрытие...' : 'Закрыть лид'}
+        Закрыть лид
       </Button>
-
-      {error && (
-        <span className="text-[11px] text-[var(--color-badge-danger-text)]">{error}</span>
-      )}
 
       {open && (
         <>
@@ -100,6 +76,10 @@ export default function CloseLeadMenu({
             </button>
           </div>
         </>
+      )}
+
+      {showWonModal && (
+        <CloseAsWonModal leadId={leadId} onClose={() => setShowWonModal(false)} />
       )}
 
       {showLostModal && (

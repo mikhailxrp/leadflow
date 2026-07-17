@@ -40,6 +40,33 @@ export type LossReasonRow = {
  * лиду); stuck = STAGE_STUCK; withoutNextAction = NO_NEXT_ACTION. Поэтому сумма трёх
  * чисел не равна «все открытые лиды с любой проблемой».
  */
+export type AdSpendRecord = {
+  id: string;
+  year: number;
+  month: number;
+  amountWithVat: number;
+  note: string | null;
+};
+
+/**
+ * Финансовый блок (Phase 22.7, Таск 4) — 10 метрик на единой когорте лидов по
+ * `createdAt` (не по `closedAt`, см. lib/reports/getFinancials.ts). Доли и ROMI —
+ * уже в процентной шкале (0..100), в отличие от wonRate (дробь 0..1) в этом же
+ * модуле — формулы фазы явно включают ×100. Деление на ноль → null, не 0.
+ */
+export type FinancialReport = {
+  adSpend: number;
+  totalLeads: number;
+  costPerLead: number | null;
+  qualifiedLeads: number;
+  costPerQualifiedLead: number | null;
+  qualifiedRate: number | null;
+  revenueInProgress: number;
+  revenueCollected: number;
+  totalRevenue: number;
+  romi: number | null;
+};
+
 export type ReportSummary = {
   totalLeads: number;
   buckets: LeadsBucket[];
