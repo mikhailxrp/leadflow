@@ -36,6 +36,35 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-17 — Phase 22.5, Таск 3: Движок экспорта квалификаций в Яндекс.Метрику + cron + идемпотентность + фолбэк
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/integrations/yandex/metrikaApi.ts` (новый) — тонкий клиент `POST .../offline_conversions/upload?client_id_type=...`. Заголовок `Authorization: OAuth <token>` (не `Bearer`, в отличие от `directApi.ts`). Тело — `multipart/form-data` (`FormData`+`Blob`), CSV собирается локально (заголовок `ClientId`/`Yclid` + `Target` + `DateTime`, базовое CSV-экранирование). Один авто-refresh на HTTP `401` через `refreshAccessToken`/`saveMetrikaTokens` из `metrikaOauth.ts` — решение о рефреше принимается только по статусу, не по коду ошибки в теле (формат ошибок Metrika API не задокументирован, в отличие от Direct API v5). Любой сбой (нет токена, неудачный refresh, не-2xx, сетевая ошибка) — `false`, не бросает, токен не логируется.
+- `lib/integrations/yandex/metrikaExport.ts` (новый) — `exportQualifiedLeads(companyId)`: гейт (подключено + `counterId`/`qualifiedGoalId` заданы) проверяется внутри функции, не только у вызывающего; выборка `QUALIFIED`-лидов без `metrikaExportedAt` (индекс из Таска 2); извлечение идентификатора — `Lead.marketing.yclid` (приоритет) → `Lead.customFields.client_id`, лид без обоих — тихий постоянный skip (не ошибка); группировка по `client_id_type` (до 2 групп/запросов за прогон); при успехе группы — `metrikaExportedAt = now()` + событие `LEAD_METRIKA_EXPORTED` (`leadId` обязателен — иначе сломается «путь лида» маркетолога, Phase 11.7) на каждый лид группы; при сбое группы — ни один лид не помечен, лид уходит в следующий прогон.
+- `app/api/integrations/yandex/metrika/cron/route.ts` (новый) — `POST`, `verifyCronSecret()` (паттерн `source-health/route.ts`/`subscription-reminders/route.ts` — 1:1 повтор структуры `handle()`). Отбирает компании `isBlocked: false` + `metrikaAccessToken != null`, дополнительно фильтрует по `settings.yandexMetrika.counterId`/`qualifiedGoalId`, вызывает `exportQualifiedLeads` на каждую подходящую, возвращает агрегат `{ companiesProcessed, exported, skippedNoIdentifier, failedGroups }`.
+- `.docs/modules/integrations.md` — новый подраздел «Движок экспорта — реализовано (Таск 3)» (точка вызова, гейт, идемпотентность, фолбэк, `client_id_type`-группировка, заголовок `OAuth`), таблица эндпоинтов + пометки «реализовано» в дереве файлов, статус секции обновлён.
+
+**Проверено живьём (dev-БД, throwaway-компании/лиды через прямые Prisma-вставки, реальный dev-сервер на `localhost:3000`):**
+
+- `POST /api/integrations/yandex/metrika/cron` без `CRON_SECRET` / с неверным секретом → `401` в обоих случаях
+- С верным секретом на чистой БД (ни одной компании с `metrikaAccessToken`) → `{"companiesProcessed":0,"exported":0,"skippedNoIdentifier":0,"failedGroups":0}` — подтверждено прямым запросом к БД, что подключённых компаний действительно 0 (не баг фильтра)
+- Засеяны 2 throwaway-компании: (1) активная — `metrikaAccessToken`/`counterId`/`qualifiedGoalId` заданы (фейковые значения), 2 `QUALIFIED`-лида — один с `marketing.yclid`, один без обоих идентификаторов; (2) `isBlocked: true` — тоже с подключённой Метрикой и `QUALIFIED`-лидом с `yclid`. Прогон cron → `{"companiesProcessed":1,"exported":0,"skippedNoIdentifier":1,"failedGroups":1}`: заблокированная компания не вошла в обработку вообще; лид без идентификатора корректно посчитан как skip; лид с `yclid` дошёл до реального HTTP-запроса к Metrika API (сеть достигнута) и корректно провалился на фейковом токене/counterId без исключения наружу
+- Прямой запрос к БД после прогона — у всех 3 лидов `metrikaExportedAt: null`, `LEAD_METRIKA_EXPORTED`-событий 0 (фолбэк не создал ложных пометок)
+- Повторный прогон cron сразу после первого — идентичный результат (`companiesProcessed:1, exported:0, skippedNoIdentifier:1, failedGroups:1`), без побочных эффектов
+- Throwaway-данные удалены (`lead.deleteMany` → `pipelineStage.deleteMany` → `company.deleteMany`, в порядке FK), финальный прогон на чистой БД вернул baseline `companiesProcessed:0`
+- `npm run type-check`/`lint`/`build` — чисто, без `any`; новый роут `/api/integrations/yandex/metrika/cron` подтверждён в выводе `build`
+
+**Out of scope (не делалось):** UI (`YandexMetrikaCard.tsx`, проброс статуса в `admin/integrations/page.tsx`, инструкция по `client_id`/`yclid` клиенту), бейдж/история `LEAD_METRIKA_EXPORTED` в карточке лида, опрос `uploading.status` для подтверждения сопоставления визита (fire-and-forget по дизайну), регистрация crontab на VPS (ops-шаг поставщика) — всё по плану `TASK.md`, Таск 4/ops.
+
+**Не проверено живьём (нет реальных Yandex-креденшелов в рамках этой сессии):** полный успешный путь `200 OK` от Metrika API → `metrikaExportedAt` проставлен → повторный прогон не задваивает. Логика идемпотентности (фильтр `metrikaExportedAt: null` в выборке + запись после успеха) проверена статически и по коду, но не сквозным вызовом реального API с валидным токеном/counterId/целью — это можно закрыть только с реальным подключённым счётчиком (Таск 4 + ручное тестирование клиентом).
+
+**Definition of Done:** выполнено — все пункты `TASK.md`, кроме отмеченного выше ограничения (нет живых Yandex-креденшелов для полного success-пути).
+
+---
+
 ## 2026-07-17 — Phase 22.5, Таск 2: OAuth-подключение Яндекс.Метрики + server-only токены + миграция + настройка
 
 **Статус:** ✅ Завершён

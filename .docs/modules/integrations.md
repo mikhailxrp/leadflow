@@ -127,7 +127,7 @@ OAuth-инфраструктура **паттерна** (authorize/callback/refr
 
 ## Экспорт квалификаций в Яндекс.Метрику (Phase 22.5)
 
-> **Статус:** research завершён (Таск 1, 2026-07-17) — **GO**. Таск 2 (миграция + OAuth-флоу подключения счётчика + настройка `counterId`/цели) реализован. Движок экспорта и UI — Таски 3–4, кода пока нет. Полная бизнес-логика, решения и разбивка по таскам — `.docs/phases/phase-22.5.md`; итоги — `.docs/dev-log.md` → «Phase 22.5».
+> **Статус:** research завершён (Таск 1, 2026-07-17) — **GO**. Таск 2 (миграция + OAuth-флоу подключения счётчика + настройка `counterId`/цели) реализован. Таск 3 (движок экспорта + cron + идемпотентность + фолбэк) реализован. UI — Таск 4, кода пока нет. Полная бизнес-логика, решения и разбивка по таскам — `.docs/phases/phase-22.5.md`; итоги — `.docs/dev-log.md` → «Phase 22.5».
 
 ### Бизнес-цель
 
@@ -180,6 +180,16 @@ OAuth-инфраструктура **паттерна** (authorize/callback/refr
 - Хелпер извлечения (Таск 3, `lib/integrations/yandex/metrikaExport.ts`) читает оба источника на лида: `Lead.customFields.client_id` и `Lead.marketing.yclid`. Если есть оба — не проблема двойной отправки: выгрузка всё равно идёт батчем с разбивкой по `client_id_type` (см. выше), каждый лид в конкретном прогоне относится ровно к одной из двух групп (приоритет — `yclid`, как более точная привязка к рекламному клику, если есть оба).
 - **Лид без обоих идентификаторов — тихий пропуск, не ошибка.** Это штатное большинство лидов (ручной ввод, импорт CSV/Excel, сайт без Метрики, форма без скрытого поля) — не редкий сбой API, который нужно логировать как fallback. `metrikaExportedAt` остаётся `null` навсегда для такого лида: не считается ошибкой, не ретраится (идентификатора никогда не появится).
 
+### Движок экспорта — реализовано (Таск 3, 2026-07-17)
+
+- **Точка вызова:** `POST /api/integrations/yandex/metrika/cron` (защита `CRON_SECRET`, без сессии, тот же `verifyCronSecret()`/`handle()`-паттерн, что у `/api/cron/control/source-health` и `/api/platform/cron/subscription-reminders`). Триггер — внешний crontab на VPS (ручной ops-шаг поставщика, как дайджест продлений и проверка здоровья источников; запись в crontab — вне scope агента, см. `_status.md` → Phase 1).
+- **Отбор компаний:** роут берёт `Company` с `isBlocked: false` и `metrikaAccessToken != null`, затем фильтрует по наличию `settings.yandexMetrika.counterId`/`qualifiedGoalId`. Заблокированная компания пропускается целиком (прецедент `checkSourceHealth`) — данные не теряются, лид просто не экспортируется до разблокировки.
+- **Гейт внутри `exportQualifiedLeads(companyId)`:** та же проверка (подключено + `counterId`/цель заданы) повторяется внутри функции — defense-in-depth на случай, если интеграцию отключат между выборкой компаний и обработкой конкретной компании в том же прогоне.
+- **Идемпотентность:** выборка `qualification = 'QUALIFIED' AND metrikaExportedAt IS NULL`; после успешной (`200 OK`) отправки группы — `metrikaExportedAt = now()` на каждый лид группы + событие `LEAD_METRIKA_EXPORTED` (`leadId` обязателен — иначе тихо сломается «путь лида» у маркетолога, Phase 11.7). Повторный прогон не задваивает конверсию.
+- **Фолбэк:** `lib/integrations/yandex/metrikaApi.ts` не бросает исключение ни при отсутствии токена, ни при неудачном auto-refresh (один retry на HTTP `401`, паттерн `callDirectApi`, но по статусу, не по коду ошибки в теле — формат ошибок Metrika API не задокументирован), ни при 5xx/сетевой ошибке — возвращает `false`, `metrikaExportedAt` не проставляется, лид уходит в следующий прогон. Лид без идентификатора вообще — отдельная ветка, постоянный тихий skip, не попадает в счётчик сбоев.
+- **`client_id_type` — group per request:** батч `QUALIFIED`-лидов делится на до 2 групп (`YCLID`/`CLIENT_ID`), на каждую — свой CSV и свой POST; `yclid` в приоритете, если у лида есть оба идентификатора.
+- **Заголовок авторизации Metrika API — `Authorization: OAuth <token>`**, не `Bearer` (отличие от Direct API v5, см. `directApi.ts`).
+
 ### ENV (согласовано для Таска 2)
 
 ```
@@ -196,15 +206,15 @@ YANDEX_METRIKA_OAUTH_REDIRECT_URI=<APP_URL>/api/integrations/yandex/metrika/call
 lib/integrations/yandex/
 ├── oauth.ts                # существует (Директ) — не трогать
 ├── directApi.ts            # существует (Директ) — не трогать
-├── metrikaOauth.ts         # НОВОЕ (Таск 2) — buildAuthorizeUrl/verifyState/exchangeCodeForTokens/refreshAccessToken/saveMetrikaTokens/disconnectMetrika/getMetrikaConnectionStatus, зеркалит oauth.ts
-├── metrikaApi.ts           # НОВОЕ (Таск 3) — тонкий клиент offline_conversions/upload; Authorization: OAuth <token> (не Bearer); авто-refresh на 401
-└── metrikaExport.ts        # НОВОЕ (Таск 3) — exportQualifiedLeads(companyId): выборка QUALIFIED без metrikaExportedAt → группировка по client_id_type → до 2 запросов за прогон → идемпотентность
+├── metrikaOauth.ts         # реализовано (Таск 2) — buildAuthorizeUrl/verifyState/exchangeCodeForTokens/refreshAccessToken/saveMetrikaTokens/disconnectMetrika/getMetrikaConnectionStatus, зеркалит oauth.ts
+├── metrikaApi.ts           # реализовано (Таск 3) — тонкий клиент offline_conversions/upload; Authorization: OAuth <token> (не Bearer); авто-refresh на 401
+└── metrikaExport.ts        # реализовано (Таск 3) — exportQualifiedLeads(companyId): выборка QUALIFIED без metrikaExportedAt → группировка по client_id_type → до 2 запросов за прогон → идемпотентность
 
 app/api/integrations/yandex/metrika/
-├── route.ts                # НОВОЕ (Таск 2) — GET статус / PATCH counterId+qualifiedGoalId / DELETE отключение
-├── authorize/route.ts      # НОВОЕ (Таск 2) — GET, минтит state, 302 на oauth.yandex.ru
-├── callback/route.ts       # НОВОЕ (Таск 2) — GET, обмен code→токены, редирект
-└── cron/route.ts           # НОВОЕ (Таск 3) — POST, CRON_SECRET, вызывает exportQualifiedLeads для каждой подключённой компании
+├── route.ts                # реализовано (Таск 2) — GET статус / PATCH counterId+qualifiedGoalId / DELETE отключение
+├── authorize/route.ts      # реализовано (Таск 2) — GET, минтит state, 302 на oauth.yandex.ru
+├── callback/route.ts       # реализовано (Таск 2) — GET, обмен code→токены, редирект
+└── cron/route.ts           # реализовано (Таск 3) — POST, CRON_SECRET, вызывает exportQualifiedLeads для каждой подключённой компании
 ```
 
 Полная разбивка по таскам, миграция, DoD — `.docs/phases/phase-22.5.md`.
@@ -250,6 +260,7 @@ app/api/integrations/yandex/metrika/
 | GET/PATCH/DELETE | `/api/integrations/yandex/metrika` | Статус (`GET`) / настройка `counterId`+`qualifiedGoalId` (`PATCH`) / отключение (`DELETE`) | Session | `GET`/`DELETE` — ADMIN only; `PATCH` — ADMIN + маркетолог |
 | GET             | `/api/integrations/yandex/metrika/authorize` | Минтит `state`, 302 на `oauth.yandex.ru/authorize` | Session | ADMIN only |
 | GET             | `/api/integrations/yandex/metrika/callback` | OAuth callback Метрики — обмен `code`→токены, редирект | Session (cookie) + `state` | ADMIN only (владелец `companyId` из `state`, сверенный с сессией) |
+| POST            | `/api/integrations/yandex/metrika/cron` | Батч-экспорт `QUALIFIED`-лидов всех подключённых компаний как офлайн-конверсий | `CRON_SECRET` (без сессии) | Машинный, триггер — внешний crontab |
 
 **Маркетолог и статус Яндекса:** страница `/admin/integrations` отдаёт `connected`/`login` серверным пропом (тот же паттерн, что webhook-URL, Phase 18) — маркетолог видит статус кабинета в режиме чтения без отдельного API-запроса. Новый пункт в `constants/marketerAccess.ts` под это **не добавляется**: маркетолог не может ни подключить, ни отключить кабинет (как и `yandexMode`), а GET-статус ему не нужен отдельным эндпоинтом.
 
