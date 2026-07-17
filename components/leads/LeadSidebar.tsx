@@ -7,6 +7,7 @@ import CloseLeadMenu from '@/components/leads/CloseLeadMenu';
 import AssignManagerSelect from '@/components/leads/AssignManagerSelect';
 import QualificationBadge from '@/components/leads/QualificationBadge';
 import QualificationControl from '@/components/leads/QualificationControl';
+import LeadDealValue from '@/components/leads/LeadDealValue';
 
 const CLOSE_TYPE_LABELS: Record<CloseType, string> = {
   WON: 'Сделка',
@@ -28,6 +29,7 @@ interface LeadSidebarProps {
   canManage: boolean;
   qualification: LeadQualification | null;
   canQualify: boolean;
+  dealValueEstimated: number | null;
 }
 
 export default function LeadSidebar({
@@ -40,6 +42,7 @@ export default function LeadSidebar({
   canManage,
   qualification,
   canQualify,
+  dealValueEstimated,
 }: LeadSidebarProps) {
   return (
     <Card padding="lg">
@@ -86,6 +89,10 @@ export default function LeadSidebar({
             <QualificationBadge qualification={qualification} />
           )}
         </div>
+
+        {canManage && closeType === null && (
+          <LeadDealValue leadId={leadId} value={dealValueEstimated} />
+        )}
       </div>
 
       {canManage && (

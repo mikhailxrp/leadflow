@@ -1,7 +1,7 @@
 import 'server-only';
 
 import type { ManagerStat } from '@/types/control';
-import type { BySourceRow, LossReasonRow, ReportSummary } from '@/types/reports';
+import type { BySourceRow, FinancialReport, LossReasonRow, ReportSummary } from '@/types/reports';
 
 const BOM = '﻿';
 
@@ -58,4 +58,29 @@ export function bySourceToCsv(rows: BySourceRow[]): string {
     ['Источник', 'Количество', 'Конверсия'],
     rows.map((row) => [row.source, row.count, Math.round(row.wonRate * 1000) / 1000]),
   );
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** Одна строка на метрику ('—' вместо null) — отчёт агрегатный, не построчный список. */
+export function financialToCsv(report: FinancialReport): string {
+  const rows: (string | number)[][] = [
+    ['Потрачено с НДС, ₽', round2(report.adSpend)],
+    ['Всего лидов', report.totalLeads],
+    ['Цена лида, ₽', report.costPerLead === null ? '—' : round2(report.costPerLead)],
+    ['Квал-лиды', report.qualifiedLeads],
+    [
+      'Цена квал-лида, ₽',
+      report.costPerQualifiedLead === null ? '—' : round2(report.costPerQualifiedLead),
+    ],
+    ['Доля квал-лидов, %', report.qualifiedRate === null ? '—' : round2(report.qualifiedRate)],
+    ['Выручка в работе, ₽', round2(report.revenueInProgress)],
+    ['Выручка в кассе, ₽', round2(report.revenueCollected)],
+    ['Общая выручка, ₽', round2(report.totalRevenue)],
+    ['ROMI, %', report.romi === null ? '—' : round2(report.romi)],
+  ];
+
+  return rowsToCsv(['Метрика', 'Значение'], rows);
 }

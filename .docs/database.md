@@ -151,11 +151,14 @@ enum EventType {
   LEAD_QUALIFIED
   LEAD_DISQUALIFIED
   COMPANY_PROFILE_UPDATED
+  CONTROL_SUMMARY_SENT
   YANDEX_CONNECTED
   YANDEX_DISCONNECTED
   METRIKA_CONNECTED
   METRIKA_DISCONNECTED
   LEAD_METRIKA_EXPORTED
+  LEAD_DEAL_VALUE_UPDATED
+  AD_SPEND_UPDATED
 }
 
 enum ReminderStatus {
@@ -530,6 +533,8 @@ model Lead {
   qualification LeadQualification?
   qualifiedAt   DateTime?
   metrikaExportedAt DateTime?
+  dealValueEstimated Decimal?  @db.Decimal(14, 2)
+  dealValueFinal     Decimal?  @db.Decimal(14, 2)
   createdAt     DateTime      @default(now())
 
   company       Company       @relation(fields: [companyId], references: [id])
@@ -559,6 +564,8 @@ model Lead {
 `metrikaExportedAt` (Phase 22.5) — маркер идемпотентности экспорта в Яндекс.Метрику: `null` — ещё не выгружен (или нет идентификатора привязки), заполняется движком экспорта (Таск 3) после успешной отправки `offline_conversions/upload`, не после подтверждённого сопоставления визита (то приходит асинхронно, до 2 часов, и не отслеживается). Композитный индекс — под выборку `qualification = QUALIFIED AND metrikaExportedAt IS NULL` при каждом прогоне cron.
 
 **Закрытие (`closeType`/`closedAt`/`lossReasonId`)** — действие, не привязанное к конкретному этапу воронки: закрыть сделкой или отказом можно с любого этапа, кнопками в карточке. Закрытие отказом без `lossReasonId` отклоняется на уровне API.
+
+**Денежные поля (`dealValueEstimated`/`dealValueFinal`, Phase 22.7)** — `Decimal(14, 2)` (не `Float` — деньги), рубли, суммы вносятся с НДС. `dealValueEstimated` — «выручка в работе», потенциальная сумма, редактируемое поле карточки (MANAGER+ по видимости лида, только пока лид открыт); `dealValueFinal` — «выручка в кассе», обязательна при закрытии сделкой (проверяет Zod в `POST /api/leads/:id/close`, не доменный слой). **При закрытии сделкой `dealValueEstimated` зануляется в той же транзакции** — лид учитывается только в «выручке в кассе», без двойного счёта в общей выручке; прежняя потенциальная сумма сохраняется в payload события `LEAD_WON` (`dealValueEstimatedBefore`). **Закрытие отказом денежные поля не трогает** — из «выручки в работе» такой лид исключает скоуп `closeType IS NULL` в отчёте, а не зануление. Как и квалификация, финансовые поля — параллельный аналитический слой: на воронку, назначение, эскалацию и риск не влияют. В API отдаются числом (`Number(decimal)`); `Decimal` — не валидное JSON-значение и не сериализуется в Client Component. См. `.docs/phases/phase-22.7.md`.
 
 **Дедупликация не выполняется автоматически.** Совпадение по телефону/email с другим лидом той же компании создаёт `DuplicateFlag` (пометку), лид всё равно сохраняется — слияние записей не реализуется, один человек может оставлять разные обращения.
 
@@ -868,6 +875,35 @@ model ImportBatch {
 
 ---
 
+## Модель: Расход на рекламу (AdSpend)
+
+```prisma
+model AdSpend {
+  id            String   @id @default(cuid())
+  companyId     String
+  year          Int
+  month         Int      // 1..12
+  amountWithVat Decimal  @db.Decimal(14, 2)  // расход уже с НДС, вносится как есть
+  note          String?
+  createdById   String?  // User, внёсший запись; null — если внёс маркетолог
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, year, month])
+  @@index([companyId])
+}
+```
+
+Ручной справочник расхода на рекламу (Phase 22.7) — источник метрики «потрачено с НДС» в финансовом блоке отчётов. Заполняется вручную (HEAD+ и маркетолог), не подтягивается из Яндекс Директа: ручной ввод работает для всех компаний и любых каналов (VK, офлайн), не зависит от FULL-подключения кабинета и от семантики НДС в `Cost` Direct API. Авто-импорт — вне Phase 22.7, но остаётся дешёвым расширением этой же таблицы (автозаполнение суммы месяца).
+
+**Гранулярность — один календарный месяц:** `@@unique([companyId, year, month])` — одна запись = один месяц компании, без перекрытий и дробления; запись создаётся/обновляется через `upsert` по этому ключу. Отчёт за произвольный диапазон суммирует попавшие в него месяцы; при отчёте за **частичный** месяц засчитывается полная сумма месяца — поэтому финансовый блок предлагает пресеты периода, выровненные по месяцам.
+
+**`createdById` — без FK на `User`** (как `Event.userId` и `CompanyAccessGrant.platformAdminId`): запись переживает удаление пользователя и намеренно **не** блокирует его удаление через гард `USER_HAS_DATA` (`lib/users/userGuards.ts`). У маркетолога записи `User` нет вообще — там `null`, а актор восстанавливается из события `AD_SPEND_UPDATED` (`userId = null` + `impersonatedByPlatformAdminId`, проставляет `writeEvent`). Событие — компанийского уровня, без `leadId`: расход не привязан к лиду.
+
+---
+
 ## Модель: Приглашение в компанию
 
 ```prisma
@@ -914,6 +950,7 @@ Company ──< User (role: MANAGER | HEAD | ADMIN) ──< Comment
    │
    ├──< PipelineStage / ApiKey / IntegrationSource / AssignmentRule
    ├──< LossReason / DuplicateFlag / ImportBatch / Event
+   ├──< AdSpend (createdById — без FK на User)
    └──< CompanyInvite
 
 Event ──> PlatformAdmin (impersonatedByPlatformAdminId, nullable — аннотация, не основной FK)
@@ -995,18 +1032,39 @@ POST /api/platform/impersonate/end
 
 ```typescript
 await prisma.$transaction(async (tx) => {
-  const lead = await tx.lead.findFirstOrThrow({ where: { id: leadId, companyId } });
+  const lead = await tx.lead.findFirstOrThrow({
+    where: { id: leadId, companyId },
+    select: { dealValueEstimated: true },
+  });
   if (closeType === "LOST" && !lossReasonId) throw new ValidationError("LOSS_REASON_REQUIRED");
 
-  await tx.lead.update({
-    where: { id: leadId },
-    data: { closeType, closedAt: new Date(), lossReasonId: closeType === "LOST" ? lossReasonId : null },
+  // Decimal — не JSON-значение: в payload только числом
+  const dealValueEstimatedBefore =
+    lead.dealValueEstimated === null ? null : Number(lead.dealValueEstimated);
+
+  await tx.lead.updateMany({
+    where: { id: leadId, companyId },
+    data: {
+      closeType,
+      closedAt: new Date(),
+      lossReasonId: closeType === "LOST" ? lossReasonId : null,
+      // только WON: «в работе» → «в кассе», без двойного счёта; LOST деньги не трогает
+      ...(closeType === "WON" ? { dealValueEstimated: 0, dealValueFinal } : {}),
+    },
   });
   await tx.event.create({
-    data: { companyId, leadId, userId, type: closeType === "WON" ? "LEAD_WON" : "LEAD_LOST", payload: closeType === "LOST" ? { lossReasonId } : {} },
+    data: {
+      companyId, leadId, userId,
+      type: closeType === "WON" ? "LEAD_WON" : "LEAD_LOST",
+      payload: closeType === "LOST"
+        ? { lossReasonId }
+        : { dealValueFinal, dealValueEstimatedBefore },
+    },
   });
 });
 ```
+
+Зануление `dealValueEstimated` при `WON` — часть той же транзакции, не отдельный апдейт: лид не должен ни на мгновение числиться одновременно в «выручке в работе» и «выручке в кассе». Прежняя потенциальная сумма не теряется — уходит в payload `LEAD_WON`.
 
 ### Создание компании и приглашение
 
@@ -1115,6 +1173,7 @@ await prisma.$transaction(async (tx) => {
 @@index([platformAdminId])          // CompanyAccessGrant — компании маркетолога по грантам (v4.1)
 @@index([adminId]) / [expiresAt]    // PlatformAdminPasswordResetToken
 @@index([companyId, createdAt])     // Event — выборка логов по компании с сортировкой по дате (Phase 11.7)
+@@unique([companyId, year, month])  // AdSpend — один месяц компании, ключ upsert (Phase 22.7)
 ```
 
 ---
@@ -1124,5 +1183,7 @@ await prisma.$transaction(async (tx) => {
 Миграции коммитятся в репозиторий, `prisma migrate deploy` — в проде, не `db push`. Изменения JSONB-структур (`settings`, `utm`, `marketing`, `customFields`, `notificationPreferences`) не требуют миграции схемы — гибкость заложена изначально.
 
 Переход с v3.0 (биллинг/тарифы/WhatsApp) на v4.0 — не апгрейд существующей инсталляции, а замена схемы для новой версии продукта. `Plan`, `SubscriptionStatus`, `BillingCycle`, `Payment`, `PaymentMethod` выпиливаются, а не мигрируются — действующих компаний с тарифами и оплатой, которые нужно было бы переносить, не существует.
+
+**Миграция Phase 22.7 (финансовый слой) — аддитивная:** новые nullable-колонки `Lead.dealValueEstimated`/`dealValueFinal`, новая таблица `AdSpend`, новые значения `EventType` (`LEAD_DEAL_VALUE_UPDATED`, `AD_SPEND_UPDATED`). Существующие лиды получают `null` в обоих денежных полях (в отчётах трактуется как отсутствие суммы — `Σ` их пропускает), существующие компании — пустой справочник расхода. Ничего не пересчитывается и не бэкофиллится.
 
 **Миграция v4.1 (роль «Маркетолог») — аддитивная и безопасная для работающей инсталляции:** новые enum'ы (`PlatformRole`, `LeadQualification`), новые nullable/дефолтные поля (`PlatformAdmin.role` с дефолтом `SUPER_ADMIN`, `PlatformAdmin.lastLoginAt`, `Company.createdByPlatformAdminId`, `Company.blockedByMarketerCascade`, `Lead.qualification`, `Lead.qualifiedAt`), новая таблица `CompanyAccessGrant`, новые значения `EventType`. Существующие записи не трансформируются: все текущие `PlatformAdmin` становятся `SUPER_ADMIN`, все текущие компании — «платформенными» (`createdByPlatformAdminId = null`), все лиды — неоценёнными. Выполняется в фазах 11.5/11.6 (см. `.docs/phases/_status.md`).

@@ -1,11 +1,11 @@
 import type { Prisma } from '@prisma/client';
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
-import { closeLead, ValidationError } from '@/lib/leads/closeLead';
+import { writeEvent } from '@/lib/events';
 import { visibilityWhere } from '@/lib/leads/visibilityFilter';
 import { prisma } from '@/lib/prisma';
-import { closeLeadSchema } from '@/lib/validations/leads';
+import { dealValueSchema } from '@/lib/validations/leads';
 
-export async function POST(
+export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
@@ -19,7 +19,6 @@ export async function POST(
 
   const { id } = await params;
   const { companyId, userId, role } = user;
-  const impersonatedByPlatformAdminId = user.impersonatedByPlatformAdminId ?? null;
 
   let body: unknown;
   try {
@@ -28,20 +27,12 @@ export async function POST(
     return Response.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const parsed = closeLeadSchema.safeParse(body);
+  const parsed = dealValueSchema.safeParse(body);
   if (!parsed.success) {
-    const closeType =
-      body && typeof body === 'object' && 'closeType' in body
-        ? (body as Record<string, unknown>).closeType
-        : undefined;
-    if (closeType === 'LOST') {
-      return Response.json({ error: 'LOSS_REASON_REQUIRED' }, { status: 400 });
-    }
-    if (closeType === 'WON') {
-      return Response.json({ error: 'DEAL_VALUE_REQUIRED' }, { status: 400 });
-    }
     return Response.json({ error: 'VALIDATION_ERROR' }, { status: 400 });
   }
+
+  const { dealValueEstimated } = parsed.data;
 
   try {
     const visibility = visibilityWhere(role, userId);
@@ -53,30 +44,31 @@ export async function POST(
 
     const lead = await prisma.lead.findFirst({
       where: { AND: andConditions },
-      select: { id: true },
+      select: { closeType: true },
     });
 
     if (!lead) {
       return Response.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const input = parsed.data;
-    await closeLead({
-      leadId: id,
-      companyId,
-      userId,
-      closeType: input.closeType,
-      lossReasonId: input.closeType === 'LOST' ? input.lossReasonId : undefined,
-      dealValueFinal: input.closeType === 'WON' ? input.dealValueFinal : undefined,
-      impersonatedByPlatformAdminId,
+    if (lead.closeType !== null) {
+      return Response.json({ error: 'LEAD_CLOSED' }, { status: 400 });
+    }
+
+    await prisma.lead.update({
+      where: { id },
+      data: { dealValueEstimated },
     });
 
-    return Response.json({ success: true });
+    await writeEvent(companyId, 'LEAD_DEAL_VALUE_UPDATED', {
+      leadId: id,
+      userId,
+      payload: { value: dealValueEstimated },
+    });
+
+    return Response.json({ success: true, dealValueEstimated });
   } catch (error) {
-    if (error instanceof ValidationError) {
-      return Response.json({ error: error.code }, { status: 400 });
-    }
-    console.error('[POST /api/leads/:id/close] failed:', error);
+    console.error('[PATCH /api/leads/:id/deal-value] failed:', error);
     return Response.json({ error: 'INTERNAL_ERROR' }, { status: 500 });
   }
 }

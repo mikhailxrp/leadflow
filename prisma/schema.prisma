@@ -96,6 +96,8 @@ enum EventType {
   METRIKA_CONNECTED
   METRIKA_DISCONNECTED
   LEAD_METRIKA_EXPORTED
+  LEAD_DEAL_VALUE_UPDATED
+  AD_SPEND_UPDATED
 }
 
 enum ReminderStatus {
@@ -166,6 +168,7 @@ model Company {
   invites            CompanyInvite[]
   accessGrants       CompanyAccessGrant[]
   notifications      Notification[]
+  adSpends           AdSpend[]
 
   @@index([nextPaymentAt])
   @@index([createdByPlatformAdminId])
@@ -274,7 +277,13 @@ model Lead {
   qualification     LeadQualification?
   qualifiedAt       DateTime?
   metrikaExportedAt DateTime?
-  createdAt         DateTime           @default(now())
+
+  // Финансы (Phase 22.7) — аналитический слой, на воронку/назначение/эскалацию/риск не влияет.
+  // Decimal, не Float: деньги. При закрытии сделкой dealValueEstimated зануляется (см. lib/leads/closeLead.ts).
+  dealValueEstimated Decimal? @db.Decimal(14, 2) // «выручка в работе» — потенциальная сумма, вносит менеджер
+  dealValueFinal     Decimal? @db.Decimal(14, 2) // «выручка в кассе» — фактическая сумма сделки при WON
+
+  createdAt DateTime @default(now())
 
   company                 Company         @relation(fields: [companyId], references: [id])
   stage                   PipelineStage   @relation(fields: [stageId], references: [id])
@@ -515,6 +524,28 @@ model ImportBatch {
   createdBy User    @relation(fields: [createdById], references: [id])
   leads     Lead[]
 
+  @@index([companyId])
+}
+
+// Ручной справочник расхода на рекламу по календарным месяцам (Phase 22.7).
+// Одна запись = один месяц компании; сумма вносится уже с НДС, как есть.
+model AdSpend {
+  id            String  @id @default(cuid())
+  companyId     String
+  year          Int
+  month         Int // 1..12
+  amountWithVat Decimal @db.Decimal(14, 2)
+  note          String?
+  // User, внёсший запись; null — если внёс маркетолог (у него нет записи User).
+  // Без FK на User — запись переживает удаление пользователя и не блокирует его
+  // через гард USER_HAS_DATA (lib/users/userGuards.ts), как и Event.userId.
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, year, month])
   @@index([companyId])
 }
 

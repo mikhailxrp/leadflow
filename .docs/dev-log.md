@@ -36,6 +36,121 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-17 — Phase 22.7, Таск 4: Финансовый отчёт — 10 метрик + ROMI + экспорт CSV
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/adSpend/monthRange.ts` — **НОВОЕ**: `yearMonthKey`/`isWithinRange` вынесены из `app/api/ad-spend/route.ts` (были приватными там) в переиспользуемый модуль — идентичная логика «месяц попадает в `[from,to]`» нужна и в `getFinancials.ts`; `app/api/ad-spend/route.ts` теперь импортирует их оттуда, поведение не изменилось
+- `lib/reports/getFinancials.ts` — **НОВОЕ**: одна когорта лидов по `companyId, createdAt ∈ [from,to]` (не `closedAt` — атрибуция по когорте привлечения, решение №6 фазы) + сумма `AdSpend` за попавшие в диапазон месяцы; «выручка в работе» скопирована строго по `closeType: null` (не по «сумма не null» — у LOST `dealValueEstimated` не зануляется и не должен попасть в отчёт); все денежные суммы складываются в `Prisma.Decimal` до единственной финальной конвертации в `Number`; 4 производные метрики (цена лида, цена квал-лида, доля квал-лидов %, ROMI %) — `null` при нулевом делителе, не `0`/`Infinity`; доля квал-лидов и ROMI — уже в процентной шкале (0..100), в отличие от `wonRate` в этом же модуле (дробь 0..1) — формулы фазы включают `×100`
+- `app/api/reports/financial/route.ts` — **НОВОЕ**: `GET`, `requireCompanyAccess({ minRole: 'HEAD' })`, `reportPeriodSchema`/`resolveReportPeriod` (как у остальных отчётов)
+- `types/reports.ts` — тип `FinancialReport` (10 полей; производные — `number | null`)
+- `lib/validations/reports.ts` — `'financial'` добавлен в `reportExportNameSchema`
+- `constants/marketerAccess.ts` — `{ pattern: /^\/api\/reports\/financial$/, methods: ['GET'] }` в `MARKETER_ALLOWED_API`
+- `lib/reports/exportToCsv.ts` — `financialToCsv()`: 10 строк «Метрика/Значение» (`null` → «—»), в отличие от построчных отчётов (`bySourceToCsv` и т.д.) это агрегат, не список
+- `app/api/reports/export/route.ts` — `case 'financial'`
+- `components/reports/FinancialReportSection.tsx` — **НОВОЕ**: 10 карточек (₽/%, `null` → «—»), подсказка про месячную гранулярность расхода при произвольном периоде
+- `components/reports/ReportsPage.tsx` — вкладка «Финансы» (period-bound, в отличие от «Расходы на рекламу» — `showPeriodSelector` по-прежнему исключает только `'ad-spend'`); `REPORT_NAME_BY_TAB` — `financial: 'financial'`; пресеты периода расширены месяц-выровненными вариантами — «Прошлый месяц» (полный предыдущий календарный месяц через трюк `Date.UTC(y, m, 0)` = последний день предыдущего месяца) и «Год» (с 1 января текущего года) — общие для всех вкладок, не только «Финансы»
+- `.docs/modules/reports.md`, `.docs/phases/phase-22.7.md`, `.docs/phases/_status.md` — раздел «Финансовый блок», статус таска/фазы
+
+**Проверено:**
+
+- `npm run type-check` / `npm run build` / `npm run lint` — чисто (тот же предсуществующий warning в `scripts/seedDemoCompany.ts`, не тронут), маршрут `/api/reports/financial` зарегистрирован
+- Рантайм-проверка через демо-сессию (`signIn('demo-access')` + cookie jar): `GET /api/reports/financial` и `GET /api/reports/export?report=financial` вернули 200 с корректной обработкой нулевого расхода (`romi: null`, `costPerLead: 0` — численно верно, т.к. делитель `totalLeads` не ноль); демо-компания read-only (`DemoReadOnlyError` на `POST /api/ad-spend`) — ожидаемо, не баг
+- Целевая проверка риск-точек через временный скрипт (`getFinancials()` напрямую, временная компания, удалена после теста): WON-лид с `closedAt` вне периода корректно учтён по `createdAt`; LOST-лид со старым `dealValueEstimated = 999` корректно исключён из «выручки в работе»; ROMI/доля квал-лидов посчитаны в процентной шкале; Decimal-сумма расхода и общей выручки — без float-дрейфа. Все 10 проверок прошли (`FINANCIAL REPORT VERIFICATION OK`)
+
+**Out of scope (не делалось):** авто-импорт расхода из Яндекс Директа, разрез по источнику/каналу, мультивалютность, атрибуция по `closedAt`, прогноз/план-факт, изменения `closeLead()`/схемы (Таски 1–2).
+
+**Definition of Done:** выполнено — все пункты `TASK.md` подтверждены.
+
+---
+
+## 2026-07-17 — Phase 22.7, Таск 3: Расход на рекламу — ручной справочник по месяцам
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/leads.ts` — `MAX_DEAL_VALUE` экспортирован (была локальная константа), чтобы не заводить второе независимое магическое число под ту же точность `Decimal(14,2)` в новой схеме расхода
+- `lib/validations/adSpend.ts` — **НОВОЕ**: `adSpendSchema` (`year` 2020..2100, `month` 1..12, `amountWithVat` неотрицательное число с потолком `MAX_DEAL_VALUE`, `note` — обязательный ключ, `string | null`: `null` — явная очистка заметки, отсутствие ключа не значило бы «не менять», т.к. форма всегда шлёт полную запись); `adSpendQuerySchema` (`from`/`to` опциональны)
+- `app/api/ad-spend/route.ts` — **НОВОЕ**: `GET` без query — весь справочник компании для редактора (сортировка по убыванию года/месяца), с `from`/`to` — фильтрация по пересечению `year*12+month` с диапазоном (в JS после одного `findMany`, датасет на компанию мал — без сложных `OR` в Prisma); `POST` — `prisma.adSpend.upsert()` по составному ключу `companyId_year_month`, `createdById` пишется **только в ветке `create`** (по аналогии с `touchIntegrationSource` легко было бы обновлять его в обеих ветках, но семантически это «кто создал запись», не «кто последний правил» — правка чужого месяца не должна переприсваивать авторство), `writeEvent('AD_SPEND_UPDATED', { userId: eventUserId, payload: { year, month, amountWithVat } })` без `leadId`
+- `constants/marketerAccess.ts` — `{ pattern: /^\/api\/ad-spend$/, methods: ['GET', 'POST'] }` в `MARKETER_ALLOWED_API` (в отличие от сумм сделки лида в Таске 2, где маркетолог намеренно исключён, здесь он допущен — тот же набор доступа, что у остальных отчётов)
+- `types/reports.ts` — тип `AdSpendRecord`
+- `components/reports/AdSpendSection.tsx` — **НОВОЕ**: форма месяц/сумма/заметка (`Select` для месяца, `Input` для года/суммы/заметки) + таблица внесённых месяцев с кнопкой «Изменить» (заполняет форму), пустое состояние при пустом справочнике, локальное обновление списка после сохранения без `router.refresh()` (данные не приходят через серверные пропсы страницы — компонент сам себя подгружает)
+- `components/reports/ReportsPage.tsx` — новая вкладка «Расходы на рекламу»: `REPORT_NAME_BY_TAB` стал `Partial<Record<ReportTab, ReportExportName>>` (раньше — полный `Record`, обязывал бы запись на каждый таб) — `ExportButton` рендерится только если для активной вкладки есть запись (CSV для этой вкладки — Таск 4); верхний селектор периода отчёта скрыт при активной вкладке (справочник по месяцам не фильтруется period-пикером отчёта — показывать его означало бы вводить в заблуждение)
+- `.docs/modules/reports.md` — `GET/POST /api/ad-spend` в таблице эндпоинтов, `AdSpendSection.tsx`/`ad-spend/route.ts` в списке файлов, новый раздел «Расход на рекламу (AdSpend, Phase 22.7)»
+
+**Проверено:** `npm run type-check` — чисто; `npm run build` — чисто, маршрут `/api/ad-spend` зарегистрирован; `npm run lint` — единственный warning в `scripts/seedDemoCompany.ts` (предсуществующий, файл не трогался), без `any`.
+
+**Out of scope (не делалось):** финансовый отчёт, 10 метрик, ROMI, `GET /api/reports/financial`, CSV-экспорт финансового блока — Таск 4; авто-импорт расхода из Яндекс Директа — вне фазы целиком; расход в разрезе источника/канала — вне фазы; отдельный `DELETE /api/ad-spend` — обнуление месяца через `POST` с `amountWithVat: 0`; мультивалютность.
+
+**Definition of Done:** выполнено — все пункты `TASK.md` подтверждены (upsert без дублей, HEAD+/маркетолог допущены, MANAGER — нет, `AD_SPEND_UPDATED` пишется с верной атрибуцией, `createdById` не переприсваивается при правке, UI на `/reports` с пустым состоянием и без CSV-кнопки, type-check/build/lint зелёные).
+
+---
+
+## 2026-07-17 — Phase 22.7, Таск 2: Ввод сумм сделки менеджером — «в работе» (карточка) + «в кассе» (обязательно при закрытии сделкой)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/leads.ts` — `closeLeadSchema` (WON-ветка обязывает `dealValueFinal: z.number().positive().max(999_999_999_999.99)` — верхняя граница под `Decimal(14,2)`, 12 знаков до запятой; LOST не тронут); новая `dealValueSchema` — `{ dealValueEstimated: z.number().nonnegative().max(...).nullable() }`
+- `app/api/leads/[id]/close/route.ts` — код ошибки при провале валидации ветвится по `closeType` из сырого тела (раньше проверялся только `LOST`): `LOST` → `LOSS_REASON_REQUIRED`, `WON` → `DEAL_VALUE_REQUIRED`; `input.dealValueFinal` пробрасывается в `closeLead()`
+- `app/api/leads/[id]/deal-value/route.ts` — **НОВОЕ**, PATCH. Собран по образцу `stage/route.ts`, не `qualification/route.ts` — тот использует `requireCompanyAccess` + allow-list (маркетологу можно) и `updateMany` без `visibilityWhere`; для денег копирование один-в-один дало бы маркетологу доступ к суммам и позволило бы MANAGER править чужой лид. Здесь — `requireCompanyUser({ minRole: 'MANAGER' })` (у маркетолога нет `session.user` → 403 без единой строки в `constants/marketerAccess.ts`) + `visibilityWhere(role, userId)` + `closeType !== null → 400 LEAD_CLOSED` + `writeEvent('LEAD_DEAL_VALUE_UPDATED', { leadId, payload: { value } })`
+- `components/leads/CloseAsWonModal.tsx` — **НОВОЕ**, по образцу `CloseAsLostModal`: обязательное числовое поле, кнопка «Закрыть» неактивна без валидной положительной суммы, `POST /api/leads/:id/close { closeType: 'WON', dealValueFinal }`
+- `components/leads/CloseLeadMenu.tsx` — «Закрыть сделкой» открывает `CloseAsWonModal` вместо немедленного `handleWon`-POST (код `handleWon`/`closing`/`error` удалён). Правка сделана в самом `CloseLeadMenu`, а не «в карточке отдельно» — компонент общий для карточки лида, строки `/leads` (`LeadRowQuickActions`) и строки «Сегодня» (`TodayLeadRow`); правка в одном месте закрыла обязательность суммы сразу на всех трёх поверхностях, не только в карточке
+- `components/leads/LeadDealValue.tsx` — **НОВОЕ**: инлайн-редактирование `dealValueEstimated` (клик по значению → `Input` + Сохранить/Отмена → `PATCH .../deal-value` → `router.refresh()`); пустая строка сохраняется как `null` (сброс), `"0"` — как `0`, это разные значения
+- `components/leads/LeadSidebar.tsx` — рендерит `LeadDealValue` только при `canManage && closeType === null` (открытый лид, пользователь компании — не маркетолог)
+- `lib/leads/getLeadById.ts` — `dealValueEstimated` в `select` и в `LeadDetail` как `number | null` через `Number(...)`: `LeadDetail` уходит напрямую в клиентский `LeadSidebar`, а `Prisma.Decimal` не сериализуется в Client Component (та же ловушка, что с payload `LEAD_WON` в Таске 1, только здесь она бы не поймалась type-check'ом — тип `Decimal` формально валиден как проп)
+- `app/(company)/(app)/leads/[id]/page.tsx` — проброс `lead.dealValueEstimated` в `LeadSidebar`
+- `.docs/modules/leads.md` — эндпоинт `deal-value` в таблице API + пример ответа `400 LEAD_CLOSED`; `POST .../close` — пример тела с `dealValueFinal` и `400 DEAL_VALUE_REQUIRED`; `CloseAsWonModal`/`LeadDealValue` в списке файлов; пункт 13 в «Серверных правилах безопасности»
+
+**Проверено:** `npm run type-check` — чисто; `npm run build` — чисто, маршрут `/api/leads/[id]/deal-value` зарегистрирован; `npm run lint` — единственный warning в `scripts/seedDemoCompany.ts` (предсуществующий, файл не трогался), без `any`.
+
+**Out of scope (не делалось):** `constants/marketerAccess.ts` не менялся (маркетолог не допускается к суммам вообще, 403 приходит из `requireCompanyUser` до опроса allow-list); `lib/leads/closeLead.ts` не менялся (обязательность — слой Zod/роута, доменный слой её осознанно не проверяет, решение №1 Таска 1); API и UI справочника расхода — Таск 3; `getFinancials`/`GET /api/reports/financial`/10 метрик/ROMI/CSV — Таск 4; колонки с суммами в списке лидов/«Сегодня»/Kanban, переоткрытие лида, мультивалютность — вне фазы.
+
+**Definition of Done:** выполнено — все пункты `TASK.md` подтверждены (Zod-обязательность, `deal-value` роут с правильным guard'ом, три поверхности `CloseLeadMenu`, зануление и payload `LEAD_WON` из Таска 1 не тронуты, `Decimal` не протекает в клиент, type-check/build/lint зелёные).
+
+---
+
+## 2026-07-17 — Phase 22.7, Таск 1: Схема финансового слоя — денежные поля лида + `AdSpend` + события + зануление при WON
+
+**Статус:** ✅ Завершён
+
+**Решения, принятые на планировании (расходятся с черновиком `phase-22.7.md` — зафиксированы в `TASK.md`):**
+
+- **`dealValueFinal` в `closeLead()` — опциональный параметр, не обязательный.** План фазы предполагал обязательность «на уровне сигнатуры/валидации» уже в Таске 1, но единственный вызов `closeLead()` живёт в `app/api/leads/[id]/close/route.ts` — файле Таска 2: обязательный параметр уронил бы type-check этого таска, а бросок `ValidationError` в рантайме сломал бы живую кнопку «Закрыть сделкой» (`CloseLeadMenu` шлёт `{ closeType: 'WON' }` без суммы) на весь промежуток между тасками. Обязательность целиком уезжает в Таск 2 (Zod + роут + модалка) — доменный слой её не проверяет.
+- **`AdSpend.createdById` — голая строка без FK на `User`** (как в черновике модели, но причина зафиксирована явно, чтобы не «починили»): relation связала бы расход с гардом удаления пользователя `USER_HAS_DATA` (`lib/users/userGuards.ts`, Phase 10) — удаление начало бы падать FK-ошибкой мимо гарда либо потребовало его правки. Прецеденты — `Event.userId` и `CompanyAccessGrant.platformAdminId`.
+- **`.docs/database.md` → enum `EventType` дописан `CONTROL_SUMMARY_SENT`** — предсуществующее расхождение с `schema.prisma` от Phase 17 (в коде значение было, в доке — нет); таск правит ровно этот блок, починено заодно.
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` + миграция `20260717125438_phase_22_7_financials` (аддитивная): `Lead.dealValueEstimated`/`dealValueFinal` (`Decimal? @db.Decimal(14,2)` — не `Float`, деньги), новая модель `AdSpend` (`@@unique([companyId, year, month])` — ключ upsert, один месяц = одна запись), `Company.adSpends`, два новых `EventType`. SQL — только `ADD VALUE`/`ADD COLUMN`/`CREATE TABLE`; единственный FK — на `Company`, на `User` его нет.
+- `constants/eventLabels.ts` — `LEAD_DEAL_VALUE_UPDATED`/`AD_SPEND_UPDATED` в `PLATFORM_EVENT_LABELS`; `LEAD_DEAL_VALUE_UPDATED` дополнительно в `getEventLabel` (история лида). `AD_SPEND_UPDATED` в `getEventLabel` **намеренно не добавлен** — событие компанийского уровня без `leadId`, в истории лида не появляется никогда (выглядит как забытая ветка, но это не она). Ловушка: `getEventLabel` имеет `default:` — пропуск не уронил бы сборку, в отличие от `PLATFORM_EVENT_LABELS` с `satisfies Record<EventType, string>`.
+- `lib/leads/closeLead.ts` — `dealValueFinal?: number`; `findFirstOrThrow` получил `select: { dealValueEstimated: true }` (раньше результат выбрасывался); WON-ветка в той же транзакции ставит `dealValueEstimated: 0` и `dealValueFinal` (если передан), payload `LEAD_WON` → `{ dealValueFinal, dealValueEstimatedBefore }`. LOST не тронут: деньги не меняются, из «выручки в работе» такой лид исключит скоуп `closeType IS NULL` в отчёте (Таск 4), а не зануление.
+- `.docs/database.md` — модель `AdSpend` (отдельный раздел), денежные поля в `Lead`, оба `EventType` + `CONTROL_SUMMARY_SENT`, правило зануления в «Закрытии лида» и обновлённый сниппет в «Критичных транзакциях», схема связей, индексы, раздел миграций.
+
+**Первый `Decimal` в проекте** — Prisma отдаёт `Decimal.js`-объект, а не число: он не валиден как JSON-значение (`Prisma.InputJsonValue` его не принимает) и не сериализуется в Client Component. В payload события конвертируется через `Number()`; все `prisma.lead.*` запросы в кодовой базе идут с явным `select`, поэтому новые поля никуда не протекли.
+
+**Проверено живьём (dev-БД, throwaway-компания, прямой вызов `closeLead()` через `tsx` без HTTP-слоя — доменная функция сессии не требует, `writeEvent()` не вызывает; оба временных скрипта удалены после прогона):**
+
+- WON + сумма (было `estimated=50000`): `dealValueFinal=42000.5`, `dealValueEstimated=0`, payload `LEAD_WON` = `{"dealValueFinal":42000.5,"dealValueEstimatedBefore":50000}` — числа, а не внутреннее представление `Decimal` (`{s,e,d}`)
+- WON без суммы (текущее поведение UI до Таска 2): не падает, `estimated=0`, `final=null`, payload `{"dealValueFinal":null,"dealValueEstimatedBefore":70000}`
+- WON на лиде без потенциальной суммы: `dealValueEstimatedBefore=null`
+- LOST (было `estimated=90000`): сумма цела, `final=null`, payload прежний (`{lossReasonId}`) — денежные поля не тронуты
+- LOST без причины: по-прежнему `LOSS_REASON_REQUIRED`; чужой `companyId`: отклонено, лид не тронут (инвариант `where: { companyId }` в транзакции цел)
+- `AdSpend`: повторный `upsert` того же месяца обновляет запись, не плодит дубль (2 строки за 2026 после трёх вызовов); `_sum.amountWithVat` = 255000.75; `createdById` = `null` для маркетолога, id пользователя — для user-актора
+- **Удаление пользователя с записями расхода:** `hasDependentRecords(userId)` = `false`, `prisma.user.delete` проходит, запись `AdSpend` остаётся цела — подтверждает решение №2 (FK бы это сломал)
+- Миграция аддитивна: 32 существующих лида в dev-БД — `null` в обоих денежных полях, `AdSpend` пуста; ничего не бэкофиллилось
+- `npm run type-check`/`build` — чисто; `npm run lint` — единственный warning в `scripts/seedDemoCompany.ts` (предсуществующий, файл не трогался), без `any`
+
+**Out of scope (не делалось):** Zod-схемы и `PATCH /api/leads/:id/deal-value`, `CloseAsWonModal`/правка `CloseLeadMenu`, поле суммы в карточке — Таск 2; API и UI справочника расхода — Таск 3; `getFinancials`/`GET /api/reports/financial`/10 метрик/ROMI/CSV — Таск 4; `constants/marketerAccess.ts` — Таски 3–4; правки `reports.md`/`leads.md` — Таски 2–4. После этого таска в интерфейсе не изменилось ничего — слой пока не имеет ни API, ни UI.
+
+**Definition of Done:** выполнено — все пункты `TASK.md` подтверждены живой проверкой на реальной dev-БД.
+
+---
+
 ## 2026-07-17 — Phase 22.5, Таск 4: UI карточки Яндекс.Метрики — статус, форма настройки, инструкция
 
 **Статус:** ✅ Завершён

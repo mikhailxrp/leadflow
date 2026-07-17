@@ -180,6 +180,7 @@ export default async function LeadDetailPage({
             canManage={actor.actor === 'user'}
             qualification={lead.qualification}
             canQualify={actor.actor === 'marketer' || actor.actor === 'user'}
+            dealValueEstimated={lead.dealValueEstimated}
           />
           <LeadComments
             leadId={lead.id}

@@ -3,12 +3,14 @@
 import { useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import Card from '@/components/ui/Card';
+import AdSpendSection from '@/components/reports/AdSpendSection';
 import ResponseSpeedCard from '@/components/reports/ResponseSpeedCard';
 import ByEmployeeTable from '@/components/reports/ByEmployeeTable';
 import BySourceTable from '@/components/reports/BySourceTable';
 import ExportButton from '@/components/reports/ExportButton';
+import FinancialReportSection from '@/components/reports/FinancialReportSection';
 import type { ReportExportName } from '@/lib/validations/reports';
-import type { BySourceRow, LossReasonRow, ReportSummary } from '@/types/reports';
+import type { BySourceRow, FinancialReport, LossReasonRow, ReportSummary } from '@/types/reports';
 import type { ManagerStat } from '@/types/control';
 
 const MS_PER_DAY = 86_400_000;
@@ -38,28 +40,44 @@ const LossReasonsChart = dynamic(() => import('@/components/reports/LossReasonsC
   loading: () => <ChartSkeleton />,
 });
 
-type ReportTab = 'overview' | 'loss-reasons' | 'by-employee' | 'by-source';
+type ReportTab =
+  | 'overview'
+  | 'loss-reasons'
+  | 'by-employee'
+  | 'by-source'
+  | 'financial'
+  | 'ad-spend';
 
 const TABS: ReadonlyArray<{ value: ReportTab; label: string }> = [
   { value: 'overview', label: 'Обзор' },
   { value: 'loss-reasons', label: 'Причины отказа' },
   { value: 'by-employee', label: 'По сотрудникам' },
   { value: 'by-source', label: 'По источникам' },
+  { value: 'financial', label: 'Финансы' },
+  { value: 'ad-spend', label: 'Расходы на рекламу' },
 ];
 
-const REPORT_NAME_BY_TAB: Record<ReportTab, ReportExportName> = {
+// Частичная — у 'ad-spend' нет CSV-экспорта (справочник, не отчёт за период);
+// ExportButton рендерится только если для таба есть запись здесь.
+const REPORT_NAME_BY_TAB: Partial<Record<ReportTab, ReportExportName>> = {
   overview: 'summary',
   'loss-reasons': 'loss-reasons',
   'by-employee': 'by-employee',
   'by-source': 'by-source',
+  financial: 'financial',
 };
 
-type PeriodPreset = 'this-month' | 'last-30-days' | 'quarter';
+// last-month/year — месяц-выровненные пресеты для финансового блока (расход
+// AdSpend — помесячная гранулярность, см. lib/reports/getFinancials.ts); доступны
+// на всех вкладках отчётов, не только 'financial' — общий переключатель периода.
+type PeriodPreset = 'this-month' | 'last-month' | 'last-30-days' | 'quarter' | 'year';
 
 const PRESETS: ReadonlyArray<{ value: PeriodPreset; label: string }> = [
   { value: 'this-month', label: 'Этот месяц' },
+  { value: 'last-month', label: 'Прошлый месяц' },
   { value: 'last-30-days', label: '30 дней' },
   { value: 'quarter', label: 'Квартал' },
+  { value: 'year', label: 'Год' },
 ];
 
 interface DateRange {
@@ -80,9 +98,23 @@ function presetRange(preset: PeriodPreset): DateRange {
     return { from: toDayKey(from), to };
   }
 
+  if (preset === 'last-month') {
+    // Day 0 of the current month == last day of the previous month (JS Date quirk).
+    const lastMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+    const lastMonthStart = new Date(
+      Date.UTC(lastMonthEnd.getUTCFullYear(), lastMonthEnd.getUTCMonth(), 1),
+    );
+    return { from: toDayKey(lastMonthStart), to: toDayKey(lastMonthEnd) };
+  }
+
   if (preset === 'quarter') {
     const quarterStartMonth = Math.floor(now.getUTCMonth() / 3) * 3;
     const from = new Date(Date.UTC(now.getUTCFullYear(), quarterStartMonth, 1));
+    return { from: toDayKey(from), to };
+  }
+
+  if (preset === 'year') {
+    const from = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
     return { from: toDayKey(from), to };
   }
 
@@ -162,6 +194,7 @@ export default function ReportsPage({
   const [lossReasons, setLossReasons] = useState<TabCache<LossReasonRow[]> | null>(null);
   const [byEmployee, setByEmployee] = useState<TabCache<ManagerStat[]> | null>(null);
   const [bySource, setBySource] = useState<TabCache<BySourceRow[]> | null>(null);
+  const [financial, setFinancial] = useState<TabCache<FinancialReport> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -170,12 +203,17 @@ export default function ReportsPage({
   // со старыми данными до следующего переключения, а переключение без смены
   // периода лишний раз дёргало бы уже загруженный эндпоинт.
   async function ensureTabData(tab: ReportTab, nextFrom: string, nextTo: string): Promise<void> {
+    // 'ad-spend' не привязан к периоду отчёта — AdSpendSection сам подгружает
+    // весь справочник компании независимо от from/to.
+    if (tab === 'ad-spend') return;
+
     const key = periodKey(nextFrom, nextTo);
 
     if (tab === 'overview' && summaryPeriod === key) return;
     if (tab === 'loss-reasons' && lossReasons?.period === key) return;
     if (tab === 'by-employee' && byEmployee?.period === key) return;
     if (tab === 'by-source' && bySource?.period === key) return;
+    if (tab === 'financial' && financial?.period === key) return;
 
     setIsLoading(true);
     setFetchError(null);
@@ -209,6 +247,15 @@ export default function ReportsPage({
         case 'by-source': {
           const rows = await fetchReportRows<BySourceRow[]>('/api/reports/by-source', nextFrom, nextTo);
           setBySource({ period: key, rows });
+          break;
+        }
+        case 'financial': {
+          const rows = await fetchReportRows<FinancialReport>(
+            '/api/reports/financial',
+            nextFrom,
+            nextTo,
+          );
+          setFinancial({ period: key, rows });
           break;
         }
       }
@@ -252,8 +299,14 @@ export default function ReportsPage({
     handlePeriodChange(from, nextTo);
   }
 
+  const exportReportName = REPORT_NAME_BY_TAB[activeTab];
+  // 'ad-spend' игнорирует период отчёта (справочник по месяцам, не срез по
+  // дате) — верхний селектор периода на этой вкладке только сбивал бы с толку.
+  const showPeriodSelector = activeTab !== 'ad-spend';
+
   return (
     <div className="flex flex-col gap-6">
+      {showPeriodSelector && (
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div
           className="
@@ -309,6 +362,7 @@ export default function ReportsPage({
           </div>
         </div>
       </div>
+      )}
 
       {fetchError && (
         <p className="text-[13px] text-[var(--color-danger)]" role="alert">
@@ -341,7 +395,7 @@ export default function ReportsPage({
           ))}
         </div>
 
-        <ExportButton report={REPORT_NAME_BY_TAB[activeTab]} from={from} to={to} />
+        {exportReportName && <ExportButton report={exportReportName} from={from} to={to} />}
       </div>
 
       <div className={isLoading ? 'opacity-60 transition-opacity duration-150' : ''}>
@@ -372,6 +426,11 @@ export default function ReportsPage({
 
         {activeTab === 'by-source' &&
           (bySource ? <BySourceTable rows={bySource.rows} /> : <ChartSkeleton />)}
+
+        {activeTab === 'financial' &&
+          (financial ? <FinancialReportSection report={financial.rows} /> : <ChartSkeleton />)}
+
+        {activeTab === 'ad-spend' && <AdSpendSection />}
       </div>
     </div>
   );
