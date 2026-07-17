@@ -36,6 +36,31 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-17 — Phase 22.7, Таск 2: Ввод сумм сделки менеджером — «в работе» (карточка) + «в кассе» (обязательно при закрытии сделкой)
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/validations/leads.ts` — `closeLeadSchema` (WON-ветка обязывает `dealValueFinal: z.number().positive().max(999_999_999_999.99)` — верхняя граница под `Decimal(14,2)`, 12 знаков до запятой; LOST не тронут); новая `dealValueSchema` — `{ dealValueEstimated: z.number().nonnegative().max(...).nullable() }`
+- `app/api/leads/[id]/close/route.ts` — код ошибки при провале валидации ветвится по `closeType` из сырого тела (раньше проверялся только `LOST`): `LOST` → `LOSS_REASON_REQUIRED`, `WON` → `DEAL_VALUE_REQUIRED`; `input.dealValueFinal` пробрасывается в `closeLead()`
+- `app/api/leads/[id]/deal-value/route.ts` — **НОВОЕ**, PATCH. Собран по образцу `stage/route.ts`, не `qualification/route.ts` — тот использует `requireCompanyAccess` + allow-list (маркетологу можно) и `updateMany` без `visibilityWhere`; для денег копирование один-в-один дало бы маркетологу доступ к суммам и позволило бы MANAGER править чужой лид. Здесь — `requireCompanyUser({ minRole: 'MANAGER' })` (у маркетолога нет `session.user` → 403 без единой строки в `constants/marketerAccess.ts`) + `visibilityWhere(role, userId)` + `closeType !== null → 400 LEAD_CLOSED` + `writeEvent('LEAD_DEAL_VALUE_UPDATED', { leadId, payload: { value } })`
+- `components/leads/CloseAsWonModal.tsx` — **НОВОЕ**, по образцу `CloseAsLostModal`: обязательное числовое поле, кнопка «Закрыть» неактивна без валидной положительной суммы, `POST /api/leads/:id/close { closeType: 'WON', dealValueFinal }`
+- `components/leads/CloseLeadMenu.tsx` — «Закрыть сделкой» открывает `CloseAsWonModal` вместо немедленного `handleWon`-POST (код `handleWon`/`closing`/`error` удалён). Правка сделана в самом `CloseLeadMenu`, а не «в карточке отдельно» — компонент общий для карточки лида, строки `/leads` (`LeadRowQuickActions`) и строки «Сегодня» (`TodayLeadRow`); правка в одном месте закрыла обязательность суммы сразу на всех трёх поверхностях, не только в карточке
+- `components/leads/LeadDealValue.tsx` — **НОВОЕ**: инлайн-редактирование `dealValueEstimated` (клик по значению → `Input` + Сохранить/Отмена → `PATCH .../deal-value` → `router.refresh()`); пустая строка сохраняется как `null` (сброс), `"0"` — как `0`, это разные значения
+- `components/leads/LeadSidebar.tsx` — рендерит `LeadDealValue` только при `canManage && closeType === null` (открытый лид, пользователь компании — не маркетолог)
+- `lib/leads/getLeadById.ts` — `dealValueEstimated` в `select` и в `LeadDetail` как `number | null` через `Number(...)`: `LeadDetail` уходит напрямую в клиентский `LeadSidebar`, а `Prisma.Decimal` не сериализуется в Client Component (та же ловушка, что с payload `LEAD_WON` в Таске 1, только здесь она бы не поймалась type-check'ом — тип `Decimal` формально валиден как проп)
+- `app/(company)/(app)/leads/[id]/page.tsx` — проброс `lead.dealValueEstimated` в `LeadSidebar`
+- `.docs/modules/leads.md` — эндпоинт `deal-value` в таблице API + пример ответа `400 LEAD_CLOSED`; `POST .../close` — пример тела с `dealValueFinal` и `400 DEAL_VALUE_REQUIRED`; `CloseAsWonModal`/`LeadDealValue` в списке файлов; пункт 13 в «Серверных правилах безопасности»
+
+**Проверено:** `npm run type-check` — чисто; `npm run build` — чисто, маршрут `/api/leads/[id]/deal-value` зарегистрирован; `npm run lint` — единственный warning в `scripts/seedDemoCompany.ts` (предсуществующий, файл не трогался), без `any`.
+
+**Out of scope (не делалось):** `constants/marketerAccess.ts` не менялся (маркетолог не допускается к суммам вообще, 403 приходит из `requireCompanyUser` до опроса allow-list); `lib/leads/closeLead.ts` не менялся (обязательность — слой Zod/роута, доменный слой её осознанно не проверяет, решение №1 Таска 1); API и UI справочника расхода — Таск 3; `getFinancials`/`GET /api/reports/financial`/10 метрик/ROMI/CSV — Таск 4; колонки с суммами в списке лидов/«Сегодня»/Kanban, переоткрытие лида, мультивалютность — вне фазы.
+
+**Definition of Done:** выполнено — все пункты `TASK.md` подтверждены (Zod-обязательность, `deal-value` роут с правильным guard'ом, три поверхности `CloseLeadMenu`, зануление и payload `LEAD_WON` из Таска 1 не тронуты, `Decimal` не протекает в клиент, type-check/build/lint зелёные).
+
+---
+
 ## 2026-07-17 — Phase 22.7, Таск 1: Схема финансового слоя — денежные поля лида + `AdSpend` + события + зануление при WON
 
 **Статус:** ✅ Завершён

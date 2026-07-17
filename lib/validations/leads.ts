@@ -50,10 +50,20 @@ export const updateLeadSchema = z.object({
   comment: z.string().optional(),
 });
 
+// Decimal(14, 2) — до 12 знаков в целой части.
+const MAX_DEAL_VALUE = 999_999_999_999.99;
+
 export const closeLeadSchema = z.discriminatedUnion('closeType', [
-  z.object({ closeType: z.literal('WON') }),
+  z.object({
+    closeType: z.literal('WON'),
+    dealValueFinal: z.number().positive().max(MAX_DEAL_VALUE),
+  }),
   z.object({ closeType: z.literal('LOST'), lossReasonId: z.string().min(1) }),
 ]);
+
+export const dealValueSchema = z.object({
+  dealValueEstimated: z.number().nonnegative().max(MAX_DEAL_VALUE).nullable(),
+});
 
 export const commentSchema = z.object({
   text: z.string().trim().min(1).max(5000),
@@ -74,3 +84,4 @@ export type CloseLeadInput = z.infer<typeof closeLeadSchema>;
 export type CommentInput = z.infer<typeof commentSchema>;
 export type ChangeStageInput = z.infer<typeof changeStageSchema>;
 export type QualificationInput = z.infer<typeof qualificationSchema>;
+export type DealValueInput = z.infer<typeof dealValueSchema>;

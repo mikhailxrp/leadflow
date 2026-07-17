@@ -29,6 +29,7 @@ export interface LeadDetail {
   createdAt: Date;
   closeType: CloseType | null;
   closedAt: Date | null;
+  dealValueEstimated: number | null;
   qualification: LeadQualification | null;
   qualifiedAt: Date | null;
   lossReason: { id: string; label: string } | null;
@@ -98,6 +99,7 @@ export async function getLeadById(
         createdAt: true,
         closeType: true,
         closedAt: true,
+        dealValueEstimated: true,
         qualification: true,
         qualifiedAt: true,
         utm: true,
@@ -261,6 +263,8 @@ export async function getLeadById(
     createdAt: lead.createdAt,
     closeType: lead.closeType,
     closedAt: lead.closedAt,
+    dealValueEstimated:
+      lead.dealValueEstimated === null ? null : Number(lead.dealValueEstimated),
     qualification: lead.qualification,
     qualifiedAt: lead.qualifiedAt,
     lossReason: lead.lossReason,
