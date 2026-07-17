@@ -5,6 +5,7 @@ export type CompanySettings = {
   roundRobinCursor: string | null;
   telegramEnabled: boolean;
   yandexMode?: 'UTM' | 'FULL';
+  yandexMetrika?: { counterId: string; qualifiedGoalId: string };
   controlEnabled: boolean;
   reactionNorms: {
     defaultMinutes: number;

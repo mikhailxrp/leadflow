@@ -36,6 +36,136 @@ npm run seed:api-key
 
 ---
 
+## 2026-07-17 — Phase 22.5, Таск 4: UI карточки Яндекс.Метрики — статус, форма настройки, инструкция
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `components/integrations/YandexMetrikaCard.tsx` (новый) — Client Component по образцу `YandexDirectCard.tsx`, но с разведёнными правами: `isMarketer` гасит только блок подключения/отключения кабинета (ссылка `authorize` + кнопка «Отключить» — ADMIN only), форма настройки `counterId`/`qualifiedGoalId` (`PATCH`) остаётся редактируемой независимо от `isMarketer` — в отличие от `YandexDirectCard`, где `readOnly` выключает всё сразу (там `yandexMode` ADMIN-only для всех). Форма и статус-подсказка не зависят друг от друга: 4 независимые комбинации (не)подключено × (не)настроена цель — под каждую свой текст, форма всегда доступна к редактированию, не спрятана за «сначала подключите кабинет». Блок-инструкция — `yclid`/`client_id`, `ym(counterId, 'getClientID', callback)`, отдельное предупреждение про 21-дневное окно атрибуции (не ретроактивно, включать чекбокс в Метрике заранее).
+- `app/(company)/(admin)/admin/integrations/page.tsx` — добавлен `getMetrikaConnectionStatus(companyId)` в существующий `Promise.all`; `qualifiedGoalId`/`counterId` для предзаполнения формы берутся из уже загруженного `settings.yandexMetrika` (не из `goalConfigured`-булева статуса — та функция возвращает только флаг, не саму строку цели), карточка отрендерена сразу после `YandexDirectCard`.
+
+**Проверено живьём (dev-БД, throwaway-компания + throwaway-платформенный маркетолог через прямые Prisma-вставки, вход и ADMIN, и MARKETER через реальный NextAuth-флоу curl'ом — csrf → callback → cookie; вход маркетолога — полная цепочка `platform-credentials` → `POST /api/platform/companies/:id/marketer-access` → `signIn('marketer-access')`, не мок сессии):**
+
+- ADMIN, не подключено: `/admin/integrations` отдаёт карточку с заголовком, бейджем «Не подключено», ссылкой `href="/api/integrations/yandex/metrika/authorize"`, инструкцией (`yclid`/`client_id`, текст про 21 день)
+- `PATCH { counterId: "12345678", qualifiedGoalId: "qualified_lead" }` реальным запросом с ADMIN-сессией → `200`; повторный `GET` страницы — оба значения предзаполнены в форме (`value="12345678"`/`value="qualified_lead"`), статус-подсказка «Настройка сохранена. Подключите кабинет, чтобы начать экспорт.» (частичное состояние: настроено, но не подключено)
+- Симуляция подключения прямой записью токенов в БД → страница показывает «Подключено: `<login>`» + кнопку «Отключить», статус-подсказка «Экспорт активен…» (второе частичное состояние: подключено и настроено)
+- `DELETE` реальным запросом с ADMIN-сессией → страница возвращается к «Не подключено», но `counterId`/`qualifiedGoalId` остаются предзаполненными (третье частичное состояние: не подключено, но настроено) — подтверждает, что подключение и настройка друг от друга не зависят
+- MARKETER (полный вход через `marketer-access`): на той же странице кнопки «Отключить» и ссылки на `authorize` нет вообще (grep не находит ни то, ни другое), вместо них — «Кабинет не подключён.»; форма `counterId`/`qualifiedGoalId` присутствует, предзаполнена и доступна — реальный `PATCH` с сессией маркетолога → `200`, `success:true`; реальный `DELETE` с той же сессией → `403 {"error":"Forbidden"}` (allow-list Таска 2 продолжает работать без изменений)
+- Значение, сохранённое маркетологом (`PATCH counterId: "87654321"`), видно ADMIN'у при следующей загрузке страницы — общая настройка компании, не привязана к actor'у
+- `npm run type-check`/`lint`/`build` — чисто, без `any`
+- Throwaway-компания удалена (`npm run delete:company`), throwaway-платформенный маркетолог удалён вручную (`prisma.platformAdmin.delete`)
+
+**Out of scope (не делалось):** бейдж «Выгружено в Метрику» в карточке лида (решено не делать — `LEAD_METRIKA_EXPORTED` и так уже виден в истории лида через существующий `getLeadById`/`eventLabels.ts` без нового кода), изменения `metrikaOauth.ts`/`metrikaApi.ts`/`metrikaExport.ts`/`cron/route.ts`/allow-list маркетолога, валидация существования цели через API при сохранении формы, регистрация crontab на VPS — по плану `TASK.md`.
+
+**Definition of Done:** выполнено — все пункты `TASK.md` подтверждены живой проверкой (включая обе роли и все проверяемые частичные состояния).
+
+---
+
+## 2026-07-17 — Phase 22.5, Таск 3: Движок экспорта квалификаций в Яндекс.Метрику + cron + идемпотентность + фолбэк
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `lib/integrations/yandex/metrikaApi.ts` (новый) — тонкий клиент `POST .../offline_conversions/upload?client_id_type=...`. Заголовок `Authorization: OAuth <token>` (не `Bearer`, в отличие от `directApi.ts`). Тело — `multipart/form-data` (`FormData`+`Blob`), CSV собирается локально (заголовок `ClientId`/`Yclid` + `Target` + `DateTime`, базовое CSV-экранирование). Один авто-refresh на HTTP `401` через `refreshAccessToken`/`saveMetrikaTokens` из `metrikaOauth.ts` — решение о рефреше принимается только по статусу, не по коду ошибки в теле (формат ошибок Metrika API не задокументирован, в отличие от Direct API v5). Любой сбой (нет токена, неудачный refresh, не-2xx, сетевая ошибка) — `false`, не бросает, токен не логируется.
+- `lib/integrations/yandex/metrikaExport.ts` (новый) — `exportQualifiedLeads(companyId)`: гейт (подключено + `counterId`/`qualifiedGoalId` заданы) проверяется внутри функции, не только у вызывающего; выборка `QUALIFIED`-лидов без `metrikaExportedAt` (индекс из Таска 2); извлечение идентификатора — `Lead.marketing.yclid` (приоритет) → `Lead.customFields.client_id`, лид без обоих — тихий постоянный skip (не ошибка); группировка по `client_id_type` (до 2 групп/запросов за прогон); при успехе группы — `metrikaExportedAt = now()` + событие `LEAD_METRIKA_EXPORTED` (`leadId` обязателен — иначе сломается «путь лида» маркетолога, Phase 11.7) на каждый лид группы; при сбое группы — ни один лид не помечен, лид уходит в следующий прогон.
+- `app/api/integrations/yandex/metrika/cron/route.ts` (новый) — `POST`, `verifyCronSecret()` (паттерн `source-health/route.ts`/`subscription-reminders/route.ts` — 1:1 повтор структуры `handle()`). Отбирает компании `isBlocked: false` + `metrikaAccessToken != null`, дополнительно фильтрует по `settings.yandexMetrika.counterId`/`qualifiedGoalId`, вызывает `exportQualifiedLeads` на каждую подходящую, возвращает агрегат `{ companiesProcessed, exported, skippedNoIdentifier, failedGroups }`.
+- `.docs/modules/integrations.md` — новый подраздел «Движок экспорта — реализовано (Таск 3)» (точка вызова, гейт, идемпотентность, фолбэк, `client_id_type`-группировка, заголовок `OAuth`), таблица эндпоинтов + пометки «реализовано» в дереве файлов, статус секции обновлён.
+
+**Проверено живьём (dev-БД, throwaway-компании/лиды через прямые Prisma-вставки, реальный dev-сервер на `localhost:3000`):**
+
+- `POST /api/integrations/yandex/metrika/cron` без `CRON_SECRET` / с неверным секретом → `401` в обоих случаях
+- С верным секретом на чистой БД (ни одной компании с `metrikaAccessToken`) → `{"companiesProcessed":0,"exported":0,"skippedNoIdentifier":0,"failedGroups":0}` — подтверждено прямым запросом к БД, что подключённых компаний действительно 0 (не баг фильтра)
+- Засеяны 2 throwaway-компании: (1) активная — `metrikaAccessToken`/`counterId`/`qualifiedGoalId` заданы (фейковые значения), 2 `QUALIFIED`-лида — один с `marketing.yclid`, один без обоих идентификаторов; (2) `isBlocked: true` — тоже с подключённой Метрикой и `QUALIFIED`-лидом с `yclid`. Прогон cron → `{"companiesProcessed":1,"exported":0,"skippedNoIdentifier":1,"failedGroups":1}`: заблокированная компания не вошла в обработку вообще; лид без идентификатора корректно посчитан как skip; лид с `yclid` дошёл до реального HTTP-запроса к Metrika API (сеть достигнута) и корректно провалился на фейковом токене/counterId без исключения наружу
+- Прямой запрос к БД после прогона — у всех 3 лидов `metrikaExportedAt: null`, `LEAD_METRIKA_EXPORTED`-событий 0 (фолбэк не создал ложных пометок)
+- Повторный прогон cron сразу после первого — идентичный результат (`companiesProcessed:1, exported:0, skippedNoIdentifier:1, failedGroups:1`), без побочных эффектов
+- Throwaway-данные удалены (`lead.deleteMany` → `pipelineStage.deleteMany` → `company.deleteMany`, в порядке FK), финальный прогон на чистой БД вернул baseline `companiesProcessed:0`
+- `npm run type-check`/`lint`/`build` — чисто, без `any`; новый роут `/api/integrations/yandex/metrika/cron` подтверждён в выводе `build`
+
+**Out of scope (не делалось):** UI (`YandexMetrikaCard.tsx`, проброс статуса в `admin/integrations/page.tsx`, инструкция по `client_id`/`yclid` клиенту), бейдж/история `LEAD_METRIKA_EXPORTED` в карточке лида, опрос `uploading.status` для подтверждения сопоставления визита (fire-and-forget по дизайну), регистрация crontab на VPS (ops-шаг поставщика) — всё по плану `TASK.md`, Таск 4/ops.
+
+**Не проверено живьём (нет реальных Yandex-креденшелов в рамках этой сессии):** полный успешный путь `200 OK` от Metrika API → `metrikaExportedAt` проставлен → повторный прогон не задваивает. Логика идемпотентности (фильтр `metrikaExportedAt: null` в выборке + запись после успеха) проверена статически и по коду, но не сквозным вызовом реального API с валидным токеном/counterId/целью — это можно закрыть только с реальным подключённым счётчиком (Таск 4 + ручное тестирование клиентом).
+
+**Definition of Done:** выполнено — все пункты `TASK.md`, кроме отмеченного выше ограничения (нет живых Yandex-креденшелов для полного success-пути).
+
+---
+
+## 2026-07-17 — Phase 22.5, Таск 2: OAuth-подключение Яндекс.Метрики + server-only токены + миграция + настройка
+
+**Статус:** ✅ Завершён
+
+**Что было сделано:**
+
+- `prisma/schema.prisma` — `Company`: 4 server-only nullable-поля (`metrikaAccessToken`, `metrikaRefreshToken`, `metrikaTokenExpiresAt`, `metrikaLogin`); `Lead`: `metrikaExportedAt` + `@@index([companyId, qualification, metrikaExportedAt])`; `EventType`: `METRIKA_CONNECTED`/`METRIKA_DISCONNECTED`/`LEAD_METRIKA_EXPORTED` (последний заведён заранее, использует его только Таск 3); миграция `20260717063923_add_yandex_metrika_fields` (аддитивная)
+- `constants/defaultCompanyData.ts` — `CompanySettings += yandexMetrika?: { counterId: string; qualifiedGoalId: string }`, без дефолтного значения (как `yandexMode`)
+- `lib/integrations/yandex/metrikaOauth.ts` (новый) — зеркалит `oauth.ts` Директа, но со своими ENV/scope (`YANDEX_METRIKA_OAUTH_*`, `scope=metrika:offline_data`): `buildAuthorizeUrl`/`verifyState`/`exchangeCodeForTokens`/`refreshAccessToken`/`fetchMetrikaLogin`/`saveMetrikaTokens`/`disconnectMetrika`/`getMetrikaConnectionStatus` + новая `saveMetrikaSettings` (мёржит `counterId`/`qualifiedGoalId` в `Company.settings.yandexMetrika`, не затирая остальные ключи)
+- `lib/validations/yandex.ts` — `metrikaCallbackQuerySchema` (алиас `yandexCallbackQuerySchema`) + `metrikaSettingsSchema` (непустые строки, без похода в API за проверкой существования цели — Management API этого дёшево не даёт, см. Таск 1)
+- `app/api/integrations/yandex/metrika/route.ts` (новый) — `GET` статус (`requireCompanyUser`, ADMIN only — страница получает статус серверным пропом в Таске 4, а не через этот роут, поэтому гвард держит симметрию с `DELETE`, не с `PATCH`), `PATCH` настройка (`requireCompanyAccess`, ADMIN + маркетолог через allow-list), `DELETE` отключение (ADMIN only, очищает ровно 4 токен-поля + `METRIKA_DISCONNECTED`, `settings.yandexMetrika` не трогает)
+- `app/api/integrations/yandex/metrika/authorize/route.ts` (новый) — `GET`, ADMIN only, минтит `state`, редирект
+- `app/api/integrations/yandex/metrika/callback/route.ts` (новый) — свой guard (не `requireCompanyUser`, редиректит вместо JSON), сверяет `companyId` из `state` с сессией, обмен кода, `METRIKA_CONNECTED`
+- `constants/marketerAccess.ts` — `PATCH /api/integrations/yandex/metrika` в allow-list (`GET`/`DELETE`/`authorize`/`callback` намеренно не добавлены)
+- `constants/eventLabels.ts` — 3 новых лейбла в `PLATFORM_EVENT_LABELS` (компилятор потребовал их через `satisfies Record<EventType, string>`)
+- `CLAUDE.md` (ENV-секция + `v4.4` в шапке), `.docs/database.md` (новые поля/индекс/`EventType`/`CompanySettings.yandexMetrika`), `.docs/modules/integrations.md` (таблица эндпоинтов + статус секции) — обновлены
+
+**Проверено живьём (dev-БД, throwaway-компании через прямые Prisma-вставки, вход через реальный NextAuth credentials-флоу curl'ом):**
+
+- `GET /api/integrations/yandex/metrika` без подключения → `{connected:false, login:null, counterId:null, goalConfigured:false}`; `GET /api/settings` не содержит ни одного токен-поля Метрики
+- `PATCH { counterId, qualifiedGoalId }` → `{success:true}`, повторный `GET` статуса отражает `counterId`/`goalConfigured:true`; `GET /api/settings` после `PATCH` показывает `yandexMetrika` рядом с остальными ключами `settings` без потери ни одного из них (assignMode/controlEnabled/sourceEnabled и т.д. — все на месте)
+- `GET /api/integrations/yandex/metrika/authorize` → 307 на `oauth.yandex.ru/authorize` с `client_id`/`redirect_uri` (`.../metrika/callback`) и `scope=metrika:offline_data` — Metrika-специфичными, не Direct'овскими; `state` декодируется в `{companyId, ts, nonce}`
+- MANAGER — 403 на `GET`/`PATCH`/`DELETE`/`authorize`; без сессии — 401 на `GET`
+- **Cross-company hijack:** `state`, выпущенный для компании A, использован в `callback`-запросе от имени ADMIN компании B → редирект без исключения, без сетевого вызова к Яндексу, без записи токенов/события на компанию B (проверено прямым чтением БД) — сверка `state.companyId === session.companyId` отрабатывает раньше обмена кода
+- Невалидный/мусорный `state`, `error=access_denied`, отсутствующая сессия на `callback` — редирект (`/admin/integrations` или `/login`), без 500
+- **`DELETE` очищает ровно 4 токен-поля, `settings.yandexMetrika` переживает отключение:** засеян `connected:true` через прямую запись фейковых токенов в БД → `DELETE` → повторный `GET` статуса показывает `connected:false, login:null`, но `counterId`/`goalConfigured` не изменились; событие `METRIKA_DISCONNECTED` записано с верным `userId` ADMIN'а
+- `isMarketerAllowedApi()` — точечная проверка новой строки allow-list: `PATCH /api/integrations/yandex/metrika` → `true`; `GET`/`DELETE` того же пути и оба метода `authorize`/`callback` → `false` (полный сессионный проход маркетолога через `signIn('marketer-access')` в этой сессии не выполнялся — сама функция allow-list и её use site в `requireCompanyAccess` уже проверенный, не новый в этом таске код)
+- `npm run type-check`/`lint`/`build` — чисто, без `any`; throwaway-компании удалены (`npm run delete:company`), dev-сервер остановлен
+
+**Out of scope (не делалось):** движок экспорта (`metrikaApi.ts`, `metrikaExport.ts`, cron), UI (`YandexMetrikaCard.tsx`, проброс статуса в `admin/integrations/page.tsx`), бейдж/история `LEAD_METRIKA_EXPORTED` в карточке лида, валидация существования `qualifiedGoalId` через API — всё по плану `TASK.md`, Таски 3–4.
+
+**Definition of Done:** выполнено — все пункты `TASK.md` подтверждены живой проверкой.
+
+---
+
+## 2026-07-17 — Phase 22.5, Таск 1: Research — доступ к API офлайн-конверсий Яндекс.Метрики (ГЕЙТ)
+
+**Статус:** ✅ Завершён — **GO**
+
+**Разделение ответственности:** пользователь зарегистрировал отдельное OAuth-приложение на oauth.yandex.ru («Лид-Канал — Яндекс Метрика», scope «Метрика» → `metrika:offline_data` — загрузка офлайн-данных), добавил `YANDEX_METRIKA_OAUTH_CLIENT_ID`/`YANDEX_METRIKA_OAUTH_CLIENT_SECRET`/`YANDEX_METRIKA_OAUTH_REDIRECT_URI` в `.env`, подтвердил наличие своего действующего счётчика Метрики с правами редактирования (цель «JavaScript-событие» под квалифицированные лиды пока не создана — не блокирует Таск 1, нужна к Таску 3); агент выполнил research актуального Management API офлайн-конверсий + OAuth Метрики, живую проверку authorize-URL и переписал документацию.
+
+### Итог research
+
+**OAuth-приложение (oauth.yandex.ru):**
+- `client_id`/`client_secret` — выданы при регистрации, лежат в `.env`. Своя, отдельная от Директа заявка (не переиспользование токена Директа — см. риск 1 в `phase-22.5.md`, подтверждено: `scope=direct:api` физически не даёт прав на Management API Метрики).
+- `redirect_uri` = `APP_URL + /api/integrations/yandex/metrika/callback`, отдельный путь от Директа.
+- `scope` — `metrika:offline_data` («Uploading offline data (CRM data, offline conversions, calls) to tags»), точнее и уже `metrika:write`. Подтверждено официальной документацией (`yandex.com/dev/metrika/en/intro/authorization`).
+- **Модерации доступа нет** (в отличие от Direct API, где заявка на доступ рассматривается до 7 дней) — регистрации приложения с нужным scope достаточно, API доступен сразу.
+
+**Живая проверка authorize-URL (реальный `client_id`, без пароля/логина пользователя — дальше агент по определению зайти не может):**
+`GET https://oauth.yandex.ru/authorize?response_type=code&client_id=<реальный YANDEX_METRIKA_OAUTH_CLIENT_ID>&redirect_uri=<реальный YANDEX_METRIKA_OAUTH_REDIRECT_URI>&scope=metrika:offline_data` → `HTTP 200`, эффективный URL после редиректов — `passport.yandex.ru/pwl-yandex?retpath=...` (страница логина Яндекс Паспорта, `<title>Log in</title>`), в ответе нет `invalid_client`/`invalid_scope`/`unauthorized_client`/`invalid_request`. Значит Яндекс принял связку `client_id` + `redirect_uri` + `scope=metrika:offline_data` для уже зарегистрированного приложения — то есть пользователь при регистрации действительно отметил право, дающее доступ к загрузке офлайн-данных, а не read-only вариант (риск 3 из `TASK.md` закрыт этой проверкой, не предположением).
+
+**Management API v1 — офлайн-конверсии:**
+- `POST https://api-metrika.yandex.net/management/v1/counter/{counterId}/offline_conversions/upload?client_id_type=<CLIENT_ID|YCLID>`, `Authorization: OAuth <access_token>` (не `Bearer` — отличается от Direct API v5).
+- Тело — `multipart/form-data`, поле `file` (CSV, UTF-8, макс. 1 ГБ). Колонки: `ClientId` **или** `Yclid` (ровно одна, соответствующая `client_id_type` запроса) + `Target` + `DateTime` (обязательные), `Price`/`Currency` (опциональные).
+- **`client_id_type` — один на весь запрос, не смешивается внутри файла** (риск 2 из `TASK.md` закрыт): лиды с `ClientID` и лиды с `yclid` требуют двух раздельных вызовов `upload`, не одного общего.
+- **`Target` — строковый идентификатор JS-событийной цели, не числовой `goalId`.** Цель типа «JavaScript-событие» должна существовать в счётчике **заранее** (создаётся вручную администратором в UI Метрики, идентификатор — латиница/цифры без спецсимволов, например `qualified_lead`); `upload` цели не создаёт, несуществующий `Target` не сопоставится (`LINKAGE_FAILURE`).
+- Ответ — `{ uploading: { id, status, client_id_type, ... } }`, статус проходит `PREPARED → UPLOADED → EXPORTED → MATCHED → PROCESSED`; данные в отчётах — до 2 часов. Явных лимитов по количеству строк/запросов в день в документации нет, только лимит размера файла (1 ГБ).
+- **Окно атрибуции — 21 день**, но не по умолчанию: базовое окно дозаписи визита — 16 часов, до 21 дня расширяется только вручную (чекбокс «Увеличенный период учёта конверсий» в счётчике) и **не ретроактивно** — действует лишь для визитов, зафиксированных после включения. Явный практический вывод для Таска 4: инструкция клиенту должна рекомендовать включить этот чекбокс заранее, не откладывать на момент первой выгрузки.
+
+**Источник идентификатора у лида:**
+- `yclid` — уже сохраняется в `Lead.marketing.yclid` (Phase 22), ничего нового не требуется.
+- `ClientID` — новый источник: скрытое поле формы `client_id` на стороне сайта клиента (вне нашего контроля, инструкция — Таск 4), попадёт в `Lead.customFields.client_id` через уже существующий `normalizeLead()` без нового кода приёма.
+- Лид без обоих идентификаторов — **тихий пропуск, не ошибка** (риск 4 из `TASK.md` закрыт явно в документации): это штатное большинство (ручной ввод, импорт, сайт без Метрики), `metrikaExportedAt` остаётся `null` навсегда, не ретраится.
+
+**Go/No-Go (риск 5 из `TASK.md` — решение не формальность):** оба условия гейта выполнены реально, не «на будущее» — OAuth-приложение зарегистрировано с правильным scope, **подтверждённым живой проверкой** (не только документацией), и пользователь располагает действующим счётчиком Метрики с правами редактирования (не только что созданной пустышкой, хотя и это было бы достаточно для Таска 1). Единственное, что осталось не проверено живьём — сам факт успешной загрузки CSV с реальным `access_token` (требует прохождения OAuth-согласия в браузере, вне досягаемости агента в этой сессии, ровно как и у Direct API в Task 1 Phase 22) — это переносится в Таск 3 как первая живая проверка `metrikaApi.ts`, не блокирует research. **Решение: GO.** Работа переходит к Таску 2.
+
+### Правки документации
+
+- `.docs/modules/integrations.md` → раздел «Roadmap — офлайн-конверсии в Яндекс.Метрику» (черновой, без спеки) переписан в реальный под-модуль «Экспорт квалификаций в Яндекс.Метрику»: OAuth-флоу (по образцу Директа, свой `client_id`/scope), точный формат `offline_conversions/upload` (`client_id_type` как query-параметр на весь запрос, семантика `Target`, окно атрибуции 21 день и ловушка «не ретроактивно»), источник `ClientID`/`yclid` у лида с явным тихим пропуском, пути файлов выровнены под `lib/integrations/yandex/*` (`metrikaOauth.ts`/`metrikaApi.ts`/`metrikaExport.ts`).
+
+**Definition of Done:** ✅ Все пункты `TASK.md` выполнены — OAuth-флоу и `offline_conversions/upload` описаны конкретно (подтверждено live-проверкой, не предположением), `client_id_type`/`Target`/окно атрибуции закрыты явно, источник идентификатора и поведение без него зафиксированы, ENV-имена согласованы (`YANDEX_METRIKA_OAUTH_CLIENT_ID`/`_SECRET`/`_REDIRECT_URI`), GO записан здесь. `npm run type-check` не затронут (задача документационная, кода не меняли). `.docs/phases/phase-22.5.md` — статус Таска 1 обновлён на завершённый; фаза остаётся «В работе» — Таски 2–4 в очереди.
+
+---
+
 ## 2026-07-14 — Phase 22, Таск 4: UI — реальный статус кабинета + данные Яндекса в карточке лида
 
 **Статус:** ✅ Завершён (Phase 22 полностью завершена — все 4 таска)

@@ -153,6 +153,9 @@ enum EventType {
   COMPANY_PROFILE_UPDATED
   YANDEX_CONNECTED
   YANDEX_DISCONNECTED
+  METRIKA_CONNECTED
+  METRIKA_DISCONNECTED
+  LEAD_METRIKA_EXPORTED
 }
 
 enum ReminderStatus {
@@ -221,6 +224,12 @@ model Company {
   yandexTokenExpiresAt  DateTime?
   yandexLogin           String?
 
+  // Яндекс.Метрика OAuth — server-only, отдельное приложение/токен от Директа (Phase 22.5)
+  metrikaAccessToken    String?
+  metrikaRefreshToken   String?
+  metrikaTokenExpiresAt DateTime?
+  metrikaLogin          String?
+
   users               User[]
   leads               Lead[]
   stages              PipelineStage[]
@@ -248,6 +257,10 @@ model Company {
 Миграция — аддитивная (все 4 поля `nullable`, `String?`/`DateTime?`), существующие компании получают `null`, ничего не пересчитывается.
 
 `EventType.YANDEX_CONNECTED`/`YANDEX_DISCONNECTED` — пишутся при подключении/отключении кабинета (`Event.userId` = ADMIN, выполнивший действие).
+
+### Токены Яндекс.Метрики — server-only (v4.4, Phase 22.5)
+
+`metrikaAccessToken`/`metrikaRefreshToken`/`metrikaTokenExpiresAt`/`metrikaLogin` — та же логика, что у токенов Директа выше, но **отдельное OAuth-приложение и токен**: `scope=direct:api` физически не даёт прав на Management API Метрики, плюс счётчик Метрики нередко живёт под другим аккаунтом Яндекса, чем рекламный кабинет. Миграция аддитивная (все 4 поля `nullable`). `EventType.METRIKA_CONNECTED`/`METRIKA_DISCONNECTED` — пишутся при подключении/отключении счётчика (`Event.userId` = ADMIN). `EventType.LEAD_METRIKA_EXPORTED` — пишется движком экспорта (Таск 3) на каждый успешно выгруженный лид, `Event.userId = null` (фоновый cron). `counterId`/`qualifiedGoalId` (цель «Качественный лид») хранятся не здесь, а в `Company.settings.yandexMetrika` (см. «Структура `settings`» ниже) — это не секрет, в отличие от токенов. Подробности — `.docs/modules/integrations.md` → «Экспорт квалификаций в Яндекс.Метрику».
 
 ### Владение компанией (v4.1)
 
@@ -312,6 +325,7 @@ type CompanySettings = {
   roundRobinCursor: string | null;
   telegramEnabled: boolean;
   yandexMode?: "UTM" | "FULL";
+  yandexMetrika?: { counterId: string; qualifiedGoalId: string }; // v4.4 — не секрет, токены отдельно на Company
 
   controlEnabled: boolean;
   reactionNorms: {
@@ -332,6 +346,8 @@ type CompanySettings = {
 ```
 
 `sourceEnabled` (v4.2) — по умолчанию `{ tilda: true, wordpress: true }` (существующие подключения не ломаются). `false` — источник отключён: вебхук отклоняет запрос (`403 SOURCE_DISABLED`), лид не создаётся. Для API-ключей универсального webhook аналогичный флаг — не здесь, а `ApiKey.isEnabled` (см. ниже), потому что тумблер там на уровне конкретного ключа, а не компании. См. `.docs/modules/integrations.md` → «Тумблер включения источника».
+
+`yandexMetrika` (v4.4) — без дефолтного значения (`undefined`, пока не настроено), в отличие от `sourceEnabled`/`yandexMode`. `counterId` — id счётчика Метрики; `qualifiedGoalId` — строковый идентификатор JS-событийной цели, которую администратор счётчика создаёт вручную в UI Метрики **до** первой выгрузки (Management API не создаёт цели на лету и не даёт дёшево проверить их существование — несоответствие обнаруживается только при реальной выгрузке, `LINKAGE_FAILURE`). Задаётся через `PATCH /api/integrations/yandex/metrika` (ADMIN + маркетолог), переживает `DELETE` (отключение токенов не сбрасывает настройку). См. `.docs/modules/integrations.md` → «Экспорт квалификаций в Яндекс.Метрику».
 
 > Видимость лидов для `MANAGER` (только свои, `assignedToId = userId`) — жёсткое правило в коде (`lib/leads/visibilityFilter.ts`), не настройка компании: поля в `CompanySettings` для этого нет. `HEAD`/`ADMIN` видят все лиды компании всегда. См. `.docs/modules/leads.md`.
 
@@ -513,6 +529,7 @@ model Lead {
   importBatchId String?
   qualification LeadQualification?
   qualifiedAt   DateTime?
+  metrikaExportedAt DateTime?
   createdAt     DateTime      @default(now())
 
   company       Company       @relation(fields: [companyId], references: [id])
@@ -535,8 +552,11 @@ model Lead {
   @@index([email])
   @@index([createdAt])
   @@index([closeType])
+  @@index([companyId, qualification, metrikaExportedAt])
 }
 ```
+
+`metrikaExportedAt` (Phase 22.5) — маркер идемпотентности экспорта в Яндекс.Метрику: `null` — ещё не выгружен (или нет идентификатора привязки), заполняется движком экспорта (Таск 3) после успешной отправки `offline_conversions/upload`, не после подтверждённого сопоставления визита (то приходит асинхронно, до 2 часов, и не отслеживается). Композитный индекс — под выборку `qualification = QUALIFIED AND metrikaExportedAt IS NULL` при каждом прогоне cron.
 
 **Закрытие (`closeType`/`closedAt`/`lossReasonId`)** — действие, не привязанное к конкретному этапу воронки: закрыть сделкой или отказом можно с любого этапа, кнопками в карточке. Закрытие отказом без `lossReasonId` отклоняется на уровне API.
 
