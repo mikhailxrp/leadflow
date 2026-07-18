@@ -5,6 +5,7 @@ import Card from '@/components/ui/Card';
 import TakeInWorkButton from '@/components/leads/TakeInWorkButton';
 import CloseLeadMenu from '@/components/leads/CloseLeadMenu';
 import AssignManagerSelect from '@/components/leads/AssignManagerSelect';
+import StageSelect from '@/components/leads/StageSelect';
 import QualificationBadge from '@/components/leads/QualificationBadge';
 import QualificationControl from '@/components/leads/QualificationControl';
 import LeadDealValue from '@/components/leads/LeadDealValue';
@@ -25,6 +26,7 @@ interface LeadSidebarProps {
   takenAt: string | null;
   closeType: CloseType | null;
   assignedTo: { id: string; name: string } | null;
+  stage: { id: string; name: string };
   canAssign: boolean;
   canManage: boolean;
   qualification: LeadQualification | null;
@@ -38,6 +40,7 @@ export default function LeadSidebar({
   takenAt,
   closeType,
   assignedTo,
+  stage,
   canAssign,
   canManage,
   qualification,
@@ -65,6 +68,15 @@ export default function LeadSidebar({
             </span>
           )}
         </div>
+
+        {canManage && closeType === null && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-normal text-[var(--color-text-secondary)]">
+              Этап воронки
+            </span>
+            <StageSelect leadId={leadId} currentStage={stage} />
+          </div>
+        )}
 
         {closeType !== null && (
           <div className="flex flex-col gap-1.5">

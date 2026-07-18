@@ -176,6 +176,7 @@ export default async function LeadDetailPage({
             takenAt={takenAtStr}
             closeType={lead.closeType}
             assignedTo={lead.assignedTo}
+            stage={{ id: lead.stage.id, name: lead.stage.name }}
             canAssign={actor.actor === 'user' && hasMinRole(actor.role, 'HEAD')}
             canManage={actor.actor === 'user'}
             qualification={lead.qualification}
