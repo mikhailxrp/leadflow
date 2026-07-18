@@ -6,6 +6,8 @@ export interface SidebarNavItem {
   icon: string;
   href: string;
   minRole: UserRole;
+  /** Открывать в отдельной вкладке (target="_blank"). */
+  newTab?: boolean;
 }
 
 export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
@@ -20,6 +22,7 @@ export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
   { label: 'Пользователи', icon: 'lucide:user-cog', href: '/admin/users', minRole: 'ADMIN' },
   { label: 'Настройки', icon: 'lucide:settings', href: '/admin/settings', minRole: 'ADMIN' },
   { label: 'Импорт', icon: 'lucide:upload', href: '/admin/import', minRole: 'ADMIN' },
+  { label: 'Помощь', icon: 'lucide:life-buoy', href: '/help', minRole: 'MANAGER', newTab: true },
 ];
 
 export function getNavItemsForRole(role: UserRole): SidebarNavItem[] {
@@ -30,12 +33,15 @@ export interface MarketerNavItem {
   label: string;
   icon: string;
   href: string;
+  /** Открывать в отдельной вкладке (target="_blank"). */
+  newTab?: boolean;
 }
 
 const MARKETER_NAV_ITEMS: MarketerNavItem[] = [
   { label: 'Лиды', icon: 'lucide:users', href: '/leads' },
   { label: 'Воронка', icon: 'lucide:kanban', href: '/pipeline' },
   { label: 'Отчёты', icon: 'lucide:bar-chart-2', href: '/reports' },
+  { label: 'Помощь', icon: 'lucide:life-buoy', href: '/help', newTab: true },
 ];
 
 export function getMarketerNavItems(): MarketerNavItem[] {

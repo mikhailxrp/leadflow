@@ -88,6 +88,7 @@ export const config = {
     '/team/:path*',
     '/company/:path*',
     '/profile/:path*',
+    '/help/:path*',
     '/admin/:path*',
     '/platform/:path*',
   ],
