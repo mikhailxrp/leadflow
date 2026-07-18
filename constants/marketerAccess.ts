@@ -8,6 +8,7 @@ export const MARKETER_ALLOWED_PAGES: string[] = [
   '/pipeline',
   '/admin/integrations',
   '/reports',
+  '/help',
 ];
 
 type MarketerAllowedApiRule = {
