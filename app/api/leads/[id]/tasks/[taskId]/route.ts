@@ -34,7 +34,7 @@ async function findOwnedTask(
       companyId,
       lead: Object.keys(visibility).length > 0 ? visibility : undefined,
     },
-    select: { id: true, leadId: true, status: true, createdById: true },
+    select: { id: true, leadId: true, status: true, createdById: true, assignedToId: true },
   });
 }
 
@@ -76,6 +76,17 @@ export async function PATCH(
     }
 
     if (task.createdById !== userId && !hasMinRole(role, 'ADMIN')) {
+      return Response.json({ error: 'FORBIDDEN' }, { status: 403 });
+    }
+
+    // Менеджер может переназначить задачу только на себя. Сохранение прежнего
+    // исполнителя (в т.ч. чужого — из задач, созданных до этого правила) не блокируется.
+    if (
+      parsed.data.assignedToId &&
+      parsed.data.assignedToId !== task.assignedToId &&
+      !hasMinRole(role, 'HEAD') &&
+      parsed.data.assignedToId !== userId
+    ) {
       return Response.json({ error: 'FORBIDDEN' }, { status: 403 });
     }
 
