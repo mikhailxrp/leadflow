@@ -1,3 +1,4 @@
+import { hasMinRole } from '@/constants/roles';
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { prisma } from '@/lib/prisma';
 
@@ -11,8 +12,14 @@ export async function GET(): Promise<Response> {
   }
 
   try {
+    // Менеджер может назначать задачи только себе — HEAD и выше видят всех.
+    const canAssignOthers = hasMinRole(actor.role, 'HEAD');
     const users = await prisma.user.findMany({
-      where: { companyId: actor.companyId, isBlocked: false },
+      where: {
+        companyId: actor.companyId,
+        isBlocked: false,
+        ...(canAssignOthers ? {} : { id: actor.userId }),
+      },
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     });

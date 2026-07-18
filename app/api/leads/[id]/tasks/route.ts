@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { hasMinRole } from '@/constants/roles';
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { writeEvent } from '@/lib/events';
 import { visibilityWhere } from '@/lib/leads/visibilityFilter';
@@ -102,6 +103,11 @@ export async function POST(
   const parsed = createTaskSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json({ error: 'VALIDATION_ERROR' }, { status: 400 });
+  }
+
+  // Менеджер ставит задачи только себе — назначать других может HEAD и выше.
+  if (!hasMinRole(actor.role, 'HEAD') && parsed.data.assignedToId !== userId) {
+    return Response.json({ error: 'FORBIDDEN' }, { status: 403 });
   }
 
   try {
