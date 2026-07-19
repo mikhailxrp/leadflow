@@ -12,25 +12,20 @@ export async function getUserNotifications(
   companyId: string,
   limit: number = DEFAULT_NOTIFICATIONS_LIMIT,
 ): Promise<UserNotificationsResult> {
-  const [rows, unreadCount] = await Promise.all([
-    prisma.notification.findMany({
-      where: { userId, companyId },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      select: {
-        id: true,
-        type: true,
-        leadId: true,
-        title: true,
-        body: true,
-        readAt: true,
-        createdAt: true,
-      },
-    }),
-    prisma.notification.count({
-      where: { userId, companyId, readAt: null },
-    }),
-  ]);
+  const rows = await prisma.notification.findMany({
+    where: { userId, companyId, readAt: null },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select: {
+      id: true,
+      type: true,
+      leadId: true,
+      title: true,
+      body: true,
+      readAt: true,
+      createdAt: true,
+    },
+  });
 
   const items: NotificationItem[] = rows.map((row) => ({
     ...row,
@@ -38,5 +33,5 @@ export async function getUserNotifications(
     createdAt: row.createdAt.toISOString(),
   }));
 
-  return { items, unreadCount };
+  return { items, unreadCount: items.length };
 }
