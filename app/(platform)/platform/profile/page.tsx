@@ -22,6 +22,7 @@ async function loadOwnProfile(id: string): Promise<MarketerDetail | null> {
       vk: true,
       max: true,
       isActive: true,
+      passwordHash: true,
       lastLoginAt: true,
       createdAt: true,
       deletedAt: true,
@@ -59,6 +60,7 @@ async function loadOwnProfile(id: string): Promise<MarketerDetail | null> {
     vk: marketer.vk,
     max: marketer.max,
     isActive: marketer.isActive,
+    invitePending: marketer.passwordHash === null,
     lastLoginAt: marketer.lastLoginAt?.toISOString() ?? null,
     createdAt: marketer.createdAt.toISOString(),
     companies: ownedCompanies.map((company) => ({

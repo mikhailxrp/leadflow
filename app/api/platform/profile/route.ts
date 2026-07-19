@@ -62,6 +62,7 @@ export async function PATCH(request: Request): Promise<Response> {
         vk: true,
         max: true,
         isActive: true,
+        passwordHash: true,
         lastLoginAt: true,
         createdAt: true,
       },
@@ -94,6 +95,7 @@ export async function PATCH(request: Request): Promise<Response> {
       vk: updated.vk,
       max: updated.max,
       isActive: updated.isActive,
+      invitePending: updated.passwordHash === null,
       lastLoginAt: updated.lastLoginAt?.toISOString() ?? null,
       createdAt: updated.createdAt.toISOString(),
       companies: ownedCompanies.map((company) => ({

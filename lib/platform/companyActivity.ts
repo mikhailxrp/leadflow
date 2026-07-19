@@ -66,6 +66,7 @@ export async function getCompanyActivity(
       email: true,
       phone: true,
       isActive: true,
+      passwordHash: true,
       lastLoginAt: true,
     },
   });
@@ -89,6 +90,7 @@ export async function getCompanyActivity(
     email: marketer.email,
     phone: marketer.phone,
     isActive: marketer.isActive,
+    invitePending: marketer.passwordHash === null,
     lastLoginAt: marketer.lastLoginAt?.toISOString() ?? null,
     companiesCreated: companiesCreatedByMarketerId.get(marketer.id) ?? 0,
   }));

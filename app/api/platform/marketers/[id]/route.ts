@@ -53,6 +53,7 @@ export async function GET(
       max: true,
       role: true,
       isActive: true,
+      passwordHash: true,
       lastLoginAt: true,
       createdAt: true,
       deletedAt: true,
@@ -90,6 +91,7 @@ export async function GET(
     vk: marketer.vk,
     max: marketer.max,
     isActive: marketer.isActive,
+    invitePending: marketer.passwordHash === null,
     lastLoginAt: marketer.lastLoginAt?.toISOString() ?? null,
     createdAt: marketer.createdAt.toISOString(),
     companies: ownedCompanies.map((company) => ({
@@ -187,6 +189,7 @@ export async function PATCH(
         email: true,
         phone: true,
         isActive: true,
+        passwordHash: true,
         lastLoginAt: true,
       },
     });
@@ -201,6 +204,7 @@ export async function PATCH(
       email: updated.email,
       phone: updated.phone,
       isActive: updated.isActive,
+      invitePending: updated.passwordHash === null,
       lastLoginAt: updated.lastLoginAt?.toISOString() ?? null,
       companiesCreated,
     };
