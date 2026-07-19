@@ -69,6 +69,14 @@ export const HELP_DOCS: HelpDoc[] = [
     icon: 'lucide:megaphone',
     file: '04-marketer.md',
   },
+  {
+    slug: 'ad-tracking-fields',
+    title: 'Поля для рекламы на сайте',
+    summary:
+      'Для того, кто настраивает сайт: какие поля (yclid, client_id) добавить в формы и какой скрипт вставить, чтобы заявки из Яндекс.Директа и Метрики доходили правильно.',
+    icon: 'lucide:code',
+    file: '05-ad-tracking-fields.md',
+  },
 ];
 
 const DOCS_DIR = join(process.cwd(), '.docs', 'user-guide');
