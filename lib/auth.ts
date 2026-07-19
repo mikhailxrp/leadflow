@@ -112,6 +112,12 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           return null;
         }
 
+        // Приглашённый, но не подтверждённый маркетолог (passwordHash === null)
+        // ещё не может войти — пароль он задаёт по ссылке-приглашению.
+        if (!admin.passwordHash) {
+          return null;
+        }
+
         const isValid = await comparePassword(password, admin.passwordHash);
         if (!isValid) {
           return null;

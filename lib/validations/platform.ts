@@ -49,6 +49,11 @@ export const createMarketerSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(100),
   phone: z.string().min(1).max(32),
+});
+
+export const acceptMarketerInviteSchema = z.object({
+  token: z.string().min(1),
+  name: z.string().min(1).max(100),
   password: z.string().min(8),
 });
 
@@ -138,6 +143,9 @@ export type EndImpersonationBodyInput = z.infer<
 export type CreatePlatformAdminInput = z.infer<typeof createPlatformAdminSchema>;
 export type PlatformAdminParamsInput = z.infer<typeof platformAdminParamsSchema>;
 export type CreateMarketerInput = z.infer<typeof createMarketerSchema>;
+export type AcceptMarketerInviteInput = z.infer<
+  typeof acceptMarketerInviteSchema
+>;
 export type UpdateMarketerInput = z.infer<typeof updateMarketerSchema>;
 export type UpdateMarketerProfileInput = z.infer<
   typeof updateMarketerProfileSchema

@@ -41,7 +41,21 @@ function getInitials(name: string): string {
     .join('');
 }
 
-function StatusBadge({ isActive }: { isActive: boolean }): ReactNode {
+function StatusBadge({
+  isActive,
+  invitePending,
+}: {
+  isActive: boolean;
+  invitePending: boolean;
+}): ReactNode {
+  if (invitePending) {
+    return (
+      <span className="inline-flex rounded-[20px] bg-[#FEF3C7] px-2.5 py-1 text-[12px] font-medium text-[#92400E]">
+        Приглашён
+      </span>
+    );
+  }
+
   if (isActive) {
     return (
       <span className="inline-flex rounded-[20px] bg-[#D1FAE5] px-2.5 py-1 text-[12px] font-medium text-[#065F46]">
@@ -211,7 +225,10 @@ export default function MarketerDetailPageClient({
           <h1 className="text-[28px] font-medium tracking-[-0.01em] text-[var(--color-text-primary)]">
             {marketer.name}
           </h1>
-          <StatusBadge isActive={marketer.isActive} />
+          <StatusBadge
+            isActive={marketer.isActive}
+            invitePending={marketer.invitePending}
+          />
         </div>
 
         <Button

@@ -24,6 +24,8 @@ export type MarketerActivityItem = {
   email: string;
   phone: string | null;
   isActive: boolean;
+  // true — приглашение ещё не подтверждено (пароль не задан)
+  invitePending: boolean;
   lastLoginAt: string | null;
   companiesCreated: number;
 };
@@ -45,6 +47,7 @@ export type MarketerDetail = {
   vk: string | null;
   max: string | null;
   isActive: boolean;
+  invitePending: boolean;
   lastLoginAt: string | null;
   createdAt: string;
   companies: MarketerCompanyItem[];
