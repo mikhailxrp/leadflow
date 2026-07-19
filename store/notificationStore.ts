@@ -50,24 +50,15 @@ export const useNotificationStore = create<NotificationState>((set) => ({
       ],
     })),
 
-  markAllRead: () =>
-    set((state) => ({
-      unreadCount: 0,
-      items: state.items.map((item) =>
-        item.readAt ? item : { ...item, readAt: new Date().toISOString() },
-      ),
-    })),
+  markAllRead: () => set({ items: [], unreadCount: 0 }),
 
   markItemRead: (id) =>
     set((state) => {
-      const target = state.items.find((item) => item.id === id);
-      if (!target || target.readAt) return state;
+      if (!state.items.some((item) => item.id === id)) return state;
 
       return {
         unreadCount: Math.max(0, state.unreadCount - 1),
-        items: state.items.map((item) =>
-          item.id === id ? { ...item, readAt: new Date().toISOString() } : item,
-        ),
+        items: state.items.filter((item) => item.id !== id),
       };
     }),
 }));

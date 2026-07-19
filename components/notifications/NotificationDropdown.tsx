@@ -50,10 +50,8 @@ export default function NotificationDropdown({ onClose }: NotificationDropdownPr
 
   function handleItemClick(item: NotificationItem): void {
     onClose();
-    if (!item.readAt) {
-      markItemRead(item.id);
-      fetch(`/api/notifications/${item.id}/read`, { method: 'POST' }).catch(console.error);
-    }
+    markItemRead(item.id);
+    fetch(`/api/notifications/${item.id}/read`, { method: 'POST' }).catch(console.error);
     if (item.leadId) router.push(`/leads/${item.leadId}`);
   }
 
@@ -90,12 +88,10 @@ export default function NotificationDropdown({ onClose }: NotificationDropdownPr
               className="flex w-full flex-col gap-0.5 border-b border-[0.5px] border-[var(--color-border)] px-4 py-3 text-left last:border-b-0 hover:bg-[var(--color-bg-surface-2)]"
             >
               <span className="flex items-center gap-2">
-                {!item.readAt && (
-                  <span
-                    aria-hidden="true"
-                    className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#10B981]"
-                  />
-                )}
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#10B981]"
+                />
                 <span className="text-[13px] font-medium text-[var(--color-text-primary)]">
                   {item.title}
                 </span>
