@@ -14,6 +14,7 @@
     "db:generate": "prisma generate",
     "bootstrap:platform-admin": "npx tsx scripts/bootstrapPlatformAdmin.ts",
     "delete:company": "npx tsx scripts/deleteCompany.ts",
+    "reset:dev": "npx tsx scripts/resetDevData.ts",
     "seed:api-key": "npx tsx scripts/seedTestApiKey.ts",
     "seed:demo": "npx tsx scripts/seedDemoCompany.ts"
   },
