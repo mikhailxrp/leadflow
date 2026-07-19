@@ -15,7 +15,8 @@ export const proxy = auth((req) => {
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/platform/login') ||
     pathname.startsWith('/platform/forgot-password') ||
-    pathname.startsWith('/platform/reset-password')
+    pathname.startsWith('/platform/reset-password') ||
+    pathname.startsWith('/platform/accept-invite')
   ) {
     return NextResponse.next();
   }

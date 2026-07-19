@@ -1,4 +1,5 @@
 import { createCompany } from '@/lib/platform/createCompany';
+import { sendCompanyInviteEmail } from '@/lib/platform/sendCompanyInviteEmail';
 import { requirePlatformSession } from '@/lib/platform/auth';
 import {
   canManageCompany,
@@ -146,6 +147,18 @@ export async function POST(request: Request): Promise<Response> {
     });
     const baseUrl = appUrl.replace(/\/$/, '');
     const inviteUrl = `${baseUrl}/accept-invite?token=${inviteToken}`;
+
+    // Письмо администратору — best-effort: ошибка отправки не отменяет
+    // создание компании, ссылка всё равно возвращается для показа в модалке.
+    try {
+      await sendCompanyInviteEmail({
+        email: parsed.data.adminEmail,
+        companyName: company.name,
+        inviteUrl,
+      });
+    } catch (emailError) {
+      console.error('Failed to send company invite email:', emailError);
+    }
 
     return Response.json({
       companyId: company.id,

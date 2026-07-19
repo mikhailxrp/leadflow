@@ -227,7 +227,9 @@ model UserPasswordResetToken {
 model PlatformAdmin {
   id           String       @id @default(cuid())
   email        String       @unique
-  passwordHash String
+  // Nullable: пока маркетолог не принял приглашение (не задал пароль), хэша нет.
+  // null ⟺ приглашение не подтверждено (pending). Логин при null невозможен.
+  passwordHash String?
   name         String
   phone        String?
   avatarUrl    String?
@@ -241,6 +243,20 @@ model PlatformAdmin {
   createdAt    DateTime     @default(now())
 
   passwordResetTokens PlatformAdminPasswordResetToken[]
+  invites             PlatformAdminInvite[]
+}
+
+model PlatformAdminInvite {
+  id        String    @id @default(cuid())
+  adminId   String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  admin PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
 }
 
 model PlatformAdminPasswordResetToken {

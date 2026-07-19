@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Icon } from '@iconify/react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -17,8 +16,9 @@ type FieldErrors = {
   name?: string;
   email?: string;
   phone?: string;
-  password?: string;
 };
+
+type Step = 'form' | 'success';
 
 function formatDate(value: string | null): string {
   if (!value) {
@@ -31,17 +31,32 @@ function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
+function StatusLabel({
+  marketer,
+}: {
+  marketer: MarketerActivityItem;
+}): ReactNode {
+  if (marketer.invitePending) {
+    return <span className="text-[#D97706]">Приглашён</span>;
+  }
+  if (marketer.isActive) {
+    return <span className="text-[#10B981]">Активен</span>;
+  }
+  return <span className="text-[#EF4444]">Заблокирован</span>;
+}
+
 export default function MarketersTable({
   marketers: initialMarketers,
 }: MarketersTableProps): ReactNode {
   const [marketers, setMarketers] =
     useState<MarketerActivityItem[]>(initialMarketers);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [step, setStep] = useState<Step>('form');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState('');
+  const [copied, setCopied] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,11 +65,12 @@ export default function MarketersTable({
   );
 
   function resetModalState(): void {
+    setStep('form');
     setName('');
     setEmail('');
     setPhone('');
-    setPassword('');
-    setShowPassword(false);
+    setInviteUrl('');
+    setCopied(false);
     setFieldErrors({});
     setServerError(null);
     setIsSubmitting(false);
@@ -79,19 +95,13 @@ export default function MarketersTable({
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim(),
-      password,
     });
 
     if (!parsed.success) {
       const nextFieldErrors: FieldErrors = {};
       for (const issue of parsed.error.issues) {
         const field = issue.path[0];
-        if (
-          field === 'name' ||
-          field === 'email' ||
-          field === 'phone' ||
-          field === 'password'
-        ) {
+        if (field === 'name' || field === 'email' || field === 'phone') {
           nextFieldErrors[field] = issue.message;
         }
       }
@@ -108,21 +118,42 @@ export default function MarketersTable({
         body: JSON.stringify(parsed.data),
       });
 
-      const data: MarketerActivityItem & { error?: string } =
-        await response.json();
+      const data: MarketerActivityItem & {
+        inviteUrl?: string;
+        error?: string;
+      } = await response.json();
 
       if (!response.ok) {
         setServerError(data.error ?? 'Не удалось создать маркетолога');
         return;
       }
 
-      setMarketers((prev) => [data, ...prev]);
-      handleCloseModal();
+      if (!data.inviteUrl) {
+        setServerError('Сервер не вернул ссылку приглашения');
+        return;
+      }
+
+      const { inviteUrl: url, ...item } = data;
+      setMarketers((prev) => [
+        item,
+        ...prev.filter((existing) => existing.id !== item.id),
+      ]);
+      setInviteUrl(url);
+      setStep('success');
     } catch (error) {
       console.error(error);
       setServerError('Не удалось создать маркетолога');
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleCopy(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+    } catch (error) {
+      console.error('Failed to copy invite URL:', error);
     }
   }
 
@@ -281,11 +312,7 @@ export default function MarketersTable({
                         href={`/platform/marketers/${marketer.id}`}
                         className="block -mx-4 -my-3 px-4 py-3"
                       >
-                        {marketer.isActive ? (
-                          <span className="text-[#10B981]">Активен</span>
-                        ) : (
-                          <span className="text-[#EF4444]">Заблокирован</span>
-                        )}
+                        <StatusLabel marketer={marketer} />
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
@@ -328,92 +355,109 @@ export default function MarketersTable({
       )}
 
       {isModalOpen && (
-        <Modal onClose={handleCloseModal} dialogClassName="max-w-[480px] rounded-[12px]">
-          <h2 className="text-[16px] font-medium text-[var(--color-text-primary)]">
-            Добавить маркетолога
-          </h2>
-          <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
-            Маркетолог сможет войти через /platform/login
-          </p>
+        <Modal
+          onClose={handleCloseModal}
+          dialogClassName="max-w-[480px] rounded-[12px]"
+        >
+          {step === 'form' ? (
+            <>
+              <h2 className="text-[16px] font-medium text-[var(--color-text-primary)]">
+                Добавить маркетолога
+              </h2>
+              <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
+                Маркетолог задаст пароль сам по ссылке-приглашению
+              </p>
 
-          <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
-            <Input
-              label="Имя"
-              placeholder="Иван Иванов"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              error={fieldErrors.name}
-              autoFocus
-            />
-
-            <Input
-              label="Email"
-              type="email"
-              placeholder="marketer@example.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              error={fieldErrors.email}
-            />
-
-            <Input
-              label="Телефон"
-              type="tel"
-              placeholder="+7 900 000-00-00"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              error={fieldErrors.phone}
-            />
-
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="marketer-password"
-                className="text-[12px] font-normal leading-5 text-[var(--color-text-secondary)]"
-              >
-                Пароль
-              </label>
-              <div className="relative">
-                <input
-                  id="marketer-password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Минимум 8 символов"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className={`
-                    h-[36px] w-full rounded-[6px]
-                    border border-[var(--color-border)] border-[0.5px]
-                    bg-[var(--color-bg-surface)]
-                    px-3 pr-9 text-[14px] text-[var(--color-text-primary)]
-                    placeholder:text-[var(--color-text-tertiary)]
-                    transition-all duration-150 outline-none
-                    focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]
-                    ${fieldErrors.password ? 'border-[#EF4444] focus:border-[#EF4444] focus:ring-[#EF4444]' : ''}
-                  `}
+              <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
+                <Input
+                  label="Имя"
+                  placeholder="Иван Иванов"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  error={fieldErrors.name}
+                  autoFocus
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] transition-colors duration-150 hover:text-[var(--color-text-secondary)]"
-                  aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                >
-                  <Icon icon="tabler:eye" className="h-4 w-4" />
-                </button>
-              </div>
-              {fieldErrors.password && (
-                <span className="text-[12px] text-[#EF4444]">
-                  {fieldErrors.password}
-                </span>
-              )}
-            </div>
 
-            <div className="mt-1 flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={handleCloseModal}>
-                Отмена
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Создание…' : 'Создать'}
-              </Button>
-            </div>
-          </form>
+                <Input
+                  label="Email"
+                  type="email"
+                  placeholder="marketer@example.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  error={fieldErrors.email}
+                />
+
+                <Input
+                  label="Телефон"
+                  type="tel"
+                  placeholder="+7 900 000-00-00"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  error={fieldErrors.phone}
+                />
+
+                {serverError ? (
+                  <p className="text-[12px] text-[#EF4444]" role="alert">
+                    {serverError}
+                  </p>
+                ) : null}
+
+                <div className="mt-1 flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleCloseModal}
+                  >
+                    Отмена
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Создание…' : 'Создать'}
+                  </Button>
+                </div>
+              </form>
+            </>
+          ) : (
+            <>
+              <h2 className="text-[16px] font-medium text-[var(--color-text-primary)]">
+                Маркетолог приглашён
+              </h2>
+              <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
+                Ссылка отправлена на email маркетолога. Можно также передать её
+                вручную.
+              </p>
+
+              <div className="mt-5 flex flex-col gap-2">
+                <label
+                  htmlFor="marketer-invite-url"
+                  className="text-[12px] text-[var(--color-text-secondary)]"
+                >
+                  Ссылка приглашения
+                </label>
+                <input
+                  id="marketer-invite-url"
+                  type="text"
+                  readOnly
+                  value={inviteUrl}
+                  className="
+                    h-[36px] w-full rounded-[6px]
+                    border border-[0.5px] border-[var(--color-border)]
+                    bg-[var(--color-bg-surface-2)] px-3
+                    font-mono text-[12px] text-[var(--color-text-primary)]
+                    outline-none
+                  "
+                />
+              </div>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <Button type="button" variant="secondary" onClick={handleCopy}>
+                  {copied ? 'Скопировано' : 'Скопировать ссылку'}
+                </Button>
+                <Button type="button" onClick={handleCloseModal}>
+                  Готово
+                </Button>
+              </div>
+            </>
+          )}
         </Modal>
       )}
     </main>
