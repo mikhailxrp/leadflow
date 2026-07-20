@@ -216,7 +216,7 @@ export default function Sidebar({ items, userInitials, userName, userAvatarUrl, 
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-20 hidden flex-shrink-0 flex-col bg-[var(--color-sidebar-bg)] transition-[width] duration-200 lg:flex ${collapsed ? 'w-[64px]' : 'w-[220px]'}`}
+        className={`fixed inset-y-0 left-0 z-20 hidden flex-shrink-0 flex-col bg-[var(--color-sidebar-bg)] transition-[width] duration-200 print:hidden lg:flex ${collapsed ? 'w-[64px]' : 'w-[220px]'}`}
       >
         <SidebarContent
           items={items}
@@ -240,7 +240,7 @@ export default function Sidebar({ items, userInitials, userName, userAvatarUrl, 
       <aside
         className={`
           fixed inset-y-0 left-0 z-50 w-[220px] flex-col bg-[var(--color-sidebar-bg)]
-          transform transition-transform duration-300 lg:hidden
+          transform transition-transform duration-300 print:hidden lg:hidden
           ${mobileOpen ? 'flex translate-x-0' : 'hidden -translate-x-full'}
         `}
       >

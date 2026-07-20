@@ -203,3 +203,31 @@ pre,
   background: var(--color-border);
   border-radius: 2px;
 }
+
+/* ================================================================
+   ПЕЧАТЬ (раздел «Помощь» → «Скачать PDF», см. components/help)
+   Независимо от активной темы на экране — печать всегда светлая:
+   тёмный фон/светлый текст на бумаге нечитаемы и тратят тонер.
+   Скрытие сайдбара/навигации — через print:hidden прямо в разметке.
+   ================================================================ */
+@media print {
+  :root,
+  [data-theme='light'],
+  [data-theme='dark'] {
+    --color-bg-page: #ffffff;
+    --color-bg-surface: #ffffff;
+    --color-bg-surface-2: #f1f5f9;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-tertiary: #64748b;
+    --color-border: rgba(15, 23, 42, 0.15);
+  }
+
+  @page {
+    margin: 16mm 14mm;
+  }
+
+  body {
+    background: #ffffff;
+  }
+}
