@@ -20,10 +20,10 @@ export default function AppLayout({ sidebar, children }: AppLayoutProps) {
   const { collapsed } = useSidebarCollapse();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--color-bg-page)] font-sans">
+    <div className="flex h-screen overflow-hidden bg-[var(--color-bg-page)] font-sans print:h-auto print:overflow-visible">
       {/* Sidebar spacer for desktop (sidebar is fixed) */}
       <div
-        className={`hidden flex-shrink-0 transition-[width] duration-200 lg:block ${collapsed ? 'w-[64px]' : 'w-[220px]'}`}
+        className={`hidden flex-shrink-0 transition-[width] duration-200 print:hidden lg:block ${collapsed ? 'w-[64px]' : 'w-[220px]'}`}
       />
 
       {sidebar}

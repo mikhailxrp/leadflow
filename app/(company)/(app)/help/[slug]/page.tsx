@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { Icon } from '@iconify/react';
 import MarkdownDoc from '@/components/help/MarkdownDoc';
 import HelpToc from '@/components/help/HelpToc';
+import DownloadPdfButton from '@/components/help/DownloadPdfButton';
 import {
   HELP_DOCS,
   getExistingScreenshotNames,
@@ -49,22 +50,36 @@ export default async function HelpDocPage({ params }: HelpDocPageProps): Promise
   return (
     <div className="flex gap-10">
       <article className="min-w-0 flex-1">
-        <p className="mb-2 flex items-center gap-1.5 text-[12.5px] font-medium text-[var(--color-text-tertiary)]">
-          <Icon icon={doc.icon} className="h-3.5 w-3.5" aria-hidden="true" />
-          Руководство
-        </p>
-        <h1 className="text-[28px] font-semibold leading-tight text-[var(--color-text-primary)]">
-          {doc.title}
-        </h1>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="mb-2 flex items-center gap-1.5 text-[12.5px] font-medium text-[var(--color-text-tertiary)]">
+              <Icon icon={doc.icon} className="h-3.5 w-3.5" aria-hidden="true" />
+              Руководство
+            </p>
+            <h1 className="text-[28px] font-semibold leading-tight text-[var(--color-text-primary)]">
+              {doc.title}
+            </h1>
+          </div>
+          {doc.downloadable && (
+            <div className="mt-1 flex-shrink-0">
+              <DownloadPdfButton />
+            </div>
+          )}
+        </div>
         <p className="mt-2.5 text-[15px] leading-[1.6] text-[var(--color-text-secondary)]">
           {doc.summary}
         </p>
+        {doc.downloadable && (
+          <p className="mt-2 hidden text-[12px] text-[var(--color-text-tertiary)] print:block">
+            Инструкция из системы «Лид-Канал», раздел «Помощь». Актуальная версия — всегда онлайн.
+          </p>
+        )}
 
         <div className="mt-8">
           <MarkdownDoc content={content} />
         </div>
 
-        <nav className="mt-12 grid gap-3 border-t-[0.5px] border-[var(--color-border)] pt-6 sm:grid-cols-2">
+        <nav className="mt-12 grid gap-3 border-t-[0.5px] border-[var(--color-border)] pt-6 sm:grid-cols-2 print:hidden">
           <Link
             href={prev.href}
             className="group flex flex-col rounded-[8px] border-[0.5px] border-[var(--color-border)] px-4 py-3 transition-colors hover:border-[var(--color-primary)]"
@@ -94,7 +109,7 @@ export default async function HelpDocPage({ params }: HelpDocPageProps): Promise
         </nav>
       </article>
 
-      <aside className="hidden w-[200px] flex-shrink-0 xl:block">
+      <aside className="hidden w-[200px] flex-shrink-0 print:hidden xl:block">
         <div className="sticky top-8">
           <HelpToc headings={headings} />
         </div>

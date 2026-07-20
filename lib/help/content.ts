@@ -21,6 +21,12 @@ export interface HelpDoc {
   icon: string;
   /** Имя файла в `.docs/user-guide/`. */
   file: string;
+  /**
+   * Показывать кнопку «Скачать PDF» (печать браузера) в шапке страницы.
+   * Только для разделов, предназначенных на передачу внешнему разработчику —
+   * их пользователь скачивает и пересылает, а не читает сам постранично.
+   */
+  downloadable?: boolean;
 }
 
 /**
@@ -76,6 +82,16 @@ export const HELP_DOCS: HelpDoc[] = [
       'Для того, кто настраивает сайт: какие поля (yclid, client_id) добавить в формы и какой скрипт вставить, чтобы заявки из Яндекс.Директа и Метрики доходили правильно.',
     icon: 'lucide:code',
     file: '05-ad-tracking-fields.md',
+    downloadable: true,
+  },
+  {
+    slug: 'developer-integrations',
+    title: 'Настройка интеграций для разработчика',
+    summary:
+      'Что делать с URL Tilda/WordPress или API-ключом универсального webhook: куда вставить, какой запрос отправить, как разобрать ошибки.',
+    icon: 'lucide:webhook',
+    file: '06-developer-integrations.md',
+    downloadable: true,
   },
 ];
 
