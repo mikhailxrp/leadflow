@@ -27,7 +27,7 @@ export default async function HelpLayout({
       <header
         className="
           sticky top-0 z-30 flex h-[56px] flex-shrink-0 items-center justify-between
-          border-b-[0.5px] border-[var(--color-border)]
+          border-b-[0.5px] border-[var(--color-border)] print:hidden
           bg-[var(--color-bg-surface)] px-4 sm:px-6
         "
       >
@@ -42,16 +42,16 @@ export default async function HelpLayout({
         )}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto">
-        <div className="mx-auto flex w-full max-w-[1240px] gap-8 px-4 py-6 sm:px-6 lg:py-8">
-          <aside className="hidden w-[220px] flex-shrink-0 lg:block">
+      <div className="min-h-0 flex-1 overflow-auto print:h-auto print:overflow-visible">
+        <div className="mx-auto flex w-full max-w-[1240px] gap-8 px-4 py-6 sm:px-6 lg:py-8 print:block print:max-w-none print:px-0 print:py-0">
+          <aside className="hidden w-[220px] flex-shrink-0 print:hidden lg:block">
             <div className="sticky top-8">
               <HelpNav items={NAV_ITEMS} />
             </div>
           </aside>
 
           <div className="min-w-0 flex-1">
-            <div className="mb-6 lg:hidden">
+            <div className="mb-6 print:hidden lg:hidden">
               <HelpNav items={NAV_ITEMS} variant="mobile" />
             </div>
             {children}

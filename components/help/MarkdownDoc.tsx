@@ -13,6 +13,8 @@ const MD_ROUTE: Record<string, string> = {
   '02-head.md': '/help/head',
   '03-admin.md': '/help/admin',
   '04-marketer.md': '/help/marketer',
+  '05-ad-tracking-fields.md': '/help/ad-tracking-fields',
+  '06-developer-integrations.md': '/help/developer-integrations',
 };
 
 function nodeText(node: ReactNode): string {
@@ -178,8 +180,8 @@ const components: Components = {
   },
   table({ children }) {
     return (
-      <div className="my-5 w-full overflow-x-auto rounded-[8px] border-[0.5px] border-[var(--color-border)]">
-        <table className="w-full border-collapse text-[13.5px]">{children}</table>
+      <div className="my-5 w-full overflow-x-auto rounded-[8px] border-[0.5px] border-[var(--color-border)] print:overflow-visible print:break-inside-avoid">
+        <table className="w-full border-collapse text-[13.5px] print:text-[11px]">{children}</table>
       </div>
     );
   },
@@ -217,7 +219,7 @@ const components: Components = {
   },
   pre({ children }) {
     return (
-      <pre className="my-5 overflow-x-auto rounded-[8px] border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface-2)] p-4 text-[var(--color-text-primary)] whitespace-pre">
+      <pre className="my-5 overflow-x-auto rounded-[8px] border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface-2)] p-4 text-[var(--color-text-primary)] whitespace-pre print:overflow-visible print:whitespace-pre-wrap print:break-words print:break-inside-avoid">
         {children}
       </pre>
     );
