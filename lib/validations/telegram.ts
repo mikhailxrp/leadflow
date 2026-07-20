@@ -2,21 +2,29 @@ import { z } from 'zod';
 
 /**
  * Узкий разбор апдейта Telegram Bot API — интересует только текст и chat.id сообщения.
- * Всё остальное (edited_message, callback_query, произвольные поля) проходит парсинг
- * как unknown-объект и просто не даёт совпадения ниже по стеку — не 500.
+ * Прочие типы апдейтов (edited_message, callback_query, ...) проходят как объект без
+ * `message` и просто не дают совпадения ниже по стеку — но `update_id` читается всегда,
+ * чтобы воркер сдвинул offset и не зациклился на неподходящих апдейтах.
  */
-export const telegramWebhookUpdateSchema = z.object({
-  message: z
-    .object({
-      text: z.string().optional(),
-      chat: z.object({
-        id: z.number(),
-      }),
-    })
-    .optional(),
+const telegramMessageSchema = z.object({
+  text: z.string().optional(),
+  chat: z.object({
+    id: z.number(),
+  }),
 });
 
-export type TelegramWebhookUpdate = z.infer<typeof telegramWebhookUpdateSchema>;
+export const telegramUpdateSchema = z.object({
+  update_id: z.number(),
+  message: telegramMessageSchema.optional(),
+});
+
+export type TelegramUpdate = z.infer<typeof telegramUpdateSchema>;
+
+/** Ответ метода getUpdates. `result` отсутствует при `ok: false` — приводим к пустому массиву. */
+export const telegramGetUpdatesResponseSchema = z.object({
+  ok: z.boolean(),
+  result: z.array(telegramUpdateSchema).optional().default([]),
+});
 
 const START_COMMAND_PATTERN = /^\/start\s+(\S+)/;
 

@@ -33,3 +33,13 @@ jobs:
       - name: Restart PM2
         working-directory: /apps/leadkanal-prod
         run: pm2 restart leadkanal-prod
+
+      - name: Restart Telegram bot
+        working-directory: /apps/leadkanal-prod
+        run: |
+          if pm2 describe leadkanal-prod-bot > /dev/null 2>&1; then
+            pm2 restart leadkanal-prod-bot
+          else
+            pm2 start npm --name leadkanal-prod-bot -- run bot:telegram
+          fi
+          pm2 save
