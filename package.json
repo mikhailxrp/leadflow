@@ -16,7 +16,8 @@
     "delete:company": "npx tsx scripts/deleteCompany.ts",
     "reset:dev": "npx tsx scripts/resetDevData.ts",
     "seed:api-key": "npx tsx scripts/seedTestApiKey.ts",
-    "seed:demo": "npx tsx scripts/seedDemoCompany.ts"
+    "seed:demo": "npx tsx scripts/seedDemoCompany.ts",
+    "bot:telegram": "npx tsx scripts/telegramPolling.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1083.0",
