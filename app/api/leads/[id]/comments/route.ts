@@ -1,4 +1,4 @@
-import type { Prisma, UserRole } from '@prisma/client';
+import type { CloseType, Prisma, UserRole } from '@prisma/client';
 import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
@@ -13,7 +13,7 @@ async function findAccessibleLead(
   companyId: string,
   role: UserRole,
   userId: string,
-): Promise<{ id: string } | null> {
+): Promise<{ id: string; closeType: CloseType | null } | null> {
   const visibility = visibilityWhere(role, userId);
 
   const andConditions: Prisma.LeadWhereInput[] = [{ id: leadId }, { companyId }];
@@ -23,7 +23,7 @@ async function findAccessibleLead(
 
   return prisma.lead.findFirst({
     where: { AND: andConditions },
-    select: { id: true },
+    select: { id: true, closeType: true },
   });
 }
 
@@ -99,6 +99,11 @@ export async function POST(
 
     if (!lead) {
       return Response.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // Закрытый лид — только просмотр: новых записей в нём не появляется.
+    if (lead.closeType !== null) {
+      return Response.json({ error: 'LEAD_CLOSED' }, { status: 400 });
     }
 
     const comment = await prisma.comment.create({

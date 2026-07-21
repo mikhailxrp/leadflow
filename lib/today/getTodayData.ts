@@ -107,6 +107,9 @@ export async function getTodayData(companyId: string, userId: string): Promise<T
           companyId,
           assignedToId: userId,
           status: { in: ['TODO', 'IN_PROGRESS'] },
+          // Задачи закрытых лидов не попадают в «Сегодня»: с таким лидом больше
+          // не работают, а его карточка read-only — задачу оттуда уже не снять.
+          lead: { closeType: null },
           dueDate: { gte: startOfDay(now), lte: endOfDay(now) },
         },
         select: { id: true, title: true, dueDate: true, leadId: true, lead: { select: { name: true } } },
@@ -117,6 +120,7 @@ export async function getTodayData(companyId: string, userId: string): Promise<T
           companyId,
           assignedToId: userId,
           status: { in: ['TODO', 'IN_PROGRESS'] },
+          lead: { closeType: null },
           dueDate: { lt: now },
         },
         select: { id: true, title: true, dueDate: true, leadId: true, lead: { select: { name: true } } },

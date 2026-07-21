@@ -32,7 +32,13 @@ async function findOwnedReminder(
       companyId,
       lead: Object.keys(visibility).length > 0 ? visibility : undefined,
     },
-    select: { id: true, leadId: true, status: true, createdById: true },
+    select: {
+      id: true,
+      leadId: true,
+      status: true,
+      createdById: true,
+      lead: { select: { closeType: true } },
+    },
   });
 }
 
@@ -67,6 +73,11 @@ export async function PATCH(
     const reminder = await findOwnedReminder(rid, id, companyId, role, userId);
     if (!reminder) {
       return Response.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // Карточка закрытого лида read-only — его напоминания вместе с ней.
+    if (reminder.lead.closeType !== null) {
+      return Response.json({ error: 'LEAD_CLOSED' }, { status: 400 });
     }
 
     if (reminder.status !== 'PENDING') {
@@ -109,6 +120,11 @@ export async function DELETE(
     const reminder = await findOwnedReminder(rid, id, companyId, role, userId);
     if (!reminder) {
       return Response.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // Карточка закрытого лида read-only — его напоминания вместе с ней.
+    if (reminder.lead.closeType !== null) {
+      return Response.json({ error: 'LEAD_CLOSED' }, { status: 400 });
     }
 
     if (reminder.status !== 'PENDING') {

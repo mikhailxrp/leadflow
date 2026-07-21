@@ -56,8 +56,8 @@
 | --- | --- |
 | **Новые лиды** | `Lead`: `assignedToId = me`, `closeType IS NULL`, без `LEAD_TAKEN_IN_WORK`, `createdAt` за последние 24 часа |
 | **Необработанные лиды** | `Lead`: `assignedToId = me`, `closeType IS NULL`, без `LEAD_TAKEN_IN_WORK` (без ограничения по времени — это постоянный «хвост», новые лиды — его горячая часть) |
-| **Задачи на сегодня** | `Task`: `assignedToId = me`, `dueDate` сегодня, `status IN (TODO, IN_PROGRESS)` |
-| **Просроченные задачи** | `Task`: `assignedToId = me`, `dueDate < now()`, `status IN (TODO, IN_PROGRESS)` |
+| **Задачи на сегодня** | `Task`: `assignedToId = me`, `dueDate` сегодня, `status IN (TODO, IN_PROGRESS)`, лид не закрыт (`lead.closeType IS NULL`) |
+| **Просроченные задачи** | `Task`: `assignedToId = me`, `dueDate < now()`, `status IN (TODO, IN_PROGRESS)`, лид не закрыт |
 | **Лиды без следующего действия** | `Lead`: `assignedToId = me`, `closeType IS NULL`, нет открытой задачи — пересекается с `risk = yellow` («Нет следующего шага») |
 | **Лиды, скоро станут просроченными** | `Lead`: `assignedToId = me`, `risk.level = yellow` (через `computeRiskBatch`) |
 | **Лиды, требующие вмешательства** | `Lead`: `assignedToId = me`, `risk.level = red` |

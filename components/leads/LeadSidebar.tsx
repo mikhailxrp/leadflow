@@ -107,7 +107,12 @@ export default function LeadSidebar({
         )}
       </div>
 
-      {canManage && (
+      {/*
+        Закрытый лид уже нельзя ни взять в работу, ни закрыть повторно
+        (CloseLeadMenu сам скрывается). «Взято в работу» остаётся как факт
+        истории, если лид успели взять до закрытия.
+      */}
+      {canManage && (closeType === null || hasTakenInWork) && (
         <div className="flex flex-col gap-2">
           <TakeInWorkButton
             leadId={leadId}

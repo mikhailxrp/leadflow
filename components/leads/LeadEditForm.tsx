@@ -14,6 +14,8 @@ interface LeadEditFormProps {
   initialPhone: string | null;
   initialEmail: string | null;
   initialComment: string | null;
+  /** Закрытый лид: те же данные, но без кнопки «Редактировать». */
+  readOnly?: boolean;
 }
 
 export default function LeadEditForm({
@@ -22,6 +24,7 @@ export default function LeadEditForm({
   initialPhone,
   initialEmail,
   initialComment,
+  readOnly = false,
 }: LeadEditFormProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -97,9 +100,9 @@ export default function LeadEditForm({
       <Card padding="lg">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-[14px] font-medium text-[var(--color-text-primary)]">
-            Редактировать контакт
+            {readOnly ? 'Контактные данные' : 'Редактировать контакт'}
           </h2>
-          {!isEditing && (
+          {!isEditing && !readOnly && (
             <Button
               type="button"
               variant="ghost"
@@ -111,7 +114,7 @@ export default function LeadEditForm({
           )}
         </div>
 
-        {!isEditing ? (
+        {!isEditing || readOnly ? (
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">
               <span className="text-[12px] text-[var(--color-text-secondary)]">Имя</span>

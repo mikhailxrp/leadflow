@@ -82,5 +82,56 @@ export async function closeLead({
         impersonatedByPlatformAdminId: impersonatedByPlatformAdminId ?? null,
       },
     });
+
+    // У закрытого лида нет следующего действия: открытые задачи и ожидающие
+    // напоминания снимаются вместе с закрытием. Иначе они остались бы висеть
+    // в «Сегодня» и стреляли бы по лиду, с которым больше не работают, — а
+    // карточка после закрытия read-only, вручную их уже не закрыть.
+    const openTasks = await tx.task.findMany({
+      where: { leadId, companyId, status: { in: ['TODO', 'IN_PROGRESS'] } },
+      select: { id: true },
+    });
+
+    const pendingReminders = await tx.reminder.findMany({
+      where: { leadId, companyId, status: 'PENDING' },
+      select: { id: true },
+    });
+
+    if (openTasks.length > 0) {
+      await tx.task.updateMany({
+        where: { id: { in: openTasks.map((task) => task.id) } },
+        data: { status: 'CANCELLED', completedAt: null },
+      });
+    }
+
+    if (pendingReminders.length > 0) {
+      await tx.reminder.updateMany({
+        where: { id: { in: pendingReminders.map((reminder) => reminder.id) } },
+        data: { status: 'CANCELLED' },
+      });
+    }
+
+    if (openTasks.length > 0 || pendingReminders.length > 0) {
+      await tx.event.createMany({
+        data: [
+          ...openTasks.map((task) => ({
+            companyId,
+            leadId,
+            userId,
+            type: 'TASK_CANCELLED' as const,
+            payload: { taskId: task.id, reason: 'LEAD_CLOSED' },
+            impersonatedByPlatformAdminId: impersonatedByPlatformAdminId ?? null,
+          })),
+          ...pendingReminders.map((reminder) => ({
+            companyId,
+            leadId,
+            userId,
+            type: 'REMINDER_CANCELLED' as const,
+            payload: { reminderId: reminder.id, reason: 'LEAD_CLOSED' },
+            impersonatedByPlatformAdminId: impersonatedByPlatformAdminId ?? null,
+          })),
+        ],
+      });
+    }
   });
 }
