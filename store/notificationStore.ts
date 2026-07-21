@@ -21,7 +21,14 @@ export interface NewLeadSsePayload {
 interface NotificationState {
   items: NotificationItem[];
   unreadCount: number;
-  hydrate: (data: { items: NotificationItem[]; unreadCount: number }) => void;
+  /** User.notificationPreferences.soundEnabled — зеркало настройки для SseProvider. */
+  soundEnabled: boolean;
+  hydrate: (data: {
+    items: NotificationItem[];
+    unreadCount: number;
+    soundEnabled: boolean;
+  }) => void;
+  setSoundEnabled: (enabled: boolean) => void;
   addFromSse: (payload: NewLeadSsePayload) => void;
   markAllRead: () => void;
   markItemRead: (id: string) => void;
@@ -30,8 +37,12 @@ interface NotificationState {
 export const useNotificationStore = create<NotificationState>((set) => ({
   items: [],
   unreadCount: 0,
+  soundEnabled: true,
 
-  hydrate: ({ items, unreadCount }) => set({ items, unreadCount }),
+  hydrate: ({ items, unreadCount, soundEnabled }) =>
+    set({ items, unreadCount, soundEnabled }),
+
+  setSoundEnabled: (enabled) => set({ soundEnabled: enabled }),
 
   addFromSse: (payload) =>
     set((state) => ({

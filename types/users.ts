@@ -6,6 +6,9 @@ export type NotificationPreferences = {
   reminders: boolean;
   reactionReminder: boolean;
   managementAlerts: boolean;
+  // Звук в браузере при новом лиде — единственный ключ, который не про канал
+  // доставки (Telegram/email), а про поведение вкладки; читает его только клиент.
+  soundEnabled: boolean;
 };
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
@@ -14,6 +17,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   reminders: true,
   reactionReminder: true,
   managementAlerts: true,
+  soundEnabled: true,
 };
 
 export type UserProfileDetail = {

@@ -2,6 +2,8 @@ import { type ReactNode } from 'react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getUserNotifications } from '@/lib/notifications/getUserNotifications';
+import { parseNotificationPreferences } from '@/lib/notifications/preferences';
+import { DEFAULT_NOTIFICATION_PREFERENCES } from '@/types/users';
 import ThemeProvider from '@/components/providers/ThemeProvider';
 import SidebarCollapseProvider from '@/components/providers/SidebarCollapseProvider';
 import AppLayout from '@/components/layout/AppLayout';
@@ -63,7 +65,7 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
 
   const dbUser = await prisma.user.findUnique({
     where: { id, companyId },
-    select: { name: true, avatarUrl: true },
+    select: { name: true, avatarUrl: true, notificationPreferences: true },
   });
 
   const userName = dbUser?.name ?? '';
@@ -74,6 +76,9 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
     id,
     companyId,
   );
+  const soundEnabled = dbUser
+    ? parseNotificationPreferences(dbUser.notificationPreferences).soundEnabled
+    : DEFAULT_NOTIFICATION_PREFERENCES.soundEnabled;
 
   return (
     <ThemeProvider storageKey={`theme_user_${id}`}>
@@ -89,7 +94,11 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
             />
           }
         >
-          <SseProvider initialItems={initialItems} initialUnreadCount={initialUnreadCount}>
+          <SseProvider
+            initialItems={initialItems}
+            initialUnreadCount={initialUnreadCount}
+            initialSoundEnabled={soundEnabled}
+          >
             {isImpersonating && <ImpersonationBanner />}
             {children}
           </SseProvider>
