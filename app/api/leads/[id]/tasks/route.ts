@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { CloseType, Prisma } from '@prisma/client';
 import { hasMinRole } from '@/constants/roles';
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { writeEvent } from '@/lib/events';
@@ -23,7 +23,7 @@ async function findAccessibleLead(
   leadId: string,
   companyId: string,
   actor: Awaited<ReturnType<typeof requireCompanyUser>>,
-): Promise<{ id: string } | null> {
+): Promise<{ id: string; closeType: CloseType | null } | null> {
   const visibility = visibilityWhere(actor.role, actor.userId);
 
   const andConditions: Prisma.LeadWhereInput[] = [{ id: leadId }, { companyId }];
@@ -33,7 +33,7 @@ async function findAccessibleLead(
 
   return prisma.lead.findFirst({
     where: { AND: andConditions },
-    select: { id: true },
+    select: { id: true, closeType: true },
   });
 }
 
@@ -114,6 +114,11 @@ export async function POST(
     const lead = await findAccessibleLead(id, companyId, actor);
     if (!lead) {
       return Response.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // У закрытого лида нет следующего действия — новые задачи по нему не ставятся.
+    if (lead.closeType !== null) {
+      return Response.json({ error: 'LEAD_CLOSED' }, { status: 400 });
     }
 
     const assignee = await prisma.user.findFirst({

@@ -23,7 +23,9 @@ const REMINDER_SELECT_INCLUDE = {
  */
 export async function processReminders(now: Date = new Date()): Promise<ProcessRemindersResult> {
   const dueReminders = await prisma.reminder.findMany({
-    where: { status: 'PENDING', remindAt: { lte: now } },
+    // Напоминания по закрытым лидам не срабатывают: с лидом больше не работают.
+    // closeLead снимает их при закрытии — фильтр закрывает лиды, закрытые раньше.
+    where: { status: 'PENDING', remindAt: { lte: now }, lead: { closeType: null } },
     include: REMINDER_SELECT_INCLUDE,
   });
 

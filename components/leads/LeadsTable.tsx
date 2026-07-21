@@ -74,7 +74,11 @@ export default function LeadsTable({
           {leads.map((lead) => (
             <tr
               key={lead.id}
-              className="group border-b border-[0.5px] border-[var(--color-border)] last:border-0 hover:bg-[var(--color-bg-surface-2)] transition-colors duration-100"
+              className={`
+                group border-b border-[0.5px] border-[var(--color-border)] last:border-0
+                hover:bg-[var(--color-bg-surface-2)] transition-all duration-100
+                ${lead.closeType !== null ? 'opacity-60 hover:opacity-100' : ''}
+              `}
             >
               <td className="sticky left-0 z-10 border-r border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] px-4 py-3 group-hover:bg-[var(--color-bg-surface-2)]">
                 <div className="flex items-center gap-1.5">
@@ -137,6 +141,10 @@ export default function LeadsTable({
                       </p>
                     )}
                   </div>
+                ) : lead.closeType !== null ? (
+                  // У закрытого лида следующего действия нет по определению —
+                  // предупреждать не о чем.
+                  <span className="text-[13px] text-[var(--color-text-tertiary)]">—</span>
                 ) : (
                   <span className="text-[12px] font-medium text-[#F59E0B]">
                     Нет следующего действия

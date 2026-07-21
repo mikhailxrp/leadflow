@@ -34,7 +34,14 @@ async function findOwnedTask(
       companyId,
       lead: Object.keys(visibility).length > 0 ? visibility : undefined,
     },
-    select: { id: true, leadId: true, status: true, createdById: true, assignedToId: true },
+    select: {
+      id: true,
+      leadId: true,
+      status: true,
+      createdById: true,
+      assignedToId: true,
+      lead: { select: { closeType: true } },
+    },
   });
 }
 
@@ -69,6 +76,13 @@ export async function PATCH(
     const task = await findOwnedTask(taskId, id, companyId, role, userId);
     if (!task) {
       return Response.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // Карточка закрытого лида read-only — его задачи вместе с ней. Свои открытые
+    // задачи лид теряет при закрытии (closeLead), но у закрытых до этого правила
+    // они остались — их тоже не правим.
+    if (task.lead.closeType !== null) {
+      return Response.json({ error: 'LEAD_CLOSED' }, { status: 400 });
     }
 
     if (task.status === 'DONE' || task.status === 'CANCELLED') {
@@ -165,6 +179,10 @@ export async function DELETE(
     const task = await findOwnedTask(taskId, id, companyId, role, userId);
     if (!task) {
       return Response.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    if (task.lead.closeType !== null) {
+      return Response.json({ error: 'LEAD_CLOSED' }, { status: 400 });
     }
 
     await prisma.task.delete({ where: { id: taskId } });
