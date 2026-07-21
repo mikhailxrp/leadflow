@@ -5,6 +5,8 @@ import Toggle from '@/components/settings/Toggle';
 import TelegramBindButton from '@/components/notifications/TelegramBindButton';
 import ProfileRow from '@/components/profile/ProfileRow';
 import ProfileSectionCard from '@/components/profile/ProfileSectionCard';
+import { playNotificationSound } from '@/lib/notifications/sound';
+import { useNotificationStore } from '@/store/notificationStore';
 import type { NotificationPreferences } from '@/types/users';
 
 interface ProfileNotificationsProps {
@@ -15,7 +17,12 @@ interface ProfileNotificationsProps {
 // Профиль показывает только операционные переключатели самого пользователя;
 // управленческие ключи (reactionReminder/managementAlerts, Phase 17) сюда не входят —
 // список умышленно не выводится из keyof NotificationPreferences целиком.
-const PROFILE_PREFERENCE_KEYS = ['assignedLead', 'commentOnLead', 'reminders'] as const;
+const PROFILE_PREFERENCE_KEYS = [
+  'assignedLead',
+  'commentOnLead',
+  'reminders',
+  'soundEnabled',
+] as const;
 
 type PreferenceKey = (typeof PROFILE_PREFERENCE_KEYS)[number];
 
@@ -23,6 +30,7 @@ const PREFERENCE_LABELS: Record<PreferenceKey, string> = {
   assignedLead: 'Новый лид назначен на меня',
   commentOnLead: 'Комментарий к моему лиду',
   reminders: 'Напоминания',
+  soundEnabled: 'Звук при новом лиде',
 };
 
 export default function ProfileNotifications({
@@ -32,12 +40,21 @@ export default function ProfileNotifications({
   const [preferences, setPreferences] = useState(initialPreferences);
   const [pendingKey, setPendingKey] = useState<PreferenceKey | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const setSoundEnabled = useNotificationStore((state) => state.setSoundEnabled);
 
   async function handleToggle(key: PreferenceKey, checked: boolean): Promise<void> {
     const previous = preferences;
     setPreferences((prev) => ({ ...prev, [key]: checked }));
     setPendingKey(key);
     setError(null);
+
+    if (key === 'soundEnabled') {
+      // Звук читает SseProvider из стора — обновляем сразу, без перезагрузки страницы.
+      setSoundEnabled(checked);
+      // Клик по тумблеру — тот самый жест, который снимает запрет автовоспроизведения,
+      // поэтому проба звука здесь заодно «разблокирует» его для этой вкладки.
+      if (checked) playNotificationSound();
+    }
 
     try {
       const response = await fetch('/api/users/me/notification-preferences', {
@@ -52,6 +69,7 @@ export default function ProfileNotifications({
     } catch (err) {
       console.error(err);
       setPreferences(previous);
+      if (key === 'soundEnabled') setSoundEnabled(previous.soundEnabled);
       setError('Не удалось сохранить настройку');
     } finally {
       setPendingKey(null);

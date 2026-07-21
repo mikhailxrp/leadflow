@@ -34,5 +34,9 @@ export function parseNotificationPreferences(
       typeof record.managementAlerts === 'boolean'
         ? record.managementAlerts
         : DEFAULT_NOTIFICATION_PREFERENCES.managementAlerts,
+    soundEnabled:
+      typeof record.soundEnabled === 'boolean'
+        ? record.soundEnabled
+        : DEFAULT_NOTIFICATION_PREFERENCES.soundEnabled,
   };
 }

@@ -29,11 +29,15 @@ export async function POST(
 
     const lead = await prisma.lead.findFirst({
       where: { AND: andConditions },
-      select: { id: true },
+      select: { id: true, closeType: true },
     });
 
     if (!lead) {
       return Response.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    if (lead.closeType !== null) {
+      return Response.json({ error: 'LEAD_CLOSED' }, { status: 400 });
     }
 
     const existing = await prisma.event.findFirst({

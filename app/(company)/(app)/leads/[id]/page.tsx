@@ -58,6 +58,11 @@ export default async function LeadDetailPage({
     notFound();
   }
 
+  // Закрытый лид — архив: карточка открывается на просмотр, но ничего в ней не
+  // меняется. Исключение — квалификация: маркетинговая пометка проставляется как
+  // раз по закрытым лидам (WON/LOST) и на воронку не влияет.
+  const isClosed = lead.closeType !== null;
+
   // Serialize dates for client components
   const serializedComments = lead.comments.map((c) => ({
     id: c.id,
@@ -110,6 +115,19 @@ export default async function LeadDetailPage({
         closeType={lead.closeType}
       />
 
+      {isClosed && (
+        <div
+          className="
+            mb-6 rounded-[8px] border border-[0.5px] border-[var(--color-border)]
+            bg-[var(--color-bg-surface-2)] px-4 py-3
+            text-[13px] text-[var(--color-text-secondary)]
+          "
+        >
+          Лид закрыт — карточка доступна только для просмотра. Изменить можно
+          только квалификацию.
+        </div>
+      )}
+
       <div className="flex flex-col gap-6 xl:flex-row">
         {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col gap-6">
@@ -156,6 +174,7 @@ export default async function LeadDetailPage({
               initialPhone={lead.phone}
               initialEmail={lead.email}
               initialComment={lead.comment}
+              readOnly={isClosed}
             />
           )}
 
@@ -177,7 +196,9 @@ export default async function LeadDetailPage({
             closeType={lead.closeType}
             assignedTo={lead.assignedTo}
             stage={{ id: lead.stage.id, name: lead.stage.name }}
-            canAssign={actor.actor === 'user' && hasMinRole(actor.role, 'HEAD')}
+            canAssign={
+              actor.actor === 'user' && hasMinRole(actor.role, 'HEAD') && !isClosed
+            }
             canManage={actor.actor === 'user'}
             qualification={lead.qualification}
             canQualify={actor.actor === 'marketer' || actor.actor === 'user'}
@@ -186,7 +207,7 @@ export default async function LeadDetailPage({
           <LeadComments
             leadId={lead.id}
             comments={serializedComments}
-            canComment={actor.actor === 'user'}
+            canComment={actor.actor === 'user' && !isClosed}
           />
           {actor.actor === 'user' && (
             <TaskBlock
@@ -194,6 +215,7 @@ export default async function LeadDetailPage({
               currentUserId={actor.userId}
               canDelete={hasMinRole(actor.role, 'ADMIN')}
               highlightTaskId={taskId}
+              readOnly={isClosed}
             />
           )}
           {actor.actor === 'user' && (
@@ -202,6 +224,7 @@ export default async function LeadDetailPage({
               currentUserId={actor.userId}
               isAdmin={hasMinRole(actor.role, 'ADMIN')}
               telegramConnected={telegramConnected}
+              readOnly={isClosed}
             />
           )}
           <LeadHistory events={serializedEvents} />

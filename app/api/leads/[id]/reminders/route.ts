@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { CloseType, Prisma } from '@prisma/client';
 import { requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
 import { writeEvent } from '@/lib/events';
 import { visibilityWhere } from '@/lib/leads/visibilityFilter';
@@ -20,7 +20,7 @@ async function findAccessibleLead(
   leadId: string,
   companyId: string,
   actor: Awaited<ReturnType<typeof requireCompanyUser>>,
-): Promise<{ id: string } | null> {
+): Promise<{ id: string; closeType: CloseType | null } | null> {
   const visibility = visibilityWhere(actor.role, actor.userId);
 
   const andConditions: Prisma.LeadWhereInput[] = [{ id: leadId }, { companyId }];
@@ -30,7 +30,7 @@ async function findAccessibleLead(
 
   return prisma.lead.findFirst({
     where: { AND: andConditions },
-    select: { id: true },
+    select: { id: true, closeType: true },
   });
 }
 
@@ -99,6 +99,12 @@ export async function POST(
     const lead = await findAccessibleLead(id, companyId, actor);
     if (!lead) {
       return Response.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // Напоминание по закрытому лиду никогда не сработает (processReminders их
+    // пропускает) — не даём его создать вовсе.
+    if (lead.closeType !== null) {
+      return Response.json({ error: 'LEAD_CLOSED' }, { status: 400 });
     }
 
     const reminder = await prisma.reminder.create({

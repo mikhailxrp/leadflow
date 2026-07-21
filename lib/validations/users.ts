@@ -46,6 +46,7 @@ export const updateNotificationPreferencesSchema = z
     assignedLead: z.boolean(),
     commentOnLead: z.boolean(),
     reminders: z.boolean(),
+    soundEnabled: z.boolean(),
   })
   .partial()
   .refine((data) => Object.keys(data).length > 0, {

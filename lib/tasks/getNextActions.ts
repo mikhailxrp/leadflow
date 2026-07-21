@@ -10,6 +10,11 @@ export type NextAction = {
 /**
  * Батч-резолвер «следующего действия» лида: самая ранняя открытая задача
  * (dueDate ASC, null — последними, затем createdAt ASC) — как в GET /api/leads/:id/tasks.
+ *
+ * Закрытые лиды всегда возвращают null: у лида, с которым больше не работают,
+ * следующего действия нет по определению — ни задачи, ни предупреждения о её
+ * отсутствии. Фильтр по lead.closeType, а не только по статусу задачи, — из-за
+ * лидов, закрытых до автоотмены задач в closeLead.
  */
 export async function getNextActions(
   leadIds: string[],
@@ -26,6 +31,7 @@ export async function getNextActions(
       companyId,
       leadId: { in: leadIds },
       status: { in: ['TODO', 'IN_PROGRESS'] },
+      lead: { closeType: null },
     },
     select: {
       id: true,

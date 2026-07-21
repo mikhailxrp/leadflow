@@ -264,6 +264,20 @@ export async function PATCH(
   try {
     const where = buildLeadAccessWhere(id, user.companyId, user.role, user.userId);
 
+    const existing = await prisma.lead.findFirst({
+      where,
+      select: { id: true, closeType: true },
+    });
+
+    if (!existing) {
+      return notFoundResponse();
+    }
+
+    // Закрытый лид — только просмотр (см. карточку лида в `.docs/modules/leads.md`).
+    if (existing.closeType !== null) {
+      return Response.json({ error: 'LEAD_CLOSED' }, { status: 400 });
+    }
+
     const result = await prisma.lead.updateMany({
       where,
       data,

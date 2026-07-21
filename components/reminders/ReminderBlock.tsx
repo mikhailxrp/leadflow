@@ -39,6 +39,8 @@ interface ReminderBlockProps {
   currentUserId: string;
   isAdmin: boolean;
   telegramConnected: boolean;
+  /** Закрытый лид: напоминания видны, но не создаются, не правятся и не отменяются. */
+  readOnly?: boolean;
 }
 
 export default function ReminderBlock({
@@ -46,6 +48,7 @@ export default function ReminderBlock({
   currentUserId,
   isAdmin,
   telegramConnected,
+  readOnly = false,
 }: ReminderBlockProps): ReactNode {
   const [reminders, setReminders] = useState<ReminderData[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -84,6 +87,7 @@ export default function ReminderBlock({
   );
 
   function canManage(reminder: ReminderData): boolean {
+    if (readOnly) return false;
     return isAdmin || reminder.createdBy.id === currentUserId;
   }
 
@@ -144,14 +148,16 @@ export default function ReminderBlock({
                 {activeReminders.length}
               </span>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<Icon icon="tabler:plus" className="h-3.5 w-3.5" />}
-              onClick={openCreateModal}
-            >
-              Добавить
-            </Button>
+            {!readOnly && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Icon icon="tabler:plus" className="h-3.5 w-3.5" />}
+                onClick={openCreateModal}
+              >
+                Добавить
+              </Button>
+            )}
           </div>
         </div>
 
@@ -170,9 +176,11 @@ export default function ReminderBlock({
                 <p className="text-[13px] text-[var(--color-text-secondary)]">
                   Нет напоминаний по этому лиду
                 </p>
-                <Button variant="primary" size="sm" onClick={openCreateModal}>
-                  Добавить напоминание
-                </Button>
+                {!readOnly && (
+                  <Button variant="primary" size="sm" onClick={openCreateModal}>
+                    Добавить напоминание
+                  </Button>
+                )}
               </div>
             ) : (
               <ul className="flex flex-col divide-y divide-[var(--color-border)]">

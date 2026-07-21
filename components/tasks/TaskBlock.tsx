@@ -30,6 +30,8 @@ interface TaskBlockProps {
   currentUserId: string;
   canDelete: boolean;
   highlightTaskId?: string;
+  /** Закрытый лид: задачи видны, но не создаются, не правятся и не меняют статус. */
+  readOnly?: boolean;
 }
 
 export default function TaskBlock({
@@ -37,6 +39,7 @@ export default function TaskBlock({
   currentUserId,
   canDelete,
   highlightTaskId,
+  readOnly = false,
 }: TaskBlockProps): ReactNode {
   const [tasks, setTasks] = useState<TaskData[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -114,6 +117,7 @@ export default function TaskBlock({
   }, [highlightTaskId, highlightedTask]);
 
   function canEditTask(task: TaskData): boolean {
+    if (readOnly) return false;
     return canDelete || task.createdById === currentUserId;
   }
 
@@ -192,14 +196,16 @@ export default function TaskBlock({
                 {activeCount}
               </span>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<Icon icon="tabler:plus" className="h-3.5 w-3.5" />}
-              onClick={() => setIsAddModalOpen(true)}
-            >
-              Создать
-            </Button>
+            {!readOnly && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Icon icon="tabler:plus" className="h-3.5 w-3.5" />}
+                onClick={() => setIsAddModalOpen(true)}
+              >
+                Создать
+              </Button>
+            )}
           </div>
         </div>
 
@@ -218,13 +224,15 @@ export default function TaskBlock({
                 <p className="text-[13px] text-[var(--color-text-secondary)]">
                   Нет задач по этому лиду
                 </p>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setIsAddModalOpen(true)}
-                >
-                  Создать задачу
-                </Button>
+                {!readOnly && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setIsAddModalOpen(true)}
+                  >
+                    Создать задачу
+                  </Button>
+                )}
               </div>
             ) : (
               <>
