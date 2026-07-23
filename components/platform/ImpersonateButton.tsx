@@ -7,11 +7,13 @@ import Button from '@/components/ui/Button';
 interface ImpersonateButtonProps {
   companyId: string;
   userId: string;
+  className?: string;
 }
 
 export default function ImpersonateButton({
   companyId,
   userId,
+  className,
 }: ImpersonateButtonProps): ReactNode {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -46,6 +48,7 @@ export default function ImpersonateButton({
       size="sm"
       disabled={isLoading}
       onClick={handleClick}
+      className={className}
     >
       {isLoading ? 'Вход…' : 'Войти как поддержка'}
     </Button>

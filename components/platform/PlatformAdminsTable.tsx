@@ -5,6 +5,7 @@ import { Icon } from '@iconify/react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { MobileCard, MobileCardRow } from '@/components/platform/MobileCard';
 import { createPlatformAdminSchema } from '@/lib/validations/platform';
 import type { PlatformAdminListItem } from '@/types/platform';
 
@@ -157,7 +158,7 @@ export default function PlatformAdminsTable({
   );
 
   return (
-    <main className="px-6 py-8">
+    <main className="px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-[20px] font-medium text-[var(--color-text-primary)]">
           Администраторы платформы
@@ -188,14 +189,58 @@ export default function PlatformAdminsTable({
           Администраторы не найдены
         </p>
       ) : (
-        <div
-          className="
-            overflow-x-auto rounded-[14px]
-            border border-[0.5px] border-[var(--color-border)]
-            bg-[var(--color-bg-surface)]
-          "
-        >
-          <table className="w-full min-w-[760px] text-left">
+        <>
+          {/* Мобильные карточки (< lg) */}
+          <div className="flex flex-col gap-3 xl:hidden">
+            {sortedAdmins.map((admin) => {
+              const isCurrentAdmin = admin.id === currentAdminId;
+              const isDeleting = pendingDeleteIds.has(admin.id);
+
+              return (
+                <MobileCard key={admin.id}>
+                  <p className="mb-3 break-words text-[15px] font-medium text-[var(--color-text-primary)]">
+                    {admin.name}
+                  </p>
+                  <div className="flex flex-col">
+                    <MobileCardRow label="Email">
+                      <span className="break-all">{admin.email}</span>
+                    </MobileCardRow>
+                    <MobileCardRow label="Дата создания">
+                      {formatDate(admin.createdAt)}
+                    </MobileCardRow>
+                  </div>
+                  <div className="mt-4 border-t border-[0.5px] border-[var(--color-border)] pt-4">
+                    {isCurrentAdmin ? (
+                      <span className="block text-center text-[12px] text-[var(--color-text-secondary)]">
+                        Текущий администратор
+                      </span>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        disabled={isDeleting}
+                        onClick={() => handleDeleteAdmin(admin)}
+                        className="w-full"
+                      >
+                        {isDeleting ? 'Удаление…' : 'Удалить'}
+                      </Button>
+                    )}
+                  </div>
+                </MobileCard>
+              );
+            })}
+          </div>
+
+          {/* Таблица (≥ lg) */}
+          <div
+            className="
+              hidden overflow-x-auto rounded-[14px]
+              border border-[0.5px] border-[var(--color-border)]
+              bg-[var(--color-bg-surface)] xl:block
+            "
+          >
+            <table className="w-full min-w-[760px] text-left">
             <thead>
               <tr className="border-b border-[0.5px] border-[var(--color-border)]">
                 {['Имя', 'Email', 'Дата создания', 'Действия'].map((header) => (
@@ -255,8 +300,9 @@ export default function PlatformAdminsTable({
                 );
               })}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+        </>
       )}
 
       {isModalOpen && (

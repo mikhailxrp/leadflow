@@ -11,6 +11,7 @@ import {
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { MobileCard, MobileCardRow } from '@/components/platform/MobileCard';
 import type { MarketerCompanyItem, MarketerDetail } from '@/types/platform';
 
 interface MarketerProfileClientProps {
@@ -66,17 +67,36 @@ function CompaniesList({
   }
 
   return (
-    <div
-      className="
-        overflow-x-auto rounded-[14px]
-        border border-[0.5px] border-[var(--color-border)]
-        bg-[var(--color-bg-surface)]
-      "
-    >
-      <table className="w-full min-w-[520px] text-left">
-        <thead>
-          <tr className="border-b border-[0.5px] border-[var(--color-border)]">
-            {['Название', 'Дата создания', 'Статус'].map((header) => (
+    <>
+      {/* Мобильные карточки (< lg) */}
+      <div className="flex flex-col gap-3 xl:hidden">
+        {companies.map((company) => (
+          <MobileCard key={company.id}>
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <p className="break-words text-[15px] font-medium text-[var(--color-text-primary)]">
+                {company.name}
+              </p>
+              <CompanyStatusBadge isBlocked={company.isBlocked} />
+            </div>
+            <MobileCardRow label="Дата создания">
+              {formatDate(company.createdAt)}
+            </MobileCardRow>
+          </MobileCard>
+        ))}
+      </div>
+
+      {/* Таблица (≥ lg) */}
+      <div
+        className="
+          hidden overflow-x-auto rounded-[14px]
+          border border-[0.5px] border-[var(--color-border)]
+          bg-[var(--color-bg-surface)] xl:block
+        "
+      >
+        <table className="w-full min-w-[520px] text-left">
+          <thead>
+            <tr className="border-b border-[0.5px] border-[var(--color-border)]">
+              {['Название', 'Дата создания', 'Статус'].map((header) => (
               <th
                 key={header}
                 className="
@@ -110,9 +130,10 @@ function CompaniesList({
               </td>
             </tr>
           ))}
-        </tbody>
-      </table>
-    </div>
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -250,8 +271,8 @@ export default function MarketerProfileClient({
   }
 
   return (
-    <main className="px-6 py-8">
-      <h1 className="mb-6 text-[28px] font-medium tracking-[-0.01em] text-[var(--color-text-primary)]">
+    <main className="px-4 py-6 sm:px-6 sm:py-8">
+      <h1 className="mb-6 text-[22px] font-medium tracking-[-0.01em] text-[var(--color-text-primary)] sm:text-[28px]">
         Профиль
       </h1>
 

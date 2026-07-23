@@ -64,7 +64,7 @@ export default function PlatformLogsClient({
   const leadId = role === 'MARKETER' && leadPathMode ? selectedLead?.id : undefined;
 
   return (
-    <main className="px-6 py-8">
+    <main className="px-4 py-6 sm:px-6 sm:py-8">
       <h1 className="mb-6 text-[20px] font-medium text-[var(--color-text-primary)]">
         Логи
       </h1>
