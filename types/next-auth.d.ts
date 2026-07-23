@@ -16,10 +16,6 @@ declare module 'next-auth' {
       email: string;
       role: PlatformRole;
     };
-    marketer?: {
-      platformAdminId: string;
-      companyId: string;
-    };
   }
 
   interface User {
@@ -28,7 +24,6 @@ declare module 'next-auth' {
     role?: UserRole;
     platformRole?: PlatformRole;
     impersonatedByPlatformAdminId?: string;
-    marketerPlatformAdminId?: string;
     isDemo?: boolean;
   }
 }
@@ -42,7 +37,6 @@ declare module '@auth/core/jwt' {
     role?: UserRole;
     platformRole?: PlatformRole;
     impersonatedByPlatformAdminId?: string;
-    marketerPlatformAdminId?: string;
     email?: string;
     isDemo?: boolean;
   }
@@ -57,7 +51,6 @@ declare module 'next-auth/jwt' {
     role?: UserRole;
     platformRole?: PlatformRole;
     impersonatedByPlatformAdminId?: string;
-    marketerPlatformAdminId?: string;
     email?: string;
     isDemo?: boolean;
   }

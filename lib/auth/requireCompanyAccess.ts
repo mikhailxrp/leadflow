@@ -1,27 +1,17 @@
 import type { UserRole } from '@prisma/client';
-import { isMarketerAllowedApi } from '@/constants/marketerAccess';
 import { hasMinRole } from '@/constants/roles';
 import { auth } from '@/lib/auth';
 import type { CompanySession } from '@/types/session';
 
-export type CompanyActor =
-  | {
-      actor: 'user';
-      userId: string;
-      companyId: string;
-      role: UserRole;
-      impersonatedByPlatformAdminId?: string;
-    }
-  | {
-      actor: 'marketer';
-      platformAdminId: string;
-      companyId: string;
-    };
+export type CompanyActor = {
+  actor: 'user';
+  userId: string;
+  companyId: string;
+  role: UserRole;
+  impersonatedByPlatformAdminId?: string;
+};
 
-type UserActor = Extract<CompanyActor, { actor: 'user' }>;
-type MarketerActor = Extract<CompanyActor, { actor: 'marketer' }>;
-
-function buildUserActor(user: NonNullable<CompanySession['user']>): UserActor {
+function buildUserActor(user: NonNullable<CompanySession['user']>): CompanyActor {
   return {
     actor: 'user',
     userId: user.id,
@@ -31,22 +21,10 @@ function buildUserActor(user: NonNullable<CompanySession['user']>): UserActor {
   };
 }
 
-function buildMarketerActor(marketer: NonNullable<CompanySession['marketer']>): MarketerActor {
-  return {
-    actor: 'marketer',
-    platformAdminId: marketer.platformAdminId,
-    companyId: marketer.companyId,
-  };
-}
-
 /** Для Server Components (страницы), которые уже получили `session` через `auth()`. */
 export function toCompanyActor(session: CompanySession): CompanyActor {
-  if (session.marketer) {
-    return buildMarketerActor(session.marketer);
-  }
-
   if (!session.user) {
-    throw new Error('Invalid CompanySession: neither user nor marketer present');
+    throw new Error('Invalid CompanySession: user missing');
   }
 
   return buildUserActor(session.user);
@@ -61,14 +39,18 @@ function forbidden(): Response {
 }
 
 /**
- * Роуты, недоступные маркетологу ни при каких условиях (мутации лидов, admin-зона).
- * Маркетолог отсекается deny-by-default: 403, если сессия — actor `marketer`.
+ * Гард company-эндпоинта: требует сессию пользователя компании с ролью не ниже `minRole`.
+ *
+ * Маркетолог внутри компании больше не является отдельным виртуальным actor'ом — он
+ * входит через impersonation реального ADMIN (см. lib/platform/impersonate.ts и
+ * app/api/platform/companies/[id]/marketer-access), поэтому для авторизации он
+ * неотличим от обычного администратора компании и проходит `hasMinRole` штатно.
  */
 export async function requireCompanyUser({
   minRole,
 }: {
   minRole: UserRole;
-}): Promise<UserActor> {
+}): Promise<CompanyActor> {
   const session = await auth();
 
   if (!session || session.kind !== 'company') {
@@ -87,38 +69,16 @@ export async function requireCompanyUser({
 }
 
 /**
- * Единый guard для эндпоинтов, доступных обеим сторонам company-сессии:
- * для `user` — делегирует в `hasMinRole`, для `marketer` — сверяет allow-list по пути и методу.
+ * Совместимый со старыми вызовами гард. `method`/`pathname` больше не используются
+ * (раньше по ним сверялся allow-list маркетолога) и оставлены опциональными, чтобы не
+ * трогать десятки существующих call site'ов. Семантика — та же, что у `requireCompanyUser`.
  */
 export async function requireCompanyAccess({
   minRole,
-  method,
-  pathname,
 }: {
   minRole: UserRole;
-  method: string;
-  pathname: string;
+  method?: string;
+  pathname?: string;
 }): Promise<CompanyActor> {
-  const session = await auth();
-
-  if (!session || session.kind !== 'company') {
-    throw unauthorized();
-  }
-
-  if (session.marketer) {
-    if (!isMarketerAllowedApi(pathname, method)) {
-      throw forbidden();
-    }
-    return buildMarketerActor(session.marketer);
-  }
-
-  if (!session.user) {
-    throw unauthorized();
-  }
-
-  if (!hasMinRole(session.user.role, minRole)) {
-    throw forbidden();
-  }
-
-  return buildUserActor(session.user);
+  return requireCompanyUser({ minRole });
 }

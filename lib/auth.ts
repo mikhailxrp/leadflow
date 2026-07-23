@@ -8,7 +8,6 @@ import {
   consumeImpersonationToken,
   consumeRestoreToken,
 } from '@/lib/platform/impersonate';
-import { consumeMarketerAccessToken } from '@/lib/platform/marketerAccess';
 import { prisma } from '@/lib/prisma';
 import { loginSchema as companyLoginSchema } from '@/lib/validations/auth';
 import { loginSchema } from '@/lib/validations/platform';
@@ -27,12 +26,6 @@ type PlatformAuthUser = {
   id: string;
   email: string;
   platformRole: PlatformRole;
-};
-
-type MarketerAuthUser = {
-  kind: 'company';
-  companyId: string;
-  marketerPlatformAdminId: string;
 };
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
@@ -216,30 +209,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       },
     }),
     Credentials({
-      id: 'marketer-access',
-      name: 'MarketerAccess',
-      credentials: {
-        token: { label: 'Token', type: 'text' },
-      },
-      authorize: async (credentials) => {
-        const token = credentials?.token;
-        if (typeof token !== 'string' || token.length === 0) {
-          return null;
-        }
-
-        const data = consumeMarketerAccessToken(token);
-        if (!data) {
-          return null;
-        }
-
-        return {
-          kind: 'company' as const,
-          companyId: data.companyId,
-          marketerPlatformAdminId: data.platformAdminId,
-        };
-      },
-    }),
-    Credentials({
       id: 'demo-access',
       name: 'Demo',
       credentials: {},
@@ -279,24 +248,19 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         return token;
       }
 
-      const authUser = user as CompanyAuthUser | PlatformAuthUser | MarketerAuthUser;
+      const authUser = user as CompanyAuthUser | PlatformAuthUser;
       token.kind = authUser.kind;
 
       if (authUser.kind === 'company') {
-        if ('marketerPlatformAdminId' in authUser) {
-          token.companyId = authUser.companyId;
-          token.marketerPlatformAdminId = authUser.marketerPlatformAdminId;
-        } else {
-          token.userId = authUser.id;
-          token.companyId = authUser.companyId;
-          token.role = authUser.role;
-          if (authUser.impersonatedByPlatformAdminId) {
-            token.impersonatedByPlatformAdminId =
-              authUser.impersonatedByPlatformAdminId;
-          }
-          if (authUser.isDemo) {
-            token.isDemo = true;
-          }
+        token.userId = authUser.id;
+        token.companyId = authUser.companyId;
+        token.role = authUser.role;
+        if (authUser.impersonatedByPlatformAdminId) {
+          token.impersonatedByPlatformAdminId =
+            authUser.impersonatedByPlatformAdminId;
+        }
+        if (authUser.isDemo) {
+          token.isDemo = true;
         }
       } else {
         token.adminId = authUser.id;
@@ -316,17 +280,10 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         platformRole,
         email,
         impersonatedByPlatformAdminId,
-        marketerPlatformAdminId,
         isDemo,
       } = token;
 
-      if (kind === 'company' && marketerPlatformAdminId && companyId) {
-        session.kind = 'company';
-        session.marketer = {
-          platformAdminId: marketerPlatformAdminId,
-          companyId,
-        };
-      } else if (kind === 'company' && userId && companyId && role) {
+      if (kind === 'company' && userId && companyId && role) {
         session.kind = 'company';
         session.user = {
           ...session.user,

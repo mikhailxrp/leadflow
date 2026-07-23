@@ -15,16 +15,14 @@ export async function writeEvent(
 ): Promise<void> {
   const session = await auth();
 
-  let userId = opts.userId ?? null;
+  const userId = opts.userId ?? null;
   let impersonatedByPlatformAdminId: string | null = null;
 
-  if (session?.kind === 'company') {
-    if (session.marketer) {
-      userId = null;
-      impersonatedByPlatformAdminId = session.marketer.platformAdminId;
-    } else if (session.user?.impersonatedByPlatformAdminId) {
-      impersonatedByPlatformAdminId = session.user.impersonatedByPlatformAdminId;
-    }
+  if (
+    session?.kind === 'company' &&
+    session.user?.impersonatedByPlatformAdminId
+  ) {
+    impersonatedByPlatformAdminId = session.user.impersonatedByPlatformAdminId;
   }
 
   const { payload = {}, leadId = null } = opts;

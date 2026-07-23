@@ -1,5 +1,6 @@
 import { requireCompanyAccess, requireCompanyUser } from '@/lib/auth/requireCompanyAccess';
-import { assignLead } from '@/lib/assignLead';
+import { hasMinRole } from '@/constants/roles';
+import { assignLead, assignLeadTo } from '@/lib/assignLead';
 import { createLead } from '@/lib/intake/createLead';
 import { findPossibleDuplicates } from '@/lib/intake/findPossibleDuplicates';
 import { flagPossibleDuplicates } from '@/lib/intake/flagPossibleDuplicates';
@@ -102,9 +103,18 @@ export async function POST(request: Request): Promise<Response> {
 
     void enrichYandexLead(lead.id, companyId).catch(console.error);
 
-    await assignLead(lead.id, companyId).catch((error) => {
-      console.error('[POST /api/leads] assignLead failed:', error);
-    });
+    // Лид, созданный менеджером, закрепляется за самим создателем — правила назначения к нему
+    // не применяются. Каскад правил (assignLead) работает только для лидов из источников и
+    // созданных руководителем/администратором (HEAD и выше).
+    if (hasMinRole(user.role, 'HEAD')) {
+      await assignLead(lead.id, companyId).catch((error) => {
+        console.error('[POST /api/leads] assignLead failed:', error);
+      });
+    } else {
+      await assignLeadTo(lead.id, companyId, user.userId, user.userId).catch((error) => {
+        console.error('[POST /api/leads] assignLeadTo (creator) failed:', error);
+      });
+    }
 
     void notifyNewLead(lead.id, companyId).catch((error) => {
       console.error('[POST /api/leads] notifyNewLead failed:', error);

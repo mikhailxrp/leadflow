@@ -140,19 +140,17 @@ export default async function AdminIntegrationsPage() {
 
   const actor = toCompanyActor(session as CompanySession);
 
-  if (actor.actor === 'user' && !hasMinRole(actor.role, 'ADMIN')) {
+  if (!hasMinRole(actor.role, 'ADMIN')) {
     redirect('/today');
   }
 
   const { companyId } = actor;
 
   const [dbUser, apiKeys, sourceHealth, settings, yandexStatus, metrikaStatus] = await Promise.all([
-    actor.actor === 'user'
-      ? prisma.user.findUnique({
-          where: { id: actor.userId, companyId },
-          select: { name: true, avatarUrl: true },
-        })
-      : Promise.resolve(null),
+    prisma.user.findUnique({
+      where: { id: actor.userId, companyId },
+      select: { name: true, avatarUrl: true },
+    }),
     listApiKeys(companyId),
     getSourceHealth(companyId),
     getSettings(companyId),
@@ -163,7 +161,6 @@ export default async function AdminIntegrationsPage() {
   const userName = dbUser?.name ?? '';
   const userInitials = computeInitials(userName);
   const yandexMode = settings.yandexMode ?? 'UTM';
-  const isMarketer = actor.actor === 'marketer';
 
   const initialApiKeys = apiKeys.map((key) => ({
     ...key,
@@ -193,10 +190,8 @@ export default async function AdminIntegrationsPage() {
 
         <div className="flex items-center gap-3">
           <IconButton aria-label="Поиск" icon={<SearchIcon />} />
-          {!isMarketer && <NotificationBell />}
-          {!isMarketer && (
-            <Avatar initials={userInitials} src={dbUser?.avatarUrl ?? undefined} size="sm" />
-          )}
+          <NotificationBell />
+          <Avatar initials={userInitials} src={dbUser?.avatarUrl ?? undefined} size="sm" />
         </div>
       </header>
 
@@ -219,7 +214,7 @@ export default async function AdminIntegrationsPage() {
             webhookUrl={webhookUrls?.tildaUrl ?? null}
             health={tildaHealth}
             initialEnabled={settings.sourceEnabled.tilda}
-            readOnly={isMarketer}
+            readOnly={false}
           />
 
           <WebhookSourceCard
@@ -235,14 +230,14 @@ export default async function AdminIntegrationsPage() {
             webhookUrl={webhookUrls?.wordpressUrl ?? null}
             health={wordpressHealth}
             initialEnabled={settings.sourceEnabled.wordpress}
-            readOnly={isMarketer}
+            readOnly={false}
           />
 
           <YandexDirectCard
             initialMode={yandexMode}
             initialConnected={yandexStatus.connected}
             initialLogin={yandexStatus.login}
-            readOnly={isMarketer}
+            readOnly={false}
           />
 
           <YandexMetrikaCard
@@ -250,7 +245,7 @@ export default async function AdminIntegrationsPage() {
             initialLogin={metrikaStatus.login}
             initialCounterId={settings.yandexMetrika?.counterId ?? ''}
             initialGoalId={settings.yandexMetrika?.qualifiedGoalId ?? ''}
-            isMarketer={isMarketer}
+            isMarketer={false}
           />
 
           <IntegrationCard

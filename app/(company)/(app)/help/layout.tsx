@@ -20,7 +20,7 @@ export default async function HelpLayout({
   children: ReactNode;
 }): Promise<ReactNode> {
   const session = await auth();
-  const showBell = session?.kind === 'company' && Boolean(session.user) && !session.marketer;
+  const showBell = session?.kind === 'company' && Boolean(session.user);
 
   return (
     <>

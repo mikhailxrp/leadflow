@@ -8,6 +8,8 @@
 > **v4.2** — тумблер включения источника на `/admin/integrations` (см. `.docs/modules/integrations.md`)
 > **v4.3** — OAuth-подключение Яндекс Директа, server-only токены на `Company` (см. `.docs/modules/integrations.md` → «Яндекс Директ»)
 > **v4.4** — OAuth-подключение Яндекс.Метрики (отдельное приложение), server-only токены на `Company` (см. `.docs/modules/integrations.md` → «Экспорт квалификаций в Яндекс.Метрику»)
+> **v4.5** — маркетолог входит в свои компании «как поддержка» через impersonation администратора компании (полные права ADMIN на время сеанса); прежний виртуальный actor `marketer` + allow-list `constants/marketerAccess.ts` удалены (см. `.docs/modules/platform-marketer.md` → «Вход маркетолога внутрь компании»)
+> **v4.6** — удаление заблокированной компании владельцем (SUPER_ADMIN — платформенные, MARKETER — свои): hard-delete всех данных тенанта + email суперадминам с контактами админов удалённой компании (`lib/platform/deleteCompany.ts`, `DELETE /api/platform/companies/:id`, см. `.docs/modules/platform-admin.md` → «Удаление компании»)
 
 ---
 
@@ -28,8 +30,9 @@
 Маркетолог                     — вне любой компании (PlatformRole: MARKETER), создаёт компании и
                                  отвечает за них (блокировка, дата платежа, активность, логи),
                                  видит только свои (созданные + предоставленные грантом). Внутрь
-                                 своих компаний входит в ограниченном режиме (allow-list): лиды
-                                 (просмотр + квалификация), воронка (просмотр), отчёты, интеграции.
+                                 своих компаний входит «как поддержка» через impersonation
+                                 администратора компании — на время сеанса получает полные права
+                                 ADMIN (как суперадмин при impersonation), см. platform-marketer.md.
 Администратор (компании)       — настройки, пользователи, поля, этапы, источники, нормативы, права
 Руководитель                   — + все лиды, все сотрудники, контроль, отчёты, распределение нагрузки
 Менеджер                        — свои лиды, свои задачи, свои просрочки, доступная история
@@ -145,7 +148,7 @@
 │       ├── auth/
 │       ├── platform/                # Отдельный namespace, своя проверка сессии + явный список PlatformRole
 │       │   ├── login/
-│       │   ├── companies/           # + [id]/grants/, [id]/marketer-access/
+│       │   ├── companies/           # + [id]/grants/, [id]/marketer-access/; [id] route: PATCH (блок/дата платежа) + DELETE (hard-delete заблокированной, v4.6)
 │       │   ├── admins/
 │       │   ├── marketers/           # GET/POST список+создание, [id] — только просмотр + каскадная блокировка
 │       │   ├── profile/             # PATCH + avatar/ (POST/DELETE) — self-service самого маркетолога
@@ -201,7 +204,7 @@
 │   ├── assignLead.ts             # AssignmentRule → assignMode
 │   ├── roundRobin.ts
 │   ├── auth/
-│   │   └── requireCompanyAccess.ts # единый guard company-зоны: hasMinRole ИЛИ allow-list маркетолога
+│   │   └── requireCompanyAccess.ts # guard company-зоны по hasMinRole (маркетолог = обычная сессия ADMIN через impersonation)
 │   ├── users/
 │   │   └── profile.ts              # toUserProfileDetail + USER_PROFILE_SELECT — общий маппинг для /profile и /team/:id
 │   ├── company/                    # НОВОЕ
@@ -209,10 +212,12 @@
 │   ├── platform/                  # НОВОЕ
 │   │   ├── auth.ts                 # requirePlatformSession({ roles }) — явный список PlatformRole
 │   │   ├── createCompany.ts        # + createdByPlatformAdminId из сессии
-│   │   ├── impersonate.ts
-│   │   ├── marketerAccess.ts       # токены входа маркетолога внутрь компании
+│   │   ├── impersonate.ts          # токены входа: impersonation суперадмина И вход маркетолога «как поддержка»
 │   │   ├── companyVisibility.ts    # where-скоупы владения/грантов для обеих платформенных ролей
 │   │   ├── cascadeBlock.ts         # каскадная блокировка/разблокировка компаний маркетолога
+│   │   ├── deleteCompany.ts        # НОВОЕ (v4.6) — hard-delete всех данных компании (prisma-only, без server-only: общий для DELETE-эндпоинта и CLI)
+│   │   ├── cleanupCompanyAssets.ts # НОВОЕ (v4.6) — best-effort S3-очистка (server-only, только эндпоинт; отделён от deleteCompany, т.к. CLI не резолвит server-only)
+│   │   ├── sendCompanyDeletedEmail.ts # НОВОЕ (v4.6) — письмо суперадминам с контактами админов удалённой компании
 │   │   └── companyActivity.ts      # отчёты об активности компаний
 │   ├── risk/
 │   │   └── computeRisk.ts
@@ -231,7 +236,7 @@
 │   │   └── checkSourceHealth.ts
 │   └── validations/
 │
-├── constants/                     # roles.ts (ROLE_RANK/hasMinRole), marketerAccess.ts (allow-list маркетолога), navItems.ts, legalForms.ts (НОВОЕ — LEGAL_FORM_LABELS/OPTIONS), eventTypes, leadSources, defaultStages, defaultLossReasons
+├── constants/                     # roles.ts (ROLE_RANK/hasMinRole), navItems.ts, legalForms.ts (НОВОЕ — LEGAL_FORM_LABELS/OPTIONS), eventTypes, leadSources, defaultStages, defaultLossReasons
 ├── store/
 ├── types/
 ├── prisma/                         # schema.prisma + migrations
@@ -278,7 +283,7 @@ if (session.user.role !== 'ADMIN' && session.user.role !== 'HEAD')
 **Исключения из `hasMinRole` (v4.1):**
 
 - **Платформенные роли** (`SUPER_ADMIN`/`MARKETER`) — не иерархия, проверяются явным списком: `requirePlatformSession({ roles: ["SUPER_ADMIN"] })`.
-- **Маркетолог внутри компании** — не роль компании, а виртуальный actor `marketer` в сессии `kind: "company"` без записи `User`. Его права — явный allow-list (`constants/marketerAccess.ts`), deny-by-default: эндпоинт, не перечисленный там, отвечает маркетологу 403. В `UserRole` и `ROLE_RANK` маркетолог **не добавляется** — его набор прав не ложится в линейную иерархию (отчёты уровня HEAD + интеграции уровня ADMIN, но без действий с лидами уровня MANAGER). Единая точка проверки company-зоны — `lib/auth/requireCompanyAccess.ts`.
+- **Маркетолог внутри компании (v4.5)** — больше **не** отдельный actor company-зоны. Вход «как поддержка» открывает impersonation реального `ADMIN` компании (тот же механизм, что у суперадмина, см. `lib/platform/impersonate.ts` и `app/api/platform/companies/[id]/marketer-access`), поэтому для company-зоны маркетолог неотличим от обычного администратора: обычная сессия `kind: "company"` с `session.user`, ролью `ADMIN` и `impersonatedByPlatformAdminId` = id маркетолога. Никакого allow-list и виртуального actor'а нет; `hasMinRole` применяется штатно. В `UserRole`/`ROLE_RANK` маркетолог по-прежнему **не добавляется** (он — платформенная роль, а внутри компании «надевает» личность её админа).
 
 **Блокировка компании (`Company.isBlocked`) проверяется при входе**, не на каждый запрос — см. `database.md` → «Блокировка компании». Приём лидов по вебхукам не зависит от этого флага вообще.
 
@@ -297,8 +302,8 @@ Server Component по умолчанию, явные REST API Routes, Zod-вал
 - Все входы валидируются через Zod.
 - Защита роутов через `proxy.ts` + проверка роли и `companyId`.
 - **Платформенная сессия и сессия пользователя компании — разные `session.kind`.** Ни один эндпоинт `/api/platform/`\* не принимает сессию компании, и наоборот — это не просто проверка роли, это проверка типа сессии целиком. Внутри `kind: "platform"` каждый эндпоинт дополнительно объявляет явный список допустимых `PlatformRole`.
-- **Impersonation-сессия логируется на старте и на конце** (`PLATFORM_IMPERSONATION_STARTED`/`ENDED`), каждое действие внутри неё аннотируется `impersonatedByPlatformAdminId` в `events`. Вход маркетолога — аналогично (`MARKETER_ACCESS_STARTED`/`ENDED`, та же аннотация, `userId = null`).
-- **Права маркетолога внутри компании — allow-list, deny-by-default** (`constants/marketerAccess.ts`): новые эндпоинты закрыты от маркетолога, пока не разрешены явно.
+- **Impersonation-сессия логируется на старте и на конце** (`PLATFORM_IMPERSONATION_STARTED`/`ENDED`), каждое действие внутри неё аннотируется `impersonatedByPlatformAdminId` в `events`. Вход маркетолога — тот же механизм impersonation (`MARKETER_ACCESS_STARTED`/`ENDED`, та же аннотация), но `userId` = id администратора компании, чью личность маркетолог надел (не `null`): по паре `userId` + `impersonatedByPlatformAdminId` в аудите видно и «под кем», и «кто на самом деле».
+- **Маркетолог входит только в свои компании** (владение + гранты) — гейт `visibilityWhere(session.admin)` в `POST /api/platform/companies/[id]/marketer-access`; целью impersonation выбирается самый ранний активный `ADMIN` компании (нет активного админа → 409).
 - API-ключи и пароли — хэшированные.
 
 ---
@@ -311,6 +316,7 @@ Server Component по умолчанию, явные REST API Routes, Zod-вал
 - Фиксированные поля — извлекаются если есть, иначе `null`.
 - Каждая заявка = отдельный лид. Совпадение по телефону/email **не блокирует и не объединяет** — создаётся `DuplicateFlag`, лид всё равно сохраняется.
 - **Блокировка компании не останавливает приём** — вебхуки `leads-intake` не проверяют `Company.isBlocked`. Если компания временно заблокирована, входящие лиды не теряются и будут на месте при разблокировке.
+- **Удаление компании (v4.6) — единственное действие, которое навсегда останавливает приём.** Только владелец и только для уже заблокированной компании: hard-delete строки `Company` и всех данных тенанта. Приём прекращается сам собой — вебхуки Tilda/WordPress не находят компанию по id (404), универсальный webhook не находит API-ключ (удалён). Это не противоречит «лид нельзя потерять»: инвариант защищает от случайной потери (неизвестные поля, дубль, временная блокировка), а удаление — явное необратимое решение владельца по мёртвому клиенту. Не добавляй проверку `deletedAt`/удаления в intake — компании просто не существует.
 - Источник определяется по параметру `source`, привязке API-ключа или пути (`/api/webhooks/tilda/[companyId]`).
 - **Единственное намеренное исключение (v4.2):** источник, выключенный администратором тумблером на `/admin/integrations` (`Company.settings.sourceEnabled` для Tilda/WordPress, `ApiKey.isEnabled` для универсального webhook), **отклоняет вебхук на входе** (`403 SOURCE_DISABLED`) — лид не создаётся. Это отличается от блокировки компании: выключенный источник — явное действие «у меня нет такого канала», а не временное состояние вне контроля клиента. Не путать одно с другим и не переносить эту логику на `Company.isBlocked` или наоборот. См. `.docs/modules/integrations.md` → «Тумблер включения источника».
 
@@ -352,13 +358,8 @@ export const proxy = auth((req) => {
 		return NextResponse.redirect(new URL('/login', req.url));
 	}
 
-	// (v4.1) Маркетолог внутри компании — виртуальный actor без User: только allow-list страниц
-	// (constants/marketerAccess.ts): /leads, /pipeline, /reports, /admin/integrations; остальное → /leads
-	if (session.marketer) {
-		if (!isMarketerAllowedPath(pathname))
-			return NextResponse.redirect(new URL('/leads', req.url));
-		return NextResponse.next();
-	}
+	// (v4.5) Отдельной ветки для маркетолога здесь больше нет: внутри компании он —
+	// обычная impersonation-сессия администратора, проходит проверки роли как ADMIN.
 
 	// HEAD и выше
 	if (
@@ -479,13 +480,14 @@ YANDEX_METRIKA_OAUTH_REDIRECT_URI=
 - Только TypeScript, Server Component по умолчанию, Zod перед записью, `where: { companyId }` всегда.
 - **Проверка роли компании — всегда через `hasMinRole()`**, никогда явным перечислением значений enum. **Платформенные роли — наоборот, только явным списком** (`requirePlatformSession({ roles })`): `SUPER_ADMIN`/`MARKETER` — не иерархия.
 - **Сессия платформенного администратора и сессия компании никогда не смешиваются** — ни в одном route handler не должно быть кода, который принимает оба типа `session.kind`.
-- **Маркетолог внутри компании — allow-list, deny-by-default** (`constants/marketerAccess.ts` + `lib/auth/requireCompanyAccess.ts`). Никогда не добавляй `MARKETER` в `UserRole`/`ROLE_RANK` и не создавай для маркетолога записей `User`; в его событиях `userId = null` + аннотация `impersonatedByPlatformAdminId`.
+- **Маркетолог внутри компании — impersonation администратора компании (v4.5), не allow-list.** Вход «как поддержка» открывает обычную company-сессию реального `ADMIN` (полные права ADMIN на время сеанса, только в свои/грантованные компании). Не воссоздавай виртуальный actor `marketer`, `constants/marketerAccess.ts` или allow-list — они удалены; не добавляй `MARKETER` в `UserRole`/`ROLE_RANK`. В его событиях `userId` = id этого администратора + аннотация `impersonatedByPlatformAdminId` = маркетолог (проставляется автоматически в `lib/events.ts`).
 - **Видимость компаний на платформенном уровне — через `lib/platform/companyVisibility.ts`** (владение + гранты), не ручными `where` в роутах.
 - **Дубль — это пометка, никогда блокировка.**
 - **Блокировка компании проверяется при входе, не в каждом мутирующем эндпоинте** — не добавляй повторную проверку `isBlocked` в обычные API-роуты, она уже сделана в `authorize()`.
+- **Удаление компании — hard-delete, только владельцем и только заблокированной (v4.6).** Гейты `DELETE /api/platform/companies/:id`: `canManageCompany` (SUPER_ADMIN — платформенные, MARKETER — свои; суперадмин не удаляет компанию маркетолога) + `isBlocked === true` (иначе `409 COMPANY_NOT_BLOCKED`). Удаление данных — только через `lib/platform/deleteCompany.ts` (единый список всех таблиц с FK на `Company`, транзакция), эту же функцию использует CLI `scripts/deleteCompany.ts` — не дублируй список deleteMany. Контакты админов и файлы S3 собираются ДО удаления; письмо суперадминам и очистка S3 — после коммита (их сбой не откатывает удаление). Отдельного `COMPANY_DELETED`-события нет: при hard-delete оно бы удалилось вместе с компанией, письмо и есть запись.
 - **Блокировка маркетолога — каскадная** (его активные компании блокируются с флагом `blockedByMarketerCascade` + email суперадминам с контактами администраторов) — реализация только через `lib/platform/cascadeBlock.ts`, не разрозненными апдейтами.
 - **Профиль маркетолога (ФИО/телефон/соцсети/аватар) редактирует только сам маркетолог** через `/platform/profile` (self-service, `PATCH/POST/DELETE` действуют строго на `session.admin.id`). `SUPER_ADMIN` видит `/platform/marketers/:id` в режиме только чтения — не добавляй туда форму редактирования или загрузку аватара за другого пользователя.
-- **Impersonation реального `User` — только SUPER_ADMIN.** Никогда не реализовывай прямой доступ к паролю клиента или его сброс платформенным администратором без объяснимой причины — для этого есть `forgot-password`.
+- **Impersonation реального `User`:** SUPER_ADMIN — в любого пользователя своих компаний (+ по предоставленному `companyId`), с выбором пользователя; MARKETER (v4.5) — «как поддержка» только в свои/грантованные компании, целью автоматически берётся администратор компании (без выбора). Никогда не реализовывай прямой доступ к паролю клиента или его сброс платформенным пользователем без объяснимой причины — для этого есть `forgot-password`.
 - **Вход суперадмина «как поддержка» в компанию маркетолога — намеренно не завязан на `company.manageable`.** Маркетолог видит и копирует `companyId` своей компании на её карточке и передаёт его суперадмину вне системы; суперадмин вводит этот id в «Войти в компанию по ID» на `/platform/companies` и должен суметь войти как поддержка. Не добавляй `&& company.manageable` к проверке `canImpersonate` — это заблокирует именно этот сценарий.
 - **Квалификация лида (`Lead.qualification`) не влияет на воронку, назначение, эскалацию и риск** — параллельная маркетинговая пометка.
 - Приём лида не должен падать из-за неизвестных полей, дубля или блокировки компании (включая каскадную).
