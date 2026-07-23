@@ -17,7 +17,7 @@ type RestoreData = {
 // модули), поэтому Map, заполненная при выдаче токена в /api/platform/..., может
 // оказаться пустой в момент его проверки в authorize() NextAuth-колбэка — вход
 // тогда падает на дефолтную страницу NextAuth. globalThis один на процесс — тот же
-// приём, что и для prisma-клиента (lib/prisma.ts). См. lib/platform/marketerAccess.ts.
+// приём, что и для prisma-клиента (lib/prisma.ts).
 const globalForImpersonation = globalThis as unknown as {
   impersonationTokens?: Map<string, ImpersonationData>;
   restoreTokens?: Map<string, RestoreData>;

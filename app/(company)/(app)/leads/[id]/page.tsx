@@ -196,37 +196,31 @@ export default async function LeadDetailPage({
             closeType={lead.closeType}
             assignedTo={lead.assignedTo}
             stage={{ id: lead.stage.id, name: lead.stage.name }}
-            canAssign={
-              actor.actor === 'user' && hasMinRole(actor.role, 'HEAD') && !isClosed
-            }
-            canManage={actor.actor === 'user'}
+            canAssign={hasMinRole(actor.role, 'HEAD') && !isClosed}
+            canManage
             qualification={lead.qualification}
-            canQualify={actor.actor === 'marketer' || actor.actor === 'user'}
+            canQualify
             dealValueEstimated={lead.dealValueEstimated}
           />
           <LeadComments
             leadId={lead.id}
             comments={serializedComments}
-            canComment={actor.actor === 'user' && !isClosed}
+            canComment={!isClosed}
           />
-          {actor.actor === 'user' && (
-            <TaskBlock
-              leadId={lead.id}
-              currentUserId={actor.userId}
-              canDelete={hasMinRole(actor.role, 'ADMIN')}
-              highlightTaskId={taskId}
-              readOnly={isClosed}
-            />
-          )}
-          {actor.actor === 'user' && (
-            <ReminderBlock
-              leadId={lead.id}
-              currentUserId={actor.userId}
-              isAdmin={hasMinRole(actor.role, 'ADMIN')}
-              telegramConnected={telegramConnected}
-              readOnly={isClosed}
-            />
-          )}
+          <TaskBlock
+            leadId={lead.id}
+            currentUserId={actor.userId}
+            canDelete={hasMinRole(actor.role, 'ADMIN')}
+            highlightTaskId={taskId}
+            readOnly={isClosed}
+          />
+          <ReminderBlock
+            leadId={lead.id}
+            currentUserId={actor.userId}
+            isAdmin={hasMinRole(actor.role, 'ADMIN')}
+            telegramConnected={telegramConnected}
+            readOnly={isClosed}
+          />
           <LeadHistory events={serializedEvents} />
         </aside>
       </div>

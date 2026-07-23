@@ -28,9 +28,11 @@ export default function MarketerAccessButton({
 
       const data = (await response.json()) as { token: string };
 
-      await signIn('marketer-access', {
+      // Вход маркетолога = impersonation реального ADMIN компании (полные права на
+      // время сеанса поддержки). Тот же провайдер, что и у суперадмина.
+      await signIn('impersonation', {
         token: data.token,
-        redirectTo: '/leads',
+        redirectTo: '/today',
       });
     } catch (error) {
       console.error('Marketer access failed:', error);

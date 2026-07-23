@@ -11,7 +11,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import ImpersonationBanner from '@/components/platform/ImpersonationBanner';
 import MarketerBanner from '@/components/platform/MarketerBanner';
 import SseProvider from '@/components/notifications/SseProvider';
-import { getMarketerNavItems, getNavItemsForRole } from '@/constants/navItems';
+import { getNavItemsForRole } from '@/constants/navItems';
 
 function computeInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -31,32 +31,6 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
     return <>{children}</>;
   }
 
-  if (session.marketer) {
-    const company = await prisma.company.findUnique({
-      where: { id: session.marketer.companyId },
-      select: { name: true },
-    });
-
-    return (
-      <ThemeProvider storageKey={`theme_marketer_${session.marketer.platformAdminId}`}>
-        <SidebarCollapseProvider storageKey={`sidebar_marketer_${session.marketer.platformAdminId}`}>
-          <AppLayout
-            sidebar={
-              <Sidebar
-                items={getMarketerNavItems()}
-                userName="Маркетолог"
-                userInitials="М"
-              />
-            }
-          >
-            <MarketerBanner companyName={company?.name ?? ''} />
-            {children}
-          </AppLayout>
-        </SidebarCollapseProvider>
-      </ThemeProvider>
-    );
-  }
-
   if (!session.user) {
     return <>{children}</>;
   }
@@ -71,7 +45,28 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
   const userName = dbUser?.name ?? '';
   const userInitials = computeInitials(userName);
   const navItems = getNavItemsForRole(role);
-  const isImpersonating = Boolean(impersonatedByPlatformAdminId);
+
+  // Красная плашка «вы вошли под чужой личностью» рисуется для обеих платформенных
+  // ролей, но с разным текстом и точкой выхода: маркетолог входит как реальный ADMIN
+  // компании (impersonation), поэтому отличаем его от суперадмина по роли инициатора.
+  let impersonationBanner: ReactNode = null;
+  if (impersonatedByPlatformAdminId) {
+    const initiator = await prisma.platformAdmin.findUnique({
+      where: { id: impersonatedByPlatformAdminId },
+      select: { role: true },
+    });
+
+    if (initiator?.role === 'MARKETER') {
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { name: true },
+      });
+      impersonationBanner = <MarketerBanner companyName={company?.name ?? ''} />;
+    } else {
+      impersonationBanner = <ImpersonationBanner />;
+    }
+  }
+
   const { items: initialItems, unreadCount: initialUnreadCount } = await getUserNotifications(
     id,
     companyId,
@@ -99,7 +94,7 @@ export default async function AppShell({ children }: AppShellProps): Promise<Rea
             initialUnreadCount={initialUnreadCount}
             initialSoundEnabled={soundEnabled}
           >
-            {isImpersonating && <ImpersonationBanner />}
+            {impersonationBanner}
             {children}
           </SseProvider>
         </AppLayout>

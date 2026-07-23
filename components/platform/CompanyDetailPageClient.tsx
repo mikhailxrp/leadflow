@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, type ChangeEvent, type ReactNode } from 'react';
 import CompanyGrantsSection from '@/components/platform/CompanyGrantsSection';
+import DeleteCompanyButton from '@/components/platform/DeleteCompanyButton';
 import ImpersonateButton from '@/components/platform/ImpersonateButton';
 import Button from '@/components/ui/Button';
 import { LEGAL_FORM_LABELS } from '@/constants/legalForms';
@@ -312,14 +313,20 @@ export default function CompanyDetailPageClient({
 
         {company.manageable ? (
           company.isBlocked ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={isBlockPending}
-              onClick={handleToggleBlock}
-            >
-              Разблокировать компанию
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isBlockPending}
+                onClick={handleToggleBlock}
+              >
+                Разблокировать компанию
+              </Button>
+              <DeleteCompanyButton
+                companyId={company.id}
+                companyName={company.name}
+              />
+            </div>
           ) : (
             <Button
               variant="danger"

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { deleteCompanyData } from '@/lib/platform/deleteCompany';
 import { prisma } from '@/lib/prisma';
 
 function loadEnvFile(): void {
@@ -39,37 +40,15 @@ async function main(): Promise<void> {
     throw new Error('Usage: npx tsx scripts/deleteCompany.ts <companyId>');
   }
 
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { id: true, name: true },
-  });
+  // Единый источник правды по удалению — lib/platform/deleteCompany.ts (та же
+  // функция, что и у эндпоинта DELETE /api/platform/companies/:id), чтобы список
+  // таблиц не расходился между CLI и приложением.
+  // Очистку S3 (cleanupCompanyAssets) CLI не вызывает намеренно: она зависит от
+  // `lib/s3` → `server-only`, который не резолвится в tsx. Осиротевшие файлы при
+  // удалении через CLI можно почистить вручную; из UI-эндпоинта S3 чистится.
+  const info = await deleteCompanyData(companyId);
 
-  if (!company) {
-    throw new Error(`Компания с id "${companyId}" не найдена.`);
-  }
-
-  // Удаляем всё, что ссылается на компанию, в порядке зависимостей (дети раньше
-  // родителей), затем саму компанию. Каждый запрос ограничен companyId — данные
-  // других компаний и платформенных администраторов не затрагиваются.
-  await prisma.$transaction([
-    prisma.reminder.deleteMany({ where: { companyId } }),
-    prisma.task.deleteMany({ where: { companyId } }),
-    prisma.duplicateFlag.deleteMany({ where: { companyId } }),
-    prisma.comment.deleteMany({ where: { lead: { companyId } } }),
-    prisma.event.deleteMany({ where: { companyId } }),
-    prisma.lead.deleteMany({ where: { companyId } }),
-    prisma.assignmentRule.deleteMany({ where: { companyId } }),
-    prisma.apiKey.deleteMany({ where: { companyId } }),
-    prisma.integrationSource.deleteMany({ where: { companyId } }),
-    prisma.importBatch.deleteMany({ where: { companyId } }),
-    prisma.lossReason.deleteMany({ where: { companyId } }),
-    prisma.pipelineStage.deleteMany({ where: { companyId } }),
-    prisma.companyInvite.deleteMany({ where: { companyId } }),
-    prisma.user.deleteMany({ where: { companyId } }),
-    prisma.company.delete({ where: { id: companyId } }),
-  ]);
-
-  console.log(`Компания "${company.name}" (${companyId}) удалена.`);
+  console.log(`Компания "${info.companyName}" (${companyId}) удалена.`);
 }
 
 main()
