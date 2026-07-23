@@ -113,8 +113,7 @@ function buildWhere(
   params: LeadsQueryInput,
   actor: CompanyActor,
 ): Prisma.LeadWhereInput {
-  // Маркетолог видит все лиды компании (как HEAD) — visibilityWhere к нему не применяется.
-  const visibility = actor.actor === 'user' ? visibilityWhere(actor.role, actor.userId) : {};
+  const visibility = visibilityWhere(actor.role, actor.userId);
 
   const andConditions: Prisma.LeadWhereInput[] = [{ companyId }];
 

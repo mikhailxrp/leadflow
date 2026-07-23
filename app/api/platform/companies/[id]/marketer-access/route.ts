@@ -1,7 +1,7 @@
 import { writeEvent } from '@/lib/events';
 import { requirePlatformSession } from '@/lib/platform/auth';
 import { visibilityWhere } from '@/lib/platform/companyVisibility';
-import { createMarketerAccessToken } from '@/lib/platform/marketerAccess';
+import { createImpersonationToken } from '@/lib/platform/impersonate';
 import { prisma } from '@/lib/prisma';
 import { marketerAccessParamsSchema } from '@/lib/validations/platform';
 
@@ -52,16 +52,34 @@ export async function POST(
     return Response.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const token = createMarketerAccessToken({
-    platformAdminId: session.admin.id,
+  // Маркетолог входит в свою компанию «как поддержка» через impersonation реального
+  // администратора компании — на время сеанса он получает полный набор прав ADMIN.
+  // Цель — самый ранний активный (не заблокированный) администратор. События внутри
+  // сессии атрибутируются на него + аннотация impersonatedByPlatformAdminId = маркетолог
+  // (writeEvent, lib/events.ts) — по ней в аудите всегда видно, что действовал маркетолог.
+  const targetAdmin = await prisma.user.findFirst({
+    where: { companyId, role: 'ADMIN', isBlocked: false },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+
+  if (!targetAdmin) {
+    return Response.json({ error: 'NO_ACTIVE_ADMIN' }, { status: 409 });
+  }
+
+  const token = createImpersonationToken({
+    userId: targetAdmin.id,
     companyId,
+    platformAdminId: session.admin.id,
   });
 
   try {
     await writeEvent(companyId, 'MARKETER_ACCESS_STARTED', {
+      userId: targetAdmin.id,
       payload: {
         companyId,
         platformAdminId: session.admin.id,
+        userId: targetAdmin.id,
       },
     });
   } catch (error) {

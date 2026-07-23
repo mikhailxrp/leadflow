@@ -1,26 +1,16 @@
 import type { PlatformRole, UserRole } from '@prisma/client';
 import type { DefaultSession } from 'next-auth';
 
-export type CompanySession =
-  | {
-      kind: 'company';
-      user: NonNullable<DefaultSession['user']> & {
-        id: string;
-        companyId: string;
-        role: UserRole;
-        impersonatedByPlatformAdminId?: string;
-        isDemo?: boolean;
-      };
-      marketer?: never;
-    }
-  | {
-      kind: 'company';
-      marketer: {
-        platformAdminId: string;
-        companyId: string;
-      };
-      user?: never;
-    };
+export type CompanySession = {
+  kind: 'company';
+  user: NonNullable<DefaultSession['user']> & {
+    id: string;
+    companyId: string;
+    role: UserRole;
+    impersonatedByPlatformAdminId?: string;
+    isDemo?: boolean;
+  };
+};
 
 export type PlatformSession = {
   kind: 'platform';

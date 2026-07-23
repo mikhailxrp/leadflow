@@ -83,15 +83,15 @@ export default async function PipelinePage() {
     redirect('/login');
   }
 
-  // Маркетолог видит все лиды компании (как HEAD) — фильтр по ответственному тоже доступен.
-  const showManagerFilter = actor.actor === 'marketer' || hasMinRole(actor.role, 'HEAD');
+  const showManagerFilter = hasMinRole(actor.role, 'HEAD');
   // /admin/pipeline-settings — только ADMIN (proxy.ts); остальным кнопка не нужна.
-  const showPipelineSettingsLink = actor.actor === 'user' && hasMinRole(actor.role, 'ADMIN');
+  const showPipelineSettingsLink = hasMinRole(actor.role, 'ADMIN');
 
   const [{ columns }, managers] = await Promise.all([
     getBoardData({
       companyId,
-      ...(actor.actor === 'user' ? { userId: actor.userId, role: actor.role } : {}),
+      userId: actor.userId,
+      role: actor.role,
       companySettings: company.settings,
       includeClosed: false,
     }),
