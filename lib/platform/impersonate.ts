@@ -7,7 +7,28 @@ export type ImpersonationData = {
   expiresAt: number;
 };
 
-const tokens = new Map<string, ImpersonationData>();
+type RestoreData = {
+  platformAdminId: string;
+  expiresAt: number;
+};
+
+// Одноразовые токены входа держим на globalThis, а не в module-scope const:
+// в Next.js dev роут-хендлеры собираются в отдельные бандлы (плюс HMR пересоздаёт
+// модули), поэтому Map, заполненная при выдаче токена в /api/platform/..., может
+// оказаться пустой в момент его проверки в authorize() NextAuth-колбэка — вход
+// тогда падает на дефолтную страницу NextAuth. globalThis один на процесс — тот же
+// приём, что и для prisma-клиента (lib/prisma.ts). См. lib/platform/marketerAccess.ts.
+const globalForImpersonation = globalThis as unknown as {
+  impersonationTokens?: Map<string, ImpersonationData>;
+  restoreTokens?: Map<string, RestoreData>;
+};
+
+const tokens =
+  globalForImpersonation.impersonationTokens ??
+  (globalForImpersonation.impersonationTokens = new Map<
+    string,
+    ImpersonationData
+  >());
 
 export function createImpersonationToken(
   data: Omit<ImpersonationData, 'expiresAt'>,
@@ -41,12 +62,9 @@ export function consumeImpersonationToken(
   };
 }
 
-type RestoreData = {
-  platformAdminId: string;
-  expiresAt: number;
-};
-
-const restoreTokens = new Map<string, RestoreData>();
+const restoreTokens =
+  globalForImpersonation.restoreTokens ??
+  (globalForImpersonation.restoreTokens = new Map<string, RestoreData>());
 
 export function createRestoreToken(platformAdminId: string): string {
   const token = crypto.randomUUID();
