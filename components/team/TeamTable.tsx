@@ -53,85 +53,129 @@ export default function TeamTable({ members }: TeamTableProps): ReactNode {
         Команда
       </h1>
 
-      <div className="overflow-hidden rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)]">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse">
-            <thead>
-              <tr className="border-b-[0.5px] border-[var(--color-border)]">
-                {TABLE_COLUMNS.map((column) => (
-                  <th
-                    key={column}
-                    className="px-4 py-3 text-left text-[11px] font-medium tracking-[0.05em] text-[var(--color-text-secondary)] uppercase"
-                  >
-                    {column}
-                  </th>
-                ))}
+      {/* Десктоп (≥ lg): таблица. w-full без min-width — без горизонтальной прокрутки. */}
+      <div className="hidden overflow-hidden rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] lg:block">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b-[0.5px] border-[var(--color-border)]">
+              {TABLE_COLUMNS.map((column) => (
+                <th
+                  key={column}
+                  className="px-4 py-3 text-left text-[11px] font-medium tracking-[0.05em] text-[var(--color-text-secondary)] uppercase"
+                >
+                  {column}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {members.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={TABLE_COLUMNS.length}
+                  className="px-4 py-8 text-center text-[14px] text-[var(--color-text-secondary)]"
+                >
+                  Нет сотрудников
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {members.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={TABLE_COLUMNS.length}
-                    className="px-4 py-8 text-center text-[14px] text-[var(--color-text-secondary)]"
-                  >
-                    Нет сотрудников
+            ) : (
+              members.map((member) => (
+                <tr
+                  key={member.id}
+                  className="
+                    border-b-[0.5px] border-[var(--color-border)]
+                    last:border-0 transition-colors duration-150
+                    hover:bg-[var(--color-bg-surface-2)]
+                  "
+                >
+                  <td className="p-0">
+                    <Link
+                      href={`/team/${member.id}`}
+                      className="flex items-center gap-3 px-4 py-3"
+                    >
+                      <Avatar
+                        initials={getInitials(member.name)}
+                        src={member.avatarUrl ?? undefined}
+                        size="sm"
+                      />
+                      <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
+                        {member.name}
+                      </span>
+                    </Link>
+                  </td>
+                  <td className="p-0">
+                    <Link
+                      href={`/team/${member.id}`}
+                      className="block px-4 py-3 text-[13px] text-[var(--color-text-secondary)]"
+                    >
+                      {member.email}
+                    </Link>
+                  </td>
+                  <td className="p-0">
+                    <Link href={`/team/${member.id}`} className="block px-4 py-3">
+                      <span
+                        className={`inline-flex rounded-[20px] px-2.5 py-1 text-[12px] font-medium ${ROLE_BADGE_CLASS[member.role]}`}
+                      >
+                        {ROLE_LABELS[member.role]}
+                      </span>
+                    </Link>
+                  </td>
+                  <td className="p-0">
+                    <Link href={`/team/${member.id}`} className="block px-4 py-3">
+                      <StatusCell isBlocked={member.isBlocked} />
+                    </Link>
                   </td>
                 </tr>
-              ) : (
-                members.map((member) => (
-                  <tr
-                    key={member.id}
-                    className="
-                      border-b-[0.5px] border-[var(--color-border)]
-                      last:border-0 transition-colors duration-150
-                      hover:bg-[var(--color-bg-surface-2)]
-                    "
-                  >
-                    <td className="p-0">
-                      <Link
-                        href={`/team/${member.id}`}
-                        className="flex items-center gap-3 px-4 py-3"
-                      >
-                        <Avatar
-                          initials={getInitials(member.name)}
-                          src={member.avatarUrl ?? undefined}
-                          size="sm"
-                        />
-                        <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                          {member.name}
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="p-0">
-                      <Link
-                        href={`/team/${member.id}`}
-                        className="block px-4 py-3 text-[13px] text-[var(--color-text-secondary)]"
-                      >
-                        {member.email}
-                      </Link>
-                    </td>
-                    <td className="p-0">
-                      <Link href={`/team/${member.id}`} className="block px-4 py-3">
-                        <span
-                          className={`inline-flex rounded-[20px] px-2.5 py-1 text-[12px] font-medium ${ROLE_BADGE_CLASS[member.role]}`}
-                        >
-                          {ROLE_LABELS[member.role]}
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="p-0">
-                      <Link href={`/team/${member.id}`} className="block px-4 py-3">
-                        <StatusCell isBlocked={member.isBlocked} />
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
+
+      {/* Мобильные/планшет (< lg): карточки. Вся карточка — ссылка на сотрудника. */}
+      {members.length === 0 ? (
+        <div className="rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] px-4 py-8 text-center text-[14px] text-[var(--color-text-secondary)] lg:hidden">
+          Нет сотрудников
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
+          {members.map((member) => (
+            <Link
+              key={member.id}
+              href={`/team/${member.id}`}
+              className="
+                block rounded-lg border-[0.5px] border-[var(--color-border)]
+                bg-[var(--color-bg-surface)] p-4
+                transition-colors duration-150 hover:border-[#10B981]
+              "
+            >
+              <div className="flex items-center gap-3">
+                <Avatar
+                  initials={getInitials(member.name)}
+                  src={member.avatarUrl ?? undefined}
+                  size="sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[15px] font-medium text-[var(--color-text-primary)]">
+                    {member.name}
+                  </div>
+                  <div className="truncate text-[13px] text-[var(--color-text-secondary)]">
+                    {member.email}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2 border-t-[0.5px] border-[var(--color-border)] pt-3">
+                <StatusCell isBlocked={member.isBlocked} />
+                <span
+                  className={`inline-flex flex-shrink-0 rounded-[20px] px-2.5 py-1 text-[12px] font-medium ${ROLE_BADGE_CLASS[member.role]}`}
+                >
+                  {ROLE_LABELS[member.role]}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </>
   );
 }

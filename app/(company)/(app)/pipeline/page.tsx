@@ -114,19 +114,22 @@ export default async function PipelinePage() {
                 />
                 <Link
                   href={PIPELINE_SETTINGS_PATH}
+                  aria-label="Настроить этапы"
+                  title="Настроить этапы"
                   className="
-                    inline-flex h-[36px] items-center justify-center gap-2
+                    inline-flex h-[36px] w-[36px] items-center justify-center gap-2
                     rounded-[6px] border border-[var(--color-border)] border-[0.5px]
-                    bg-[var(--color-bg-surface-2)] px-[14px]
+                    bg-[var(--color-bg-surface-2)] px-0
                     text-[13px] font-medium text-[var(--color-text-primary)]
                     transition-all duration-150
                     hover:bg-[var(--color-bg-surface)]
+                    md:w-auto md:px-[14px]
                   "
                 >
                   <span className="h-4 w-4 flex-shrink-0">
                     <SettingsIcon />
                   </span>
-                  Настроить этапы
+                  <span className="hidden md:inline">Настроить этапы</span>
                 </Link>
               </>
             )}

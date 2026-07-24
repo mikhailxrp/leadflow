@@ -1,12 +1,59 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import {
+  useLayoutEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import Toast from '@/components/ui/Toast';
 import { useNotificationStore, type NotificationItem } from '@/store/notificationStore';
 
 interface NotificationDropdownProps {
   onClose: () => void;
+  /** Кнопка-колокольчик — к её нижнему правому углу привязывается панель. */
+  anchorRef: RefObject<HTMLElement | null>;
+}
+
+/** Зазор от края экрана (px) на мобильных, чтобы панель не упиралась в border. */
+const VIEWPORT_MARGIN = 12;
+/** Отступ панели вниз от колокольчика (px). */
+const ANCHOR_GAP = 8;
+const DESKTOP_WIDTH = 320;
+const MOBILE_MAX_WIDTH = 360;
+const MOBILE_BREAKPOINT = 640;
+
+/**
+ * Панель уведомлений позиционируется как `fixed` по измеренному положению
+ * колокольчика, а не через `absolute right-0`. Иначе на узких экранах (320–425px)
+ * панель шириной 320px, выровненная по правому краю колокольчика, вылезает за
+ * левый край вьюпорта и обрезается. Привязка к измеренному rect делает её
+ * устойчивой и к плашке impersonation, которая сдвигает шапку вниз.
+ */
+function computePanelStyle(anchor: HTMLElement | null): CSSProperties {
+  if (!anchor || typeof window === 'undefined') {
+    return { position: 'fixed', top: -9999, left: -9999, visibility: 'hidden' };
+  }
+
+  const rect = anchor.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const isMobile = vw < MOBILE_BREAKPOINT;
+
+  const width = isMobile
+    ? Math.min(MOBILE_MAX_WIDTH, vw - VIEWPORT_MARGIN * 2)
+    : DESKTOP_WIDTH;
+
+  // Мобильный: прижимаем правый край к правому краю вьюпорта.
+  // Десктоп: правый край панели совпадает с правым краем колокольчика (как right-0).
+  const rawLeft = isMobile ? vw - VIEWPORT_MARGIN - width : rect.right - width;
+  const left = Math.max(
+    VIEWPORT_MARGIN,
+    Math.min(rawLeft, vw - VIEWPORT_MARGIN - width),
+  );
+
+  return { position: 'fixed', top: rect.bottom + ANCHOR_GAP, left, width };
 }
 
 function formatRelativeTime(iso: string): string {
@@ -23,7 +70,10 @@ function formatRelativeTime(iso: string): string {
   return `${days} дн назад`;
 }
 
-export default function NotificationDropdown({ onClose }: NotificationDropdownProps): ReactNode {
+export default function NotificationDropdown({
+  onClose,
+  anchorRef,
+}: NotificationDropdownProps): ReactNode {
   const items = useNotificationStore((state) => state.items);
   const unreadCount = useNotificationStore((state) => state.unreadCount);
   const markAllRead = useNotificationStore((state) => state.markAllRead);
@@ -31,6 +81,18 @@ export default function NotificationDropdown({ onClose }: NotificationDropdownPr
   const router = useRouter();
   const [markingAll, setMarkingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [panelStyle, setPanelStyle] = useState<CSSProperties>(() =>
+    computePanelStyle(null),
+  );
+
+  useLayoutEffect(() => {
+    function reposition(): void {
+      setPanelStyle(computePanelStyle(anchorRef.current));
+    }
+    reposition();
+    window.addEventListener('resize', reposition);
+    return () => window.removeEventListener('resize', reposition);
+  }, [anchorRef]);
 
   async function handleMarkAllRead(): Promise<void> {
     setMarkingAll(true);
@@ -58,7 +120,8 @@ export default function NotificationDropdown({ onClose }: NotificationDropdownPr
   return (
     <div
       role="menu"
-      className="absolute right-0 top-full z-50 mt-2 w-[320px] rounded-[8px] border border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] shadow-lg"
+      style={panelStyle}
+      className="z-50 rounded-[8px] border border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] shadow-lg"
     >
       <div className="flex items-center justify-between border-b border-[0.5px] border-[var(--color-border)] px-4 py-3">
         <span className="text-[13px] font-medium text-[var(--color-text-primary)]">Уведомления</span>

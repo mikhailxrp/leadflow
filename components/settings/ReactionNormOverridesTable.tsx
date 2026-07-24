@@ -302,45 +302,49 @@ function OverrideSection({
 
       <div className="mt-3">
         {isAdding ? (
-          <div className="flex items-center gap-2">
-            {keyPicker({ value: newKey, onChange: setNewKey, excludeKeys: usedKeys })}
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="мин"
-              disabled={submitting}
-              value={newValue}
-              onChange={(e) => setNewValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  void handleAddSubmit();
-                }
-                if (e.key === 'Escape') {
-                  e.preventDefault();
-                  cancelAdd();
-                }
-              }}
-              className="
-                h-8 w-16 flex-shrink-0 rounded-[6px] border-[0.5px] border-[var(--color-border)]
-                bg-[var(--color-bg-surface)] px-2 text-right text-[13px] text-[var(--color-text-primary)]
-                outline-none transition-all duration-150
-                focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]
-                disabled:cursor-not-allowed disabled:opacity-50
-              "
-            />
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              disabled={submitting}
-              onClick={handleAddSubmit}
-            >
-              Добавить
-            </Button>
-            <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={cancelAdd}>
-              Отмена
-            </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-1 items-center gap-2">
+              {keyPicker({ value: newKey, onChange: setNewKey, excludeKeys: usedKeys })}
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="мин"
+                disabled={submitting}
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleAddSubmit();
+                  }
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelAdd();
+                  }
+                }}
+                className="
+                  h-8 w-16 flex-shrink-0 rounded-[6px] border-[0.5px] border-[var(--color-border)]
+                  bg-[var(--color-bg-surface)] px-2 text-right text-[13px] text-[var(--color-text-primary)]
+                  outline-none transition-all duration-150
+                  focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]
+                  disabled:cursor-not-allowed disabled:opacity-50
+                "
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={submitting}
+                onClick={handleAddSubmit}
+              >
+                Добавить
+              </Button>
+              <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={cancelAdd}>
+                Отмена
+              </Button>
+            </div>
           </div>
         ) : (
           <Button

@@ -42,7 +42,7 @@ interface StatusRadioGroupProps {
 
 export default function StatusRadioGroup({ value, onChange, name }: StatusRadioGroupProps) {
   return (
-    <div className="flex gap-4" role="radiogroup" aria-label={name}>
+    <div className="flex flex-wrap gap-x-4 gap-y-2" role="radiogroup" aria-label={name}>
       <RadioOption
         checked={value === 'active'}
         label="Активен"
@@ -65,7 +65,7 @@ interface RoleRadioGroupProps {
 
 export function RoleRadioGroup({ value, onChange, name }: RoleRadioGroupProps): ReactNode {
   return (
-    <div className="flex gap-4" role="radiogroup" aria-label={name}>
+    <div className="flex flex-wrap gap-x-4 gap-y-2" role="radiogroup" aria-label={name}>
       <RadioOption
         checked={value === 'MANAGER'}
         label="Менеджер"

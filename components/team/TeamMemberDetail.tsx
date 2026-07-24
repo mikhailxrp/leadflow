@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import MobileMenuButton from '@/components/layout/MobileMenuButton';
 import Avatar from '@/components/ui/Avatar';
 import type { UserProfileDetail } from '@/types/users';
 
@@ -68,7 +69,19 @@ function StatusBadge({ isBlocked }: { isBlocked: boolean }): ReactNode {
 
 export default function TeamMemberDetail({ member }: TeamMemberDetailProps): ReactNode {
   return (
-    <main className="px-6 py-8">
+    <>
+      {/* Мобильная шапка (< lg) — единственная точка открытия сайдбара на этой странице */}
+      <div
+        className="
+          sticky top-0 z-30 flex h-[56px] flex-shrink-0 items-center
+          border-b-[0.5px] border-[var(--color-border)]
+          bg-[var(--color-bg-surface)] px-4 lg:hidden
+        "
+      >
+        <MobileMenuButton />
+      </div>
+
+      <main className="min-h-0 flex-1 overflow-auto px-6 py-8">
       <Link
         href="/team"
         className="
@@ -174,6 +187,7 @@ export default function TeamMemberDetail({ member }: TeamMemberDetailProps): Rea
           </div>
         </div>
       </section>
-    </main>
+      </main>
+    </>
   );
 }

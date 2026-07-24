@@ -110,7 +110,7 @@ export default function ApiKeysTable({
 
   return (
     <div>
-      <div className="overflow-x-auto">
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[720px] text-left">
           <thead>
             <tr className="border-b border-[var(--color-border)] border-[0.5px]">
@@ -218,6 +218,95 @@ export default function ApiKeysTable({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Мобильная раскладка — карточки вместо таблицы, чтобы не было горизонтального скролла */}
+      <div className="flex flex-col gap-3 md:hidden">
+        {apiKeys.length === 0 ? (
+          <p className="rounded-[8px] border border-[var(--color-border)] border-[0.5px] px-3 py-8 text-center text-[14px] text-[var(--color-text-secondary)]">
+            Нет API-ключей
+          </p>
+        ) : (
+          apiKeys.map((row) => {
+            const health = findHealth(row.sourceLabel);
+            const isPendingDelete = pendingDeleteId === row.id;
+
+            return (
+              <div
+                key={row.id}
+                className="flex flex-col gap-3 rounded-[8px] border border-[var(--color-border)] border-[0.5px] p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-medium text-[var(--color-text-primary)]">
+                      {row.name}
+                    </p>
+                    <p className="text-[12px] text-[var(--color-text-secondary)]">
+                      {row.sourceLabel}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={row.isEnabled}
+                    onChange={(next) => handleToggleEnabled(row, next)}
+                    aria-label={`Ключ «${row.name}»: ${row.isEnabled ? 'включён' : 'выключен'}`}
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <span className="font-mono text-[13px] text-[var(--color-text-secondary)]">
+                    {row.isEnabled ? row.mask : '—'}
+                  </span>
+                  {!row.isEnabled ? (
+                    <p className="flex items-center gap-1.5 text-[12px] text-[var(--color-text-secondary)]">
+                      <span aria-hidden="true">{SOURCE_HEALTH_LABELS.disabled.emoji}</span>
+                      <span>{SOURCE_HEALTH_LABELS.disabled.label}</span>
+                    </p>
+                  ) : health ? (
+                    <SourceHealthIndicator
+                      status={health.status}
+                      hoursSinceLastUse={health.hoursSinceLastUse}
+                      thresholdHours={health.thresholdHours}
+                    />
+                  ) : (
+                    <span className="text-[12px] text-[var(--color-text-tertiary)]">—</span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between border-t border-[var(--color-border)] border-[0.5px] pt-3 text-[12px] text-[var(--color-text-secondary)]">
+                  <span>Создан {new Date(row.createdAt).toLocaleDateString('ru-RU')}</span>
+                  {isPendingDelete ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] text-[var(--color-text-secondary)]">
+                        Удалить?
+                      </span>
+                      <button
+                        type="button"
+                        className="text-[12px] font-medium text-[#DC2626] hover:underline"
+                        onClick={() => handleDeleteConfirm(row.id)}
+                      >
+                        Да
+                      </button>
+                      <button
+                        type="button"
+                        className="text-[12px] text-[var(--color-text-secondary)] hover:underline"
+                        onClick={handleDeleteCancel}
+                      >
+                        Нет
+                      </button>
+                    </div>
+                  ) : (
+                    <IconButton
+                      className="hover:text-[#DC2626]"
+                      aria-label={`Удалить ключ «${row.name}»`}
+                      onClick={() => handleDeleteRequest(row.id)}
+                      icon={<Icon icon="lucide:trash-2" className="h-4 w-4" />}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       <Button

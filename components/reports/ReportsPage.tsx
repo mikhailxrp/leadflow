@@ -310,7 +310,7 @@ export default function ReportsPage({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div
           className="
-            inline-flex w-fit rounded-[8px]
+            flex flex-wrap gap-1 rounded-[8px]
             border border-[0.5px] border-[var(--color-border)]
             bg-[var(--color-bg-surface)]
             p-1
@@ -373,7 +373,7 @@ export default function ReportsPage({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div
           className="
-            inline-flex w-fit rounded-[8px]
+            flex flex-wrap gap-1 rounded-[8px]
             border border-[0.5px] border-[var(--color-border)]
             bg-[var(--color-bg-surface)]
             p-1

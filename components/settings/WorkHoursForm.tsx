@@ -248,7 +248,7 @@ export default function WorkHoursForm({ initialWorkHoursOnly, initialWorkHours }
       </SettingsRow>
 
       <SettingsRow label="Рабочие дни">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {DAY_LABELS.map((day) => {
             const selected = workHours.days.includes(day.value);
             return (

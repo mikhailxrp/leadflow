@@ -118,7 +118,7 @@ export default function ProfileSidebar({ profile, onAvatarChange }: ProfileSideb
   }
 
   return (
-    <aside className="w-[280px] shrink-0 rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] p-6">
+    <aside className="w-full rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] p-6 lg:w-[280px] lg:shrink-0">
       <div className="flex justify-center">
         <Avatar
           initials={getInitials(profile.name)}

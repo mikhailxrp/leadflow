@@ -79,7 +79,7 @@ export default async function HelpDocPage({ params }: HelpDocPageProps): Promise
           <MarkdownDoc content={content} />
         </div>
 
-        <nav className="mt-12 grid gap-3 border-t-[0.5px] border-[var(--color-border)] pt-6 sm:grid-cols-2 print:hidden">
+        <nav className="mt-12 grid grid-cols-1 gap-3 border-t-[0.5px] border-[var(--color-border)] pt-6 sm:grid-cols-2 print:hidden">
           <Link
             href={prev.href}
             className="group flex flex-col rounded-[8px] border-[0.5px] border-[var(--color-border)] px-4 py-3 transition-colors hover:border-[var(--color-primary)]"

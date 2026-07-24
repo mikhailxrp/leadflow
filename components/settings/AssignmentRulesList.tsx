@@ -360,7 +360,8 @@ export default function AssignmentRulesList({ initialRules, users }: AssignmentR
 
   return (
     <>
-      <div className="overflow-x-auto">
+      {/* Десктоп (≥ lg): таблица */}
+      <div className="hidden overflow-x-auto lg:block">
         <table className="w-full min-w-[720px] border-collapse">
           <thead>
             <tr className="border-b-[0.5px] border-[var(--color-border)]">
@@ -455,6 +456,102 @@ export default function AssignmentRulesList({ initialRules, users }: AssignmentR
           </tbody>
         </table>
       </div>
+
+      {/* Мобильные/планшет (< lg): карточки вместо таблицы с прокруткой */}
+      {rules.length === 0 ? (
+        <p className="px-5 py-6 text-center text-[13px] text-[var(--color-text-secondary)] lg:hidden">
+          Правила не настроены — назначение работает по режиму компании
+        </p>
+      ) : (
+        <div className="flex flex-col gap-3 p-4 lg:hidden">
+          {rules.map((rule) => (
+            <div
+              key={rule.id}
+              className="rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[14px] font-medium text-[var(--color-text-primary)]">
+                    {rule.assignTo.name}
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-[var(--color-text-secondary)]">
+                    Приоритет {rule.priority}
+                  </p>
+                </div>
+                <Toggle
+                  checked={rule.isActive}
+                  onChange={() => handleToggleActive(rule)}
+                  aria-label={`Активность правила: ${rule.matchSource ?? rule.matchSourceLabel ?? rule.id}`}
+                />
+              </div>
+
+              <dl className="mt-3 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[12px] text-[var(--color-text-secondary)]">Источник</dt>
+                  <dd className="text-[13px] text-[var(--color-text-primary)]">
+                    {rule.matchSource ?? (
+                      <span className="text-[var(--color-text-tertiary)]">Любой</span>
+                    )}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[12px] text-[var(--color-text-secondary)]">Метка</dt>
+                  <dd className="text-[13px] text-[var(--color-text-primary)]">
+                    {rule.matchSourceLabel ?? (
+                      <span className="text-[var(--color-text-tertiary)]">Любая</span>
+                    )}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[12px] text-[var(--color-text-secondary)]">Запасной</dt>
+                  <dd className="text-[13px] text-[var(--color-text-primary)]">
+                    {rule.fallbackTo?.name ?? '—'}
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="mt-3 flex items-center gap-2 border-t-[0.5px] border-[var(--color-border)] pt-3">
+                {pendingDeleteId === rule.id ? (
+                  <>
+                    <span className="mr-auto text-[12px] text-[var(--color-text-secondary)]">
+                      Удалить правило?
+                    </span>
+                    <button
+                      type="button"
+                      className="text-[12px] font-medium text-[#DC2626] hover:underline"
+                      onClick={() => handleDeleteConfirm(rule.id)}
+                    >
+                      Да
+                    </button>
+                    <button
+                      type="button"
+                      className="text-[12px] text-[var(--color-text-secondary)] hover:underline"
+                      onClick={handleDeleteCancel}
+                    >
+                      Нет
+                    </button>
+                  </>
+                ) : (
+                  <div className="ml-auto flex items-center gap-2">
+                    <IconButton
+                      size="sm"
+                      onClick={() => setEditRule(rule)}
+                      aria-label={`Редактировать правило ${rule.id}`}
+                      icon={<Icon icon="tabler:edit" className="h-4 w-4" />}
+                    />
+                    <IconButton
+                      size="sm"
+                      onClick={() => handleDeleteRequest(rule.id)}
+                      aria-label={`Удалить правило ${rule.id}`}
+                      icon={<Icon icon="tabler:trash" className="h-4 w-4" />}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="px-4 py-3">
         <Button

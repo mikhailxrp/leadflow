@@ -6,6 +6,7 @@ import WebhookSourceCard from '@/components/integrations/WebhookSourceCard';
 import YandexDirectCard from '@/components/integrations/YandexDirectCard';
 import YandexMetrikaCard from '@/components/integrations/YandexMetrikaCard';
 import { PageContent } from '@/components/layout/AppLayout';
+import MobileMenuButton from '@/components/layout/MobileMenuButton';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import IconButton from '@/components/ui/IconButton';
 import Avatar from '@/components/ui/Avatar';
@@ -178,15 +179,18 @@ export default async function AdminIntegrationsPage() {
         className="
           sticky top-0 z-30 flex h-[56px] flex-shrink-0 items-center justify-between
           border-b border-[var(--color-border)] border-[0.5px]
-          bg-[var(--color-bg-surface)] px-6
+          bg-[var(--color-bg-surface)] px-4 sm:px-6
         "
       >
-        <nav
-          className="text-[13px] text-[var(--color-text-secondary)]"
-          aria-label="Хлебные крошки"
-        >
-          Настройки / Интеграции
-        </nav>
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <MobileMenuButton />
+          <nav
+            className="truncate text-[13px] text-[var(--color-text-secondary)]"
+            aria-label="Хлебные крошки"
+          >
+            Настройки / Интеграции
+          </nav>
+        </div>
 
         <div className="flex items-center gap-3">
           <IconButton aria-label="Поиск" icon={<SearchIcon />} />

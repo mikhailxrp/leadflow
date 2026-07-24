@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon } from '@iconify/react';
@@ -205,13 +205,8 @@ function SidebarAvatar({
 }
 
 export default function Sidebar({ items, userInitials, userName, userAvatarUrl, profileHref }: SidebarProps) {
-  const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  const { collapsed, toggleCollapsed } = useSidebarCollapse();
-
-  function closeMobile(): void {
-    setMobileOpen(false);
-  }
+  const { collapsed, toggleCollapsed, mobileOpen, closeMobile } = useSidebarCollapse();
 
   return (
     <>
@@ -254,13 +249,6 @@ export default function Sidebar({ items, userInitials, userName, userAvatarUrl, 
           onNavigate={closeMobile}
         />
       </aside>
-
-      <IconButton
-        className="lg:hidden"
-        onClick={() => setMobileOpen(true)}
-        aria-label="Открыть меню"
-        icon={<Icon icon="lucide:menu" className="h-5 w-5" />}
-      />
     </>
   );
 }

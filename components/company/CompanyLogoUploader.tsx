@@ -83,7 +83,7 @@ export default function CompanyLogoUploader({
         <img
           src={logoUrl}
           alt={name}
-          className="h-20 w-20 shrink-0 rounded-[12px] border-[0.5px] border-[var(--color-border)] object-cover"
+          className="h-20 w-20 shrink-0 rounded-[12px] object-cover"
         />
       ) : (
         <div
@@ -106,7 +106,7 @@ export default function CompanyLogoUploader({
           onChange={handleFileChange}
         />
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="secondary"
             size="sm"

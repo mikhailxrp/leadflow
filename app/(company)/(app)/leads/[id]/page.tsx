@@ -7,6 +7,7 @@ import { getLeadById } from '@/lib/leads/getLeadById';
 import { prisma } from '@/lib/prisma';
 import type { CompanySession } from '@/types/session';
 import { PageContent } from '@/components/layout/AppLayout';
+import MobileMenuButton from '@/components/layout/MobileMenuButton';
 import LeadHeader from '@/components/leads/LeadHeader';
 import LeadContacts from '@/components/leads/LeadContacts';
 import LeadCustomFields from '@/components/leads/LeadCustomFields';
@@ -108,12 +109,24 @@ export default async function LeadDetailPage({
       : false;
 
   return (
-    <PageContent>
-      <LeadHeader
-        name={lead.name}
-        stage={lead.stage}
-        closeType={lead.closeType}
-      />
+    <>
+      {/* Мобильная шапка (< lg) — единственная точка открытия сайдбара на этой странице */}
+      <div
+        className="
+          sticky top-0 z-30 flex h-[56px] flex-shrink-0 items-center
+          border-b-[0.5px] border-[var(--color-border)]
+          bg-[var(--color-bg-surface)] px-4 lg:hidden
+        "
+      >
+        <MobileMenuButton />
+      </div>
+
+      <PageContent>
+        <LeadHeader
+          name={lead.name}
+          stage={lead.stage}
+          closeType={lead.closeType}
+        />
 
       {isClosed && (
         <div
@@ -224,6 +237,7 @@ export default async function LeadDetailPage({
           <LeadHistory events={serializedEvents} />
         </aside>
       </div>
-    </PageContent>
+      </PageContent>
+    </>
   );
 }
