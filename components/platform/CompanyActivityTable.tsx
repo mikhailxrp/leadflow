@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { MobileCard, MobileCardRow } from '@/components/platform/MobileCard';
 import type { CompanyActivityItem, MarketerActivityItem } from '@/types/platform';
 import type { PlatformRole } from '@prisma/client';
 
@@ -170,7 +171,7 @@ export default function CompanyActivityTable({
   }, [data, search, sortDirection, sortKey]);
 
   return (
-    <main className="px-6 py-8">
+    <main className="px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <h1 className="text-[20px] font-medium text-[var(--color-text-primary)]">
           Активность компаний
@@ -262,11 +263,46 @@ export default function CompanyActivityTable({
             Маркетологи ещё не созданы
           </p>
         ) : (
+          <>
+          {/* Мобильные карточки (< lg) */}
+          <div className="flex flex-col gap-3 xl:hidden">
+            {marketers.map((marketer) => (
+              <MobileCard key={marketer.id}>
+                <div className="mb-3 flex items-start justify-between gap-2">
+                  <p className="break-words text-[15px] font-medium text-[var(--color-text-primary)]">
+                    {marketer.name}
+                  </p>
+                  <span
+                    className={`inline-flex flex-shrink-0 rounded-[20px] px-2.5 py-1 text-[12px] font-medium ${
+                      marketer.isActive
+                        ? 'bg-[var(--color-badge-success-bg)] text-[var(--color-badge-success-text)]'
+                        : 'bg-[var(--color-badge-danger-bg)] text-[var(--color-badge-danger-text)]'
+                    }`}
+                  >
+                    {marketer.isActive ? 'Активен' : 'Заблокирован'}
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <MobileCardRow label="Email">
+                    <span className="break-all">{marketer.email}</span>
+                  </MobileCardRow>
+                  <MobileCardRow label="Последний вход">
+                    {formatLastLogin(marketer.lastLoginAt)}
+                  </MobileCardRow>
+                  <MobileCardRow label="Компаний создано">
+                    {marketer.companiesCreated}
+                  </MobileCardRow>
+                </div>
+              </MobileCard>
+            ))}
+          </div>
+
+          {/* Таблица (≥ lg) */}
           <div
             className="
-              overflow-x-auto rounded-[14px]
+              hidden overflow-x-auto rounded-[14px]
               border border-[0.5px] border-[var(--color-border)]
-              bg-[var(--color-bg-surface)]
+              bg-[var(--color-bg-surface)] xl:block
             "
           >
             <table className="w-full min-w-[700px] text-left">
@@ -325,6 +361,7 @@ export default function CompanyActivityTable({
               </tbody>
             </table>
           </div>
+          </>
         )
       ) : (
         <>
@@ -361,15 +398,56 @@ export default function CompanyActivityTable({
           {isLoading ? 'Загрузка…' : 'Нет данных для отображения'}
         </p>
       ) : (
-        <div
-          className={`
-            overflow-x-auto rounded-[14px]
-            border border-[0.5px] border-[var(--color-border)]
-            bg-[var(--color-bg-surface)]
-            ${isLoading ? 'opacity-60' : ''}
-          `}
-        >
-          <table className="w-full min-w-[900px] text-left">
+        <>
+          {/* Мобильные карточки (< lg) */}
+          <div
+            className={`flex flex-col gap-3 xl:hidden ${
+              isLoading ? 'opacity-60' : ''
+            }`}
+          >
+            {filteredAndSorted.map((item) => {
+              const staleLogin = isStaleLogin(item.lastLoginAt);
+
+              return (
+                <MobileCard key={item.companyId}>
+                  <p className="mb-3 break-words text-[15px] font-medium text-[var(--color-text-primary)]">
+                    {item.companyName}
+                  </p>
+                  <div className="flex flex-col">
+                    <MobileCardRow label="Последний вход">
+                      <span
+                        style={
+                          staleLogin ? { color: STALE_LOGIN_COLOR } : undefined
+                        }
+                      >
+                        {formatLastLogin(item.lastLoginAt)}
+                      </span>
+                    </MobileCardRow>
+                    <MobileCardRow label="Лидов за период">
+                      {item.leadCount}
+                    </MobileCardRow>
+                    <MobileCardRow label="Активных пользователей">
+                      {item.activeUsers}
+                    </MobileCardRow>
+                    <MobileCardRow label="Создана">
+                      {formatDate(item.createdAt)}
+                    </MobileCardRow>
+                  </div>
+                </MobileCard>
+              );
+            })}
+          </div>
+
+          {/* Таблица (≥ lg) */}
+          <div
+            className={`
+              hidden overflow-x-auto rounded-[14px]
+              border border-[0.5px] border-[var(--color-border)]
+              bg-[var(--color-bg-surface)] xl:block
+              ${isLoading ? 'opacity-60' : ''}
+            `}
+          >
+            <table className="w-full min-w-[900px] text-left">
             <thead>
               <tr className="border-b border-[0.5px] border-[var(--color-border)]">
                 {SORTABLE_COLUMNS.map((column) => (
@@ -435,8 +513,9 @@ export default function CompanyActivityTable({
                 );
               })}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+          </>
       )}
         </>
       )}

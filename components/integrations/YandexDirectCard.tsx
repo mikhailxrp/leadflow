@@ -233,14 +233,14 @@ export default function YandexDirectCard({
 
   return (
     <Card padding="none" className="p-6">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
+      <div className="mb-4 flex flex-wrap items-start gap-x-4 gap-y-3">
+        <div className="flex min-w-0 items-start gap-3">
           <YandexIcon />
           <h2 className="text-[15px] font-medium text-[var(--color-text-primary)]">
             Яндекс Директ
           </h2>
         </div>
-        {badge}
+        <div className="ml-auto flex-shrink-0">{badge}</div>
       </div>
 
       <div className="mt-4 flex flex-col gap-4">
@@ -276,7 +276,7 @@ export default function YandexDirectCard({
         <div
           className={`
             overflow-hidden transition-all duration-150
-            ${mode === 'FULL' ? 'max-h-[720px] opacity-100' : 'max-h-0 opacity-0'}
+            ${mode === 'FULL' ? 'max-h-[2000px] opacity-100 md:max-h-[720px]' : 'max-h-0 opacity-0'}
           `}
         >
           {connected ? (
@@ -304,15 +304,15 @@ export default function YandexDirectCard({
             <a
               href="/api/integrations/yandex/authorize"
               className="
-                inline-flex h-[36px] items-center justify-center gap-2 rounded-[6px]
-                border border-transparent bg-[#10B981] px-[14px]
+                inline-flex min-h-[36px] w-full items-center justify-center gap-2 rounded-[6px]
+                border border-transparent bg-[#10B981] px-[14px] py-2 text-center
                 text-[13px] font-medium text-white
                 transition-all duration-150
-                hover:bg-[#0E9E6E]
+                hover:bg-[#0E9E6E] sm:w-auto
               "
             >
               Подключить кабинет Яндекса
-              <Icon icon="tabler:external-link" className="h-4 w-4" />
+              <Icon icon="tabler:external-link" className="h-4 w-4 flex-shrink-0" />
             </a>
           )}
           <p className="mt-2 text-[12px] text-[var(--color-text-tertiary)]">

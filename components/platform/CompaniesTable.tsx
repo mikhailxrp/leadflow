@@ -5,6 +5,7 @@ import { useState, type ReactNode } from 'react';
 import type { PlatformRole } from '@prisma/client';
 import Button from '@/components/ui/Button';
 import MarketerAccessButton from '@/components/platform/MarketerAccessButton';
+import { MobileCard, MobileCardRow } from '@/components/platform/MobileCard';
 import type { SubscriptionStatus } from '@/types/platform';
 import type { PlatformCompanyListItem } from '@/types/platform';
 
@@ -164,14 +165,119 @@ export default function CompaniesTable({
   }
 
   return (
-    <div
-      className="
-        overflow-x-auto rounded-[14px]
-        border border-[0.5px] border-[var(--color-border)]
-        bg-[var(--color-bg-surface)]
-      "
-    >
-      <table className="w-full min-w-[1050px] text-left">
+    <>
+      {/* Мобильные карточки (< lg) — без горизонтального скролла */}
+      <div className="flex flex-col gap-3 xl:hidden">
+        {companies.map((company, index) => {
+          const companyId = company.id;
+          const isPending = companyId ? pendingIds.has(companyId) : false;
+          const subscriptionAlert = isSubscriptionAlert(
+            company.subscriptionStatus,
+          );
+
+          const body = (
+            <>
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="break-words text-[15px] font-medium text-[var(--color-text-primary)]">
+                    {company.name}
+                  </p>
+                  {!companyId ? (
+                    <div className="mt-1">
+                      <MarketerOwnedBadge />
+                    </div>
+                  ) : null}
+                </div>
+                <StatusBadge isBlocked={company.isBlocked} />
+              </div>
+
+              <div className="flex flex-col">
+                <MobileCardRow label="Следующий платёж">
+                  <span
+                    className={
+                      subscriptionAlert
+                        ? 'text-[var(--color-badge-danger-text)]'
+                        : undefined
+                    }
+                  >
+                    {company.nextPaymentAt
+                      ? formatDate(company.nextPaymentAt)
+                      : '—'}
+                  </span>
+                  {company.subscriptionStatus ? (
+                    <div className="mt-1">
+                      <SubscriptionBadge status={company.subscriptionStatus} />
+                    </div>
+                  ) : null}
+                </MobileCardRow>
+                <MobileCardRow label="Пользователей">
+                  {company.userCount}
+                </MobileCardRow>
+                <MobileCardRow label="Последний вход">
+                  {formatLastLogin(company.lastLoginAt)}
+                </MobileCardRow>
+                <MobileCardRow label="Создана">
+                  {formatDate(company.createdAt)}
+                </MobileCardRow>
+              </div>
+            </>
+          );
+
+          return (
+            <MobileCard
+              key={rowKey(company, index)}
+              className={
+                subscriptionAlert
+                  ? 'border-[var(--color-badge-danger-border)]'
+                  : ''
+              }
+            >
+              {companyId ? (
+                <Link
+                  href={`/platform/companies/${companyId}`}
+                  className="block"
+                >
+                  {body}
+                </Link>
+              ) : (
+                body
+              )}
+
+              {companyId && (role === 'MARKETER' || company.manageable) ? (
+                <div className="mt-4 px-4 pb-4 flex flex-col gap-2 border-t border-[0.5px] border-[var(--color-border)] pt-4">
+                  {role === 'MARKETER' ? (
+                    <MarketerAccessButton
+                      companyId={companyId}
+                      className="w-full"
+                    />
+                  ) : null}
+                  {company.manageable ? (
+                    <Button
+                      variant={company.isBlocked ? 'secondary' : 'danger'}
+                      size="sm"
+                      disabled={isPending}
+                      onClick={() => handleToggleBlock(company)}
+                      className="w-full"
+                    >
+                      {company.isBlocked ? 'Разблокировать' : 'Заблокировать'}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+            </MobileCard>
+          );
+        })}
+      </div>
+
+      {/* Таблица (≥ lg) */}
+      <div
+        className="
+          hidden overflow-x-auto rounded-[14px]
+          border border-[0.5px] border-[var(--color-border)]
+          bg-[var(--color-bg-surface)] xl:block
+        "
+      >
+        <table className="w-full min-w-[960px] text-left">
         <thead>
           <tr className="border-b border-[0.5px] border-[var(--color-border)]">
             {[
@@ -341,6 +447,7 @@ export default function CompaniesTable({
           })}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }

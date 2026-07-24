@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import CompanyProfileForm from '@/components/company/CompanyProfileForm';
 import { PageContent } from '@/components/layout/AppLayout';
+import MobileMenuButton from '@/components/layout/MobileMenuButton';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import { hasMinRole } from '@/constants/roles';
 import { COMPANY_PROFILE_SELECT, toCompanyProfileDetail } from '@/lib/company/profile';
@@ -31,12 +32,13 @@ export default async function CompanyPage() {
     <>
       <header
         className="
-          sticky top-0 z-30 flex h-[56px] flex-shrink-0 items-center justify-end
+          sticky top-0 z-30 flex h-[56px] flex-shrink-0 items-center
           border-b-[0.5px] border-[var(--color-border)]
-          bg-[var(--color-bg-surface)] px-6
+          bg-[var(--color-bg-surface)] px-4 sm:px-6
         "
       >
-        <div className="flex items-center gap-3">
+        <MobileMenuButton />
+        <div className="ml-auto flex items-center gap-3">
           <NotificationBell />
         </div>
       </header>

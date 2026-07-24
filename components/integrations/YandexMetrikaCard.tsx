@@ -149,14 +149,16 @@ export default function YandexMetrikaCard({
 
   return (
     <Card padding="none" className="p-6">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
+      <div className="mb-4 flex flex-wrap items-start gap-x-4 gap-y-3">
+        <div className="flex min-w-0 items-start gap-3">
           <MetrikaIcon />
           <h2 className="text-[15px] font-medium text-[var(--color-text-primary)]">
             Яндекс.Метрика — экспорт квалификаций
           </h2>
         </div>
-        {connected ? <ConnectedBadge /> : <NotConnectedBadge />}
+        <div className="ml-auto flex-shrink-0">
+          {connected ? <ConnectedBadge /> : <NotConnectedBadge />}
+        </div>
       </div>
 
       <div className="flex flex-col gap-4">
@@ -191,15 +193,15 @@ export default function YandexMetrikaCard({
             <a
               href="/api/integrations/yandex/metrika/authorize"
               className="
-                inline-flex h-[36px] items-center justify-center gap-2 rounded-[6px]
-                border border-transparent bg-[#10B981] px-[14px]
+                inline-flex min-h-[36px] w-full items-center justify-center gap-2 rounded-[6px]
+                border border-transparent bg-[#10B981] px-[14px] py-2 text-center
                 text-[13px] font-medium text-white
                 transition-all duration-150
-                hover:bg-[#0E9E6E]
+                hover:bg-[#0E9E6E] sm:w-auto
               "
             >
               Подключить Метрику
-              <Icon icon="tabler:external-link" className="h-4 w-4" />
+              <Icon icon="tabler:external-link" className="h-4 w-4 flex-shrink-0" />
             </a>
           )}
         </div>

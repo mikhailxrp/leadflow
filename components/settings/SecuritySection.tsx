@@ -59,7 +59,11 @@ export default function SecuritySection({ onDirtyChange }: SecuritySectionProps)
       </SettingsRow>
 
       <div className="mx-5 my-3">
-        <Button variant="danger" type="button">
+        <Button
+          variant="danger"
+          type="button"
+          className="!h-auto min-h-[36px] w-full py-2 sm:w-auto"
+        >
           Сбросить пароль администратора
         </Button>
       </div>

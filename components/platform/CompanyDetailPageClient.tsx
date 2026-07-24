@@ -6,6 +6,7 @@ import CompanyGrantsSection from '@/components/platform/CompanyGrantsSection';
 import DeleteCompanyButton from '@/components/platform/DeleteCompanyButton';
 import ImpersonateButton from '@/components/platform/ImpersonateButton';
 import Button from '@/components/ui/Button';
+import { MobileCard, MobileCardRow } from '@/components/platform/MobileCard';
 import { LEGAL_FORM_LABELS } from '@/constants/legalForms';
 import type { PlatformCompanyDetail, SubscriptionStatus } from '@/types/platform';
 import type { PlatformRole, UserRole } from '@prisma/client';
@@ -266,7 +267,7 @@ export default function CompanyDetailPageClient({
   const canImpersonate = viewerRole === 'SUPER_ADMIN';
 
   return (
-    <main className="px-6 py-8">
+    <main className="px-4 py-6 sm:px-6 sm:py-8">
       <Link
         href="/platform/companies"
         className="
@@ -282,7 +283,7 @@ export default function CompanyDetailPageClient({
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-[28px] font-medium tracking-[-0.01em] text-[var(--color-text-primary)]">
+            <h1 className="text-[22px] font-medium tracking-[-0.01em] text-[var(--color-text-primary)] sm:text-[28px]">
               {company.name}
             </h1>
             <CompanyStatusBadge isBlocked={company.isBlocked} />
@@ -293,8 +294,8 @@ export default function CompanyDetailPageClient({
             ) : null}
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[12px] text-[var(--color-text-secondary)]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="break-all font-mono text-[12px] text-[var(--color-text-secondary)]">
               ID: {company.id}
             </span>
             <button
@@ -534,14 +535,47 @@ export default function CompanyDetailPageClient({
             )}
           </div>
         ) : (
-          <div
-            className="
-              overflow-x-auto rounded-[14px]
-              border border-[0.5px] border-[var(--color-border)]
-              bg-[var(--color-bg-surface)]
-            "
-          >
-            <table className="w-full min-w-[800px] text-left">
+          <>
+            {/* Мобильные карточки (< lg) */}
+            <div className="flex flex-col gap-3 xl:hidden">
+              {company.users.map((user) => (
+                <MobileCard key={user.id}>
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <p className="break-words text-[15px] font-medium text-[var(--color-text-primary)]">
+                      {user.name}
+                    </p>
+                    <UserStatusBadge isBlocked={user.isBlocked} />
+                  </div>
+                  <div className="flex flex-col">
+                    <MobileCardRow label="Email">
+                      <span className="break-all">{user.email}</span>
+                    </MobileCardRow>
+                    <MobileCardRow label="Роль">
+                      <RoleBadge role={user.role} />
+                    </MobileCardRow>
+                  </div>
+                  {canImpersonate ? (
+                    <div className="mt-4 pb-4 px-4 border-t border-[0.5px] border-[var(--color-border)] pt-4">
+                      <ImpersonateButton
+                        companyId={company.id}
+                        userId={user.id}
+                        className="w-full"
+                      />
+                    </div>
+                  ) : null}
+                </MobileCard>
+              ))}
+            </div>
+
+            {/* Таблица (≥ lg) */}
+            <div
+              className="
+                hidden overflow-x-auto rounded-[14px]
+                border border-[0.5px] border-[var(--color-border)]
+                bg-[var(--color-bg-surface)] xl:block
+              "
+            >
+              <table className="w-full min-w-[800px] text-left">
               <thead>
                 <tr className="border-b border-[0.5px] border-[var(--color-border)]">
                   {(canImpersonate
@@ -595,8 +629,9 @@ export default function CompanyDetailPageClient({
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+          </>
         )}
 
         {canImpersonate ? (

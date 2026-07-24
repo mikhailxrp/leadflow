@@ -159,16 +159,23 @@ export default function UsersTable(props: UsersTableProps): ReactNode {
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-[28px] font-medium tracking-[-0.01em] text-[var(--color-text-primary)]">
           Пользователи
         </h1>
-        <Button size="md" type="button" onClick={() => setIsAddOpen(true)}>
-          ＋ Добавить пользователя
+        <Button
+          size="md"
+          type="button"
+          onClick={() => setIsAddOpen(true)}
+          icon={<Icon icon="tabler:plus" className="h-4 w-4" />}
+          className="w-full whitespace-nowrap sm:w-auto"
+        >
+          Добавить пользователя
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)]">
+      {/* Десктоп (≥ lg): таблица */}
+      <div className="hidden overflow-hidden rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] lg:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] border-collapse">
             <thead>
@@ -267,6 +274,84 @@ export default function UsersTable(props: UsersTableProps): ReactNode {
           </table>
         </div>
       </div>
+
+      {/* Мобильные/планшет (< lg): карточки вместо таблицы с прокруткой */}
+      {users.length === 0 ? (
+        <div className="rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] px-4 py-8 text-center text-[14px] text-[var(--color-text-secondary)] lg:hidden">
+          Нет пользователей
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
+          {users.map((user) => {
+            const isSelf = user.id === props.currentUserId;
+            return (
+              <div
+                key={user.id}
+                className="rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <Avatar
+                    initials={getInitials(user.name)}
+                    src={user.avatarUrl ?? undefined}
+                    size="sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-medium text-[var(--color-text-primary)]">
+                      {user.name}
+                    </p>
+                    <p className="truncate text-[13px] text-[var(--color-text-secondary)]">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <RoleBadge role={user.role} />
+                  <StatusCell isBlocked={user.isBlocked} />
+                </div>
+
+                <div className="mt-3 flex items-center justify-between border-t-[0.5px] border-[var(--color-border)] pt-3">
+                  <span className="text-[12px] text-[var(--color-text-secondary)]">
+                    Создан {user.createdAt}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <IconButton
+                      size="sm"
+                      disabled={isSelf}
+                      onClick={() => setEditUser(user)}
+                      aria-label={`Редактировать ${user.name}`}
+                      icon={<Icon icon="tabler:edit" className="h-4 w-4" />}
+                    />
+                    <IconButton
+                      size="sm"
+                      disabled={isSelf}
+                      onClick={() => handleToggleBlock(user)}
+                      aria-label={
+                        !user.isBlocked
+                          ? `Заблокировать ${user.name}`
+                          : `Разблокировать ${user.name}`
+                      }
+                      icon={
+                        <Icon
+                          icon={!user.isBlocked ? 'tabler:ban' : 'tabler:circle-check'}
+                          className="h-4 w-4"
+                        />
+                      }
+                    />
+                    <IconButton
+                      size="sm"
+                      disabled={isSelf}
+                      onClick={() => setDeleteUser(user)}
+                      aria-label={`Удалить ${user.name}`}
+                      icon={<Icon icon="tabler:trash" className="h-4 w-4" />}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {isAddOpen && (
         <AddUserModal onClose={() => setIsAddOpen(false)} onSuccess={handleAddSuccess} />

@@ -56,7 +56,8 @@ export default function ImportHistoryTable({
 
   return (
     <>
-      <div className="overflow-x-auto rounded-[8px] border-[0.5px] border-[var(--color-border)]">
+      {/* Десктоп (≥ lg): таблица */}
+      <div className="hidden overflow-x-auto rounded-[8px] border-[0.5px] border-[var(--color-border)] lg:block">
         <table className="w-full text-left text-[13px]">
           <thead>
             <tr className="border-b-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface-2)]">
@@ -107,6 +108,66 @@ export default function ImportHistoryTable({
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Мобильные/планшет (< lg): карточки вместо таблицы с прокруткой */}
+      <div className="flex flex-col gap-3 lg:hidden">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="rounded-[8px] border-[0.5px] border-[var(--color-border)] p-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-medium text-[var(--color-text-primary)]">
+                  {item.fileName}
+                </p>
+                <p className="mt-0.5 text-[12px] text-[var(--color-text-secondary)]">
+                  {new Date(item.createdAt).toLocaleString('ru-RU')} · {item.createdByName ?? '—'}
+                </p>
+              </div>
+              <span className="inline-flex shrink-0 rounded-[20px] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-text-secondary)]">
+                {STATUS_LABELS[item.status]}
+              </span>
+            </div>
+
+            <dl className="mt-3 grid grid-cols-3 gap-2 border-t-[0.5px] border-[var(--color-border)] pt-3 text-center">
+              <div>
+                <dt className="text-[11px] text-[var(--color-text-tertiary)]">Загружено</dt>
+                <dd className="mt-0.5 text-[15px] font-medium tabular-nums text-[var(--color-text-primary)]">
+                  {item.imported}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-[var(--color-text-tertiary)]">Дублей</dt>
+                <dd className="mt-0.5 text-[15px] font-medium tabular-nums text-[var(--color-text-primary)]">
+                  {item.duplicates}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-[var(--color-text-tertiary)]">Ошибок</dt>
+                <dd className="mt-0.5 text-[15px] font-medium tabular-nums text-[var(--color-text-primary)]">
+                  {item.errors}
+                </dd>
+              </div>
+            </dl>
+
+            {item.status === 'DONE' && (
+              <div className="mt-3 flex justify-end border-t-[0.5px] border-[var(--color-border)] pt-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  className="text-[#DC2626]"
+                  onClick={() => setRollbackTarget(item)}
+                  icon={<Icon icon="lucide:undo-2" className="h-4 w-4" />}
+                >
+                  Откатить
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
       {rollbackTarget && (

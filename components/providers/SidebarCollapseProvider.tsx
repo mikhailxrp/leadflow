@@ -5,11 +5,18 @@ import { createContext, startTransition, useContext, useEffect, useState, type R
 interface SidebarCollapseContextValue {
   collapsed: boolean;
   toggleCollapsed: () => void;
+  /** Открыт ли мобильный drawer (< lg). Не сохраняется между сессиями. */
+  mobileOpen: boolean;
+  openMobile: () => void;
+  closeMobile: () => void;
 }
 
 const SidebarCollapseContext = createContext<SidebarCollapseContextValue>({
   collapsed: false,
   toggleCollapsed: () => {},
+  mobileOpen: false,
+  openMobile: () => {},
+  closeMobile: () => {},
 });
 
 export function useSidebarCollapse(): SidebarCollapseContextValue {
@@ -26,6 +33,7 @@ export default function SidebarCollapseProvider({
   storageKey = 'sidebar_collapsed',
 }: SidebarCollapseProviderProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(storageKey);
@@ -41,8 +49,18 @@ export default function SidebarCollapseProvider({
     });
   }
 
+  function openMobile(): void {
+    setMobileOpen(true);
+  }
+
+  function closeMobile(): void {
+    setMobileOpen(false);
+  }
+
   return (
-    <SidebarCollapseContext.Provider value={{ collapsed, toggleCollapsed }}>
+    <SidebarCollapseContext.Provider
+      value={{ collapsed, toggleCollapsed, mobileOpen, openMobile, closeMobile }}
+    >
       {children}
     </SidebarCollapseContext.Provider>
   );

@@ -379,9 +379,9 @@ export default function CreateLeadForm() {
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="flex flex-1 flex-col gap-5 p-6">
-        <div className="flex items-start gap-5">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
           {/* Левая колонка */}
           <div className="flex min-w-0 flex-1 flex-col gap-5">
             <FormSection icon="tabler:user" title="Контактные данные">
@@ -556,7 +556,7 @@ export default function CreateLeadForm() {
           </div>
 
           {/* Правая колонка */}
-          <aside className="flex w-[300px] shrink-0 flex-col gap-5">
+          <aside className="flex w-full flex-col gap-5 lg:w-[300px] lg:shrink-0">
             <FormSection icon="tabler:settings" title="Параметры лида">
               <div className="flex flex-col gap-4 px-5 py-4">
                 <div className="flex flex-col gap-1.5">
@@ -685,9 +685,10 @@ export default function CreateLeadForm() {
 
       <footer
         className="
-          sticky bottom-0 z-20 flex items-center justify-between
+          z-20 flex shrink-0 flex-col gap-3
           border-t-[0.5px] border-[var(--color-border)]
-          bg-[var(--color-bg-surface)] px-6 py-3
+          bg-[var(--color-bg-surface)] px-4 py-3
+          sm:flex-row sm:items-center sm:justify-between sm:px-6
         "
       >
         <div className="flex flex-col gap-1">
@@ -699,7 +700,7 @@ export default function CreateLeadForm() {
           ) : null}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-end gap-3">
           <Link href="/leads">
             <Button type="button" variant="ghost" size="md">
               Отмена
@@ -710,7 +711,7 @@ export default function CreateLeadForm() {
             variant="primary"
             size="md"
             disabled={isSubmitDisabled}
-            className={isSubmitDisabled ? 'opacity-50' : ''}
+            className={`whitespace-nowrap ${isSubmitDisabled ? 'opacity-50' : ''}`}
             onClick={handleSubmit}
           >
             {isSubmitting ? 'Создание…' : 'Создать лид'}
