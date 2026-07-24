@@ -1,5 +1,5 @@
 import ThemeProvider from '@/components/providers/ThemeProvider';
-import PlatformSidebar from '@/components/platform/PlatformSidebar';
+import PlatformShell from '@/components/platform/PlatformShell';
 import { auth } from '@/lib/auth';
 import { type ReactNode } from 'react';
 
@@ -18,10 +18,7 @@ export default async function PlatformGroupLayout({
 
   return (
     <ThemeProvider storageKey="theme_platform">
-      <div className="flex h-screen overflow-hidden bg-[var(--color-bg-page)]">
-        <PlatformSidebar role={role} />
-        <div className="min-h-0 flex-1 overflow-auto">{children}</div>
-      </div>
+      <PlatformShell role={role}>{children}</PlatformShell>
     </ThemeProvider>
   );
 }

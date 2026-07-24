@@ -21,15 +21,14 @@ const ROLE_LABELS: Record<UserRole, string> = {
   MANAGER: 'Менеджер',
 };
 
-const TABLE_COLUMNS = [
-  'Сотрудник',
-  'Получено',
-  'Обработано в срок',
-  'Зависло',
-  'Закрыто сделкой',
-  'Закрыто отказом',
-  'Закрыто без причины',
-] as const;
+const METRIC_ROWS = [
+  { label: 'Получено', get: (m: ManagerStat) => m.received },
+  { label: 'Обработано в срок', get: (m: ManagerStat) => m.processedOnTime },
+  { label: 'Зависло', get: (m: ManagerStat) => m.stuck },
+  { label: 'Закрыто сделкой', get: (m: ManagerStat) => m.wonCount },
+  { label: 'Закрыто отказом', get: (m: ManagerStat) => m.lostCount },
+  { label: 'Закрыто без причины', get: (m: ManagerStat) => m.lostWithoutReason },
+] as const satisfies ReadonlyArray<{ label: string; get: (m: ManagerStat) => number }>;
 
 export default function ManagerStatsTable({
   initialData,
@@ -112,23 +111,22 @@ export default function ManagerStatsTable({
         </p>
       )}
 
-      <div
-        className={`
-          overflow-hidden rounded-lg border-[0.5px] border-[var(--color-border)]
-          bg-[var(--color-bg-surface)]
-          ${isLoading ? 'opacity-60' : ''}
-        `}
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] border-collapse">
+      <div className={isLoading ? 'opacity-60' : ''}>
+        {/* Десктоп (≥ lg): таблица. w-full + переносимые заголовки — без min-width
+            и без горизонтальной прокрутки внутри страницы. */}
+        <div className="hidden overflow-hidden rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] lg:block">
+          <table className="w-full border-collapse">
             <thead>
               <tr className="border-b-[0.5px] border-[var(--color-border)]">
-                {TABLE_COLUMNS.map((column) => (
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.05em] text-[var(--color-text-secondary)]">
+                  Сотрудник
+                </th>
+                {METRIC_ROWS.map((row) => (
                   <th
-                    key={column}
-                    className="whitespace-nowrap px-4 py-3 text-left text-[11px] font-medium tracking-[0.05em] text-[var(--color-text-secondary)] uppercase"
+                    key={row.label}
+                    className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.05em] text-[var(--color-text-secondary)]"
                   >
-                    {column}
+                    {row.label}
                   </th>
                 ))}
               </tr>
@@ -137,7 +135,7 @@ export default function ManagerStatsTable({
               {managers.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={TABLE_COLUMNS.length}
+                    colSpan={METRIC_ROWS.length + 1}
                     className="px-4 py-8 text-center text-[14px] text-[var(--color-text-secondary)]"
                   >
                     {isLoading ? 'Загрузка…' : 'За выбранный период нет назначенных лидов'}
@@ -154,7 +152,7 @@ export default function ManagerStatsTable({
                     "
                   >
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                           {manager.managerName}
                         </span>
@@ -168,30 +166,61 @@ export default function ManagerStatsTable({
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                      {manager.received}
-                    </td>
-                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                      {manager.processedOnTime}
-                    </td>
-                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                      {manager.stuck}
-                    </td>
-                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                      {manager.wonCount}
-                    </td>
-                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                      {manager.lostCount}
-                    </td>
-                    <td className="px-4 py-3 text-[14px] text-[var(--color-text-primary)]">
-                      {manager.lostWithoutReason}
-                    </td>
+                    {METRIC_ROWS.map((row) => (
+                      <td
+                        key={row.label}
+                        className="px-4 py-3 text-[14px] tabular-nums text-[var(--color-text-primary)]"
+                      >
+                        {row.get(manager)}
+                      </td>
+                    ))}
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Мобильные/планшет (< lg): карточки — каждый сотрудник отдельно,
+            метрики подписаны, без горизонтальной прокрутки. */}
+        {managers.length === 0 ? (
+          <div className="rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] px-4 py-8 text-center text-[14px] text-[var(--color-text-secondary)] lg:hidden">
+            {isLoading ? 'Загрузка…' : 'За выбранный период нет назначенных лидов'}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
+            {managers.map((manager) => (
+              <div
+                key={manager.managerId}
+                className="rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] p-4"
+              >
+                <div className="mb-3 flex flex-wrap items-center gap-2 border-b-[0.5px] border-[var(--color-border)] pb-3">
+                  <span className="text-[15px] font-medium text-[var(--color-text-primary)]">
+                    {manager.managerName}
+                  </span>
+                  <span className="text-[12px] text-[var(--color-text-secondary)]">
+                    {ROLE_LABELS[manager.role]}
+                  </span>
+                  {manager.isBlocked && (
+                    <span className="inline-flex rounded-[20px] bg-[var(--color-badge-danger-bg)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-badge-danger-text)]">
+                      Заблокирован
+                    </span>
+                  )}
+                </div>
+                <dl className="flex flex-col gap-2">
+                  {METRIC_ROWS.map((row) => (
+                    <div key={row.label} className="flex items-center justify-between gap-4">
+                      <dt className="text-[13px] text-[var(--color-text-secondary)]">{row.label}</dt>
+                      <dd className="text-[14px] font-medium tabular-nums text-[var(--color-text-primary)]">
+                        {row.get(manager)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

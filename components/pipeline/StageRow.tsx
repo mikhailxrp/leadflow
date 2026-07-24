@@ -135,11 +135,14 @@ export default function StageRow({
       ref={setNodeRef}
       style={dragStyle}
       className={`
-        flex h-[56px] items-center border-b border-[var(--color-border)] border-[0.5px] px-6
+        flex flex-col gap-2 border-b border-[var(--color-border)] border-[0.5px] px-4 py-3
         last:border-0
+        sm:h-[56px] sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-0
         ${isDragging ? 'cursor-grabbing opacity-50' : ''}
       `}
     >
+      {/* Ручка + цвет + название */}
+      <div className="flex min-w-0 items-center sm:flex-1">
       <button
         type="button"
         className="
@@ -243,8 +246,11 @@ export default function StageRow({
           </button>
         )}
       </div>
+      </div>
 
-      <div className="ml-4 flex flex-shrink-0 items-center gap-1.5">
+      {/* Лимит + счётчик + удалить */}
+      <div className="flex items-center gap-3 sm:gap-0">
+        <div className="flex flex-shrink-0 items-center gap-1.5 sm:ml-4">
         <input
           type="text"
           inputMode="numeric"
@@ -275,19 +281,19 @@ export default function StageRow({
           "
         />
         <span className="text-[12px] text-[var(--color-text-tertiary)]">дн.</span>
-      </div>
+        </div>
 
-      <span className="ml-4 w-[72px] flex-shrink-0 text-right text-[13px] text-[var(--color-text-tertiary)]">
-        {formatLeadsCount(stage.leadsCount)}
-      </span>
+        <span className="ml-auto flex-shrink-0 text-right text-[13px] text-[var(--color-text-tertiary)] sm:ml-4 sm:w-[72px]">
+          {formatLeadsCount(stage.leadsCount)}
+        </span>
 
-      <button
+        <button
         type="button"
         disabled={!canDelete}
         title={canDelete ? 'Удалить этап' : 'Нельзя удалить единственный этап'}
         className={`
-          ml-3 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[6px]
-          transition-colors duration-150
+          flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[6px]
+          transition-colors duration-150 sm:ml-3
           ${
             canDelete
               ? 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[#DC2626]'
@@ -300,6 +306,7 @@ export default function StageRow({
       >
         <Icon icon="lucide:trash-2" className="h-4 w-4" />
       </button>
+      </div>
     </div>
   );
 }

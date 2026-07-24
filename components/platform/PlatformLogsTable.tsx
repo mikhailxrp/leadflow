@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { EventType } from '@prisma/client';
 import Button from '@/components/ui/Button';
+import { MobileCard, MobileCardRow } from '@/components/platform/MobileCard';
 import type { PlatformLogItem, PlatformLogsResponse } from '@/types/platform';
 
 interface PlatformLogsTableProps {
@@ -128,11 +129,36 @@ export default function PlatformLogsTable({
 
   return (
     <div>
+      {/* Мобильные карточки (< lg) */}
       <div
         className={`
-          custom-scrollbar max-h-[560px] overflow-y-auto overflow-x-auto rounded-[14px]
+          custom-scrollbar flex max-h-[560px] flex-col gap-3 overflow-y-auto
+          xl:hidden
+          ${isLoading ? 'opacity-60' : ''}
+        `}
+      >
+        {items.map((item) => (
+          <MobileCard key={item.id}>
+            <p className="break-words text-[14px] font-medium text-[var(--color-text-primary)]">
+              {item.label}
+            </p>
+            <p className="mb-2 mt-0.5 text-[12px] text-[var(--color-text-secondary)]">
+              {formatDateTime(item.createdAt)}
+            </p>
+            <div className="flex flex-col">
+              <MobileCardRow label="Актор">{item.actorLabel}</MobileCardRow>
+              <MobileCardRow label="Лид">{item.leadLabel ?? '—'}</MobileCardRow>
+            </div>
+          </MobileCard>
+        ))}
+      </div>
+
+      {/* Таблица (≥ lg) */}
+      <div
+        className={`
+          custom-scrollbar hidden max-h-[560px] overflow-y-auto overflow-x-auto rounded-[14px]
           border border-[0.5px] border-[var(--color-border)]
-          bg-[var(--color-bg-surface)]
+          bg-[var(--color-bg-surface)] xl:block
           ${isLoading ? 'opacity-60' : ''}
         `}
       >

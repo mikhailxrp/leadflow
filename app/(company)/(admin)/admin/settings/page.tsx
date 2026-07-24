@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { PageContent } from '@/components/layout/AppLayout';
+import MobileMenuButton from '@/components/layout/MobileMenuButton';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import SettingsSections, { SettingsDirtyProvider } from '@/components/settings/SettingsClientArea';
 import SystemSection from '@/components/settings/SystemSection';
@@ -93,10 +94,15 @@ export default async function AdminSettingsPage() {
         className="
           sticky top-0 z-30 flex h-[56px] flex-shrink-0 items-center justify-between
           border-b-[0.5px] border-[var(--color-border)]
-          bg-[var(--color-bg-surface)] px-6
+          bg-[var(--color-bg-surface)] px-4 sm:px-6
         "
       >
-        <h1 className="text-[15px] font-medium text-[var(--color-text-primary)]">Настройки</h1>
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <MobileMenuButton />
+          <h1 className="truncate text-[15px] font-medium text-[var(--color-text-primary)]">
+            Настройки
+          </h1>
+        </div>
 
         <div className="flex items-center gap-3">
           <NotificationBell />

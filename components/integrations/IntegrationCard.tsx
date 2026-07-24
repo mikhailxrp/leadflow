@@ -24,10 +24,10 @@ export default function IntegrationCard({
 }: IntegrationCardProps): ReactNode {
   return (
     <Card padding="none" className="p-6">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
+      <div className="mb-4 flex flex-wrap items-start gap-x-4 gap-y-3">
+        <div className="flex min-w-0 items-start gap-3">
           {icon}
-          <div>
+          <div className="min-w-0">
             <h2 className="text-[15px] font-medium text-[var(--color-text-primary)]">
               {title}
             </h2>
@@ -38,7 +38,7 @@ export default function IntegrationCard({
             )}
           </div>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-3">
+        <div className="ml-auto flex flex-shrink-0 items-center gap-3">
           {toggle}
           {badge}
         </div>

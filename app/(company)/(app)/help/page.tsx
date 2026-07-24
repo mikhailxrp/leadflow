@@ -53,7 +53,7 @@ export default function HelpOverviewPage(): ReactNode {
       <h2 className="mt-10 mb-4 text-[16px] font-semibold text-[var(--color-text-primary)]">
         Разделы
       </h2>
-      <div className="grid gap-3.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
         {HELP_DOCS.map((doc, i) => (
           <Link
             key={doc.slug}

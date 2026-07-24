@@ -40,7 +40,7 @@ export default function NotificationBell(): ReactNode {
           </span>
         }
       />
-      {open && <NotificationDropdown onClose={() => setOpen(false)} />}
+      {open && <NotificationDropdown anchorRef={containerRef} onClose={() => setOpen(false)} />}
     </div>
   );
 }

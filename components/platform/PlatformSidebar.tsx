@@ -4,11 +4,16 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon } from '@iconify/react';
 import type { PlatformRole } from '@prisma/client';
+import type { ReactNode } from 'react';
 import PlatformSignOutButton from '@/components/platform/PlatformSignOutButton';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 
 interface PlatformSidebarProps {
   role: PlatformRole;
+  /** Открыт ли мобильный drawer (управляется из PlatformShell). */
+  mobileOpen: boolean;
+  /** Закрыть мобильный drawer (клик по ссылке или затемнению). */
+  onClose: () => void;
 }
 
 const NAV_ITEMS = [
@@ -59,8 +64,15 @@ function linkClassName(active: boolean): string {
   `;
 }
 
-export default function PlatformSidebar({ role }: PlatformSidebarProps) {
-  const pathname = usePathname();
+function SidebarContent({
+  role,
+  pathname,
+  onNavigate,
+}: {
+  role: PlatformRole;
+  pathname: string;
+  onNavigate?: () => void;
+}): ReactNode {
   const visibleNavItems = NAV_ITEMS.filter((item) => {
     if ('superAdminOnly' in item && role !== 'SUPER_ADMIN') {
       return false;
@@ -72,7 +84,7 @@ export default function PlatformSidebar({ role }: PlatformSidebarProps) {
   });
 
   return (
-    <aside className="flex h-screen w-[220px] flex-shrink-0 flex-col bg-[#1A1F2E]">
+    <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 px-6 py-6">
         <div className="h-2.5 w-2.5 rounded-full bg-[#10B981]" />
         <span className="text-base font-medium tracking-wide text-white">
@@ -89,6 +101,7 @@ export default function PlatformSidebar({ role }: PlatformSidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={linkClassName(active)}
             >
               <Icon
@@ -108,6 +121,43 @@ export default function PlatformSidebar({ role }: PlatformSidebarProps) {
         </div>
         <PlatformSignOutButton />
       </div>
-    </aside>
+    </div>
+  );
+}
+
+export default function PlatformSidebar({
+  role,
+  mobileOpen,
+  onClose,
+}: PlatformSidebarProps): ReactNode {
+  const pathname = usePathname();
+
+  return (
+    <>
+      {/* Десктоп: постоянная колонка в потоке (≥ lg) */}
+      <aside className="hidden h-screen w-[220px] flex-shrink-0 flex-col bg-[#1A1F2E] lg:flex">
+        <SidebarContent role={role} pathname={pathname} />
+      </aside>
+
+      {/* Затемнение под мобильным drawer */}
+      {mobileOpen ? (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      ) : null}
+
+      {/* Мобильный drawer (< lg) */}
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-50 w-[220px] flex-col bg-[#1A1F2E]
+          transform transition-transform duration-300 lg:hidden
+          ${mobileOpen ? 'flex translate-x-0' : 'hidden -translate-x-full'}
+        `}
+      >
+        <SidebarContent role={role} pathname={pathname} onNavigate={onClose} />
+      </aside>
+    </>
   );
 }

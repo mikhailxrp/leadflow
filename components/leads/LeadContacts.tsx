@@ -68,9 +68,12 @@ export default function LeadContacts({ name, phone, email, createdAt }: LeadCont
   return (
     <Card padding="lg">
       <div className="mb-5 flex items-center gap-4">
-        <Avatar initials={getInitials(name)} size="lg" className="h-14 w-14 text-[15px]" />
-        <div>
-          <p className="text-[18px] font-medium text-[var(--color-text-primary)]">
+        {/* Аватар скрыт на узких экранах (< sm), чтобы имя лида помещалось по всей ширине карточки */}
+        <div className="hidden shrink-0 sm:block">
+          <Avatar initials={getInitials(name)} size="lg" className="h-14 w-14 text-[15px]" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[18px] font-medium text-[var(--color-text-primary)] break-words">
             {name ?? <span className="text-[var(--color-text-tertiary)]">Без имени</span>}
           </p>
           <p className="text-[13px] text-[var(--color-text-tertiary)]">

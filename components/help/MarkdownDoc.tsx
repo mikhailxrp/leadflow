@@ -113,7 +113,7 @@ const components: Components = {
     if (onlyImg) return <>{children}</>;
 
     return (
-      <p className="my-4 text-[14.5px] leading-[1.75] text-[var(--color-text-primary)]">
+      <p className="my-4 break-words text-[14.5px] leading-[1.75] text-[var(--color-text-primary)]">
         {children}
       </p>
     );
@@ -121,7 +121,7 @@ const components: Components = {
   a({ href, children }) {
     const h = href ?? '';
     const linkClass =
-      'font-medium text-[var(--color-primary)] underline decoration-[var(--color-primary)]/30 underline-offset-2 transition-colors hover:decoration-[var(--color-primary)]';
+      'font-medium break-words text-[var(--color-primary)] underline decoration-[var(--color-primary)]/30 underline-offset-2 transition-colors hover:decoration-[var(--color-primary)]';
 
     if (/^https?:\/\//.test(h)) {
       return (
@@ -165,7 +165,7 @@ const components: Components = {
     );
   },
   li({ children }) {
-    return <li className="pl-1">{children}</li>;
+    return <li className="break-words pl-1">{children}</li>;
   },
   blockquote({ children }) {
     const callout = classifyCallout(nodeText(children));
@@ -212,7 +212,7 @@ const components: Components = {
       return <code className="font-mono text-[12.5px] leading-[1.6]">{children}</code>;
     }
     return (
-      <code className="rounded-[4px] bg-[var(--color-bg-surface-2)] px-1.5 py-0.5 font-mono text-[12.5px] text-[var(--color-primary)]">
+      <code className="break-words rounded-[4px] bg-[var(--color-bg-surface-2)] px-1.5 py-0.5 font-mono text-[12.5px] text-[var(--color-primary)]">
         {children}
       </code>
     );

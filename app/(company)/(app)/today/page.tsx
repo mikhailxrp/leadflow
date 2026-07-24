@@ -65,10 +65,12 @@ export default async function TodayPage(): Promise<JSX.Element> {
         actions={
           <>
             <NotificationBell />
-            <time className="text-[13px] text-[var(--color-text-secondary)]">
+            <time className="hidden text-[13px] text-[var(--color-text-secondary)] sm:inline">
               {formattedDate}
             </time>
-            <Avatar initials={userInitials} src={dbUser?.avatarUrl ?? undefined} size="sm" />
+            <span className="hidden sm:inline-flex">
+              <Avatar initials={userInitials} src={dbUser?.avatarUrl ?? undefined} size="sm" />
+            </span>
             <LogoutButton />
           </>
         }

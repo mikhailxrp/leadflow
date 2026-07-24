@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
+import MobileMenuButton from '@/components/layout/MobileMenuButton';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import HelpNav, { type HelpNavItem } from '@/components/help/HelpNav';
 import { HELP_DOCS } from '@/lib/help/content';
@@ -31,9 +32,10 @@ export default async function HelpLayout({
           bg-[var(--color-bg-surface)] px-4 sm:px-6
         "
       >
-        <div className="flex items-center gap-2 text-[var(--color-text-primary)]">
+        <div className="flex min-w-0 items-center gap-2 text-[var(--color-text-primary)]">
+          <MobileMenuButton />
           <Icon icon="lucide:life-buoy" className="h-[18px] w-[18px] text-[var(--color-primary)]" />
-          <span className="text-[15px] font-semibold">Помощь</span>
+          <span className="truncate text-[15px] font-semibold">Помощь</span>
         </div>
         {showBell && (
           <div className="flex items-center gap-3">

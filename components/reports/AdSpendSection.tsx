@@ -207,63 +207,96 @@ export default function AdSpendSection(): ReactNode {
 
       {records === null ? (
         <TableSkeleton />
+      ) : records.length === 0 ? (
+        <Card padding="lg">
+          <p className="text-center text-[14px] text-[var(--color-text-secondary)]">
+            Расходы на рекламу ещё не внесены
+          </p>
+        </Card>
       ) : (
-        <Card padding="none">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] border-collapse">
+        <>
+          {/* Десктоп (≥ lg): таблица. w-full без min-width — без горизонтальной прокрутки. */}
+          <Card padding="none" className="hidden overflow-hidden lg:block">
+            <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b-[0.5px] border-[var(--color-border)]">
-                  {['МЕСЯЦ', 'РАСХОД С НДС', 'ЗАМЕТКА', ''].map((column) => (
-                    <th
-                      key={column}
-                      className="px-4 py-3 text-left text-[11px] font-medium tracking-[0.05em] text-[var(--color-text-secondary)] uppercase"
-                    >
-                      {column}
-                    </th>
-                  ))}
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.05em] text-[var(--color-text-secondary)]">
+                    Месяц
+                  </th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.05em] text-[var(--color-text-secondary)]">
+                    Расход с НДС
+                  </th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.05em] text-[var(--color-text-secondary)]">
+                    Заметка
+                  </th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
-                {records.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="px-4 py-8 text-center text-[14px] text-[var(--color-text-secondary)]"
-                    >
-                      Расходы на рекламу ещё не внесены
+                {records.map((record) => (
+                  <tr
+                    key={record.id}
+                    className="
+                      border-b-[0.5px] border-[var(--color-border)]
+                      last:border-0 transition-colors duration-150
+                      hover:bg-[var(--color-bg-surface-2)]
+                    "
+                  >
+                    <td className="px-4 py-3 text-[14px] font-medium text-[var(--color-text-primary)]">
+                      {monthLabel(record.month)} {record.year}
+                    </td>
+                    <td className="px-4 py-3 text-[13px] tabular-nums text-[var(--color-text-secondary)]">
+                      {formatAmount(record.amountWithVat)}
+                    </td>
+                    <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
+                      {record.note ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button variant="ghost" size="sm" onClick={() => startEdit(record)}>
+                        Изменить
+                      </Button>
                     </td>
                   </tr>
-                ) : (
-                  records.map((record) => (
-                    <tr
-                      key={record.id}
-                      className="
-                        border-b-[0.5px] border-[var(--color-border)]
-                        last:border-0 transition-colors duration-150
-                        hover:bg-[var(--color-bg-surface-2)]
-                      "
-                    >
-                      <td className="px-4 py-3 text-[14px] font-medium text-[var(--color-text-primary)]">
-                        {monthLabel(record.month)} {record.year}
-                      </td>
-                      <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
-                        {formatAmount(record.amountWithVat)}
-                      </td>
-                      <td className="px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">
-                        {record.note ?? '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button variant="ghost" size="sm" onClick={() => startEdit(record)}>
-                          Изменить
-                        </Button>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
+          </Card>
+
+          {/* Мобильные/планшет (< lg): карточки — как в остальных отчётах. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
+            {records.map((record) => (
+              <div
+                key={record.id}
+                className="rounded-lg border-[0.5px] border-[var(--color-border)] bg-[var(--color-bg-surface)] p-4"
+              >
+                <div className="mb-3 flex items-center justify-between gap-3 border-b-[0.5px] border-[var(--color-border)] pb-3">
+                  <span className="text-[15px] font-medium text-[var(--color-text-primary)]">
+                    {monthLabel(record.month)} {record.year}
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={() => startEdit(record)}>
+                    Изменить
+                  </Button>
+                </div>
+                <dl className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-[13px] text-[var(--color-text-secondary)]">Расход с НДС</dt>
+                    <dd className="text-[14px] font-medium tabular-nums text-[var(--color-text-primary)]">
+                      {formatAmount(record.amountWithVat)}
+                    </dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <dt className="flex-shrink-0 text-[13px] text-[var(--color-text-secondary)]">
+                      Заметка
+                    </dt>
+                    <dd className="min-w-0 break-words text-right text-[13px] text-[var(--color-text-primary)]">
+                      {record.note ?? '—'}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            ))}
           </div>
-        </Card>
+        </>
       )}
 
       {toast && <Toast title={toast} onClose={() => setToast(null)} />}

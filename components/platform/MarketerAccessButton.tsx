@@ -6,10 +6,12 @@ import Button from '@/components/ui/Button';
 
 interface MarketerAccessButtonProps {
   companyId: string;
+  className?: string;
 }
 
 export default function MarketerAccessButton({
   companyId,
+  className,
 }: MarketerAccessButtonProps): ReactNode {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -46,6 +48,7 @@ export default function MarketerAccessButton({
       size="sm"
       disabled={isLoading}
       onClick={handleClick}
+      className={className}
     >
       {isLoading ? 'Вход…' : 'Войти в компанию'}
     </Button>

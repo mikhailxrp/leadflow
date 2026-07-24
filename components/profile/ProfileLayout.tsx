@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { PageContent } from '@/components/layout/AppLayout';
 import LogoutButton from '@/components/layout/LogoutButton';
+import MobileMenuButton from '@/components/layout/MobileMenuButton';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import ContactsSection from '@/components/profile/ContactsSection';
 import PersonalSection from '@/components/profile/PersonalSection';
@@ -95,24 +96,27 @@ export default function ProfileLayout({ profile: initialProfile }: ProfileLayout
         className="
           sticky top-0 z-30 flex h-[56px] flex-shrink-0 items-center justify-between
           border-b-[0.5px] border-[var(--color-border)]
-          bg-[var(--color-bg-surface)] px-6
+          bg-[var(--color-bg-surface)] px-4 sm:px-6
         "
       >
-        <nav
-          className="text-[13px] text-[var(--color-text-secondary)]"
-          aria-label="Хлебные крошки"
-        >
-          Настройки › Профиль пользователя
-        </nav>
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <MobileMenuButton />
+          <nav
+            className="truncate text-[13px] text-[var(--color-text-secondary)]"
+            aria-label="Хлебные крошки"
+          >
+            Настройки › Профиль пользователя
+          </nav>
+        </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-shrink-0 items-center gap-3">
           <NotificationBell />
           <LogoutButton />
         </div>
       </header>
 
       <PageContent>
-        <div className="flex flex-row items-start gap-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
           <ProfileSidebar profile={profile} onAvatarChange={handleAvatarChange} />
 
           <div className="flex flex-1 flex-col gap-4">

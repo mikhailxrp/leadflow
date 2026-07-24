@@ -5,6 +5,7 @@ import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { MobileCard, MobileCardRow } from '@/components/platform/MobileCard';
 import { createMarketerSchema } from '@/lib/validations/platform';
 import type { MarketerActivityItem } from '@/types/platform';
 
@@ -208,7 +209,7 @@ export default function MarketersTable({
   );
 
   return (
-    <main className="px-6 py-8">
+    <main className="px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-[20px] font-medium text-[var(--color-text-primary)]">
           Маркетологи
@@ -239,14 +240,71 @@ export default function MarketersTable({
           Маркетологи не найдены
         </p>
       ) : (
-        <div
-          className="
-            overflow-x-auto rounded-[14px]
-            border border-[0.5px] border-[var(--color-border)]
-            bg-[var(--color-bg-surface)]
-          "
-        >
-          <table className="w-full min-w-[940px] text-left">
+        <>
+          {/* Мобильные карточки (< lg) */}
+          <div className="flex flex-col gap-3 xl:hidden">
+            {sortedMarketers.map((marketer) => {
+              const isToggling = pendingToggleIds.has(marketer.id);
+
+              return (
+                <MobileCard key={marketer.id}>
+                  <Link
+                    href={`/platform/marketers/${marketer.id}`}
+                    className="block"
+                  >
+                    <div className="mb-3 flex items-start justify-between gap-2">
+                      <p className="break-words text-[15px] font-medium text-[var(--color-text-primary)]">
+                        {marketer.name}
+                      </p>
+                      <span className="flex-shrink-0 text-[13px]">
+                        <StatusLabel marketer={marketer} />
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <MobileCardRow label="Email">
+                        <span className="break-all">{marketer.email}</span>
+                      </MobileCardRow>
+                      <MobileCardRow label="Телефон">
+                        {marketer.phone || '—'}
+                      </MobileCardRow>
+                      <MobileCardRow label="Компаний создано">
+                        {marketer.companiesCreated}
+                      </MobileCardRow>
+                      <MobileCardRow label="Последний вход">
+                        {formatDate(marketer.lastLoginAt)}
+                      </MobileCardRow>
+                    </div>
+                  </Link>
+                  <div className="mt-4 border-t border-[0.5px] border-[var(--color-border)] pt-4">
+                    <Button
+                      type="button"
+                      variant={marketer.isActive ? 'danger' : 'secondary'}
+                      size="sm"
+                      disabled={isToggling}
+                      onClick={() => handleToggleActive(marketer)}
+                      className="w-full"
+                    >
+                      {isToggling
+                        ? 'Обновление…'
+                        : marketer.isActive
+                          ? 'Заблокировать'
+                          : 'Разблокировать'}
+                    </Button>
+                  </div>
+                </MobileCard>
+              );
+            })}
+          </div>
+
+          {/* Таблица (≥ lg) */}
+          <div
+            className="
+              hidden overflow-x-auto rounded-[14px]
+              border border-[0.5px] border-[var(--color-border)]
+              bg-[var(--color-bg-surface)] xl:block
+            "
+          >
+            <table className="w-full min-w-[940px] text-left">
             <thead>
               <tr className="border-b border-[0.5px] border-[var(--color-border)]">
                 {[
@@ -350,8 +408,9 @@ export default function MarketersTable({
                 );
               })}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+        </>
       )}
 
       {isModalOpen && (
